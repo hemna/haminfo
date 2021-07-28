@@ -1,0 +1,15 @@
+click
+click-completion
+flask
+flask-classful
+flask-httpauth
+opencage
+pluggy
+pbr
+pyyaml
+# Allowing a newer version can lead to a conflict with
+# requests.
+pytz
+requests
+thesmuggler
+update_checker
