@@ -13,3 +13,10 @@ pytz
 requests
 thesmuggler
 update_checker
+sqlalchemy
+psycopg2
+GeoAlchemy2
+oslo.config
+oslo.log
+yaspin
+tabulate
