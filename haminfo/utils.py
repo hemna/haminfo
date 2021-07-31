@@ -7,19 +7,26 @@ import traceback
 import yaspin
 import colorsys
 from pathlib import Path
+from logging import NullHandler
+import logging as py_logging
 
 from oslo_config import cfg
 from oslo_log import log as logging
 
 
-LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 DOMAIN = "haminfo"
-
 home = str(Path.home())
 DEFAULT_CONFIG_DIR = "{}/.config/haminfo/".format(home)
-DEFAULT_CONFIG_FILE = "{}/.config/haminfo/haminfo.cfg".format(home)
+DEFAULT_CONFIG_FILE = "{}/.config/haminfo/haminfo.conf".format(home)
 
+LOG_LEVELS = {
+    "CRITICAL": logging.CRITICAL,
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+}
 
 
 def setup_logging():
@@ -32,9 +39,6 @@ def setup_logging():
     * logging.setup
     """
 
-    # Required step to register common, logging and generic configuration
-    # variables
-    logging.register_options(CONF)
 
     # Optional step to set new defaults if necessary for
     # * logging_context_format_string
@@ -46,21 +50,39 @@ def setup_logging():
     #  oslo_log._options.DEFAULT_LOG_LEVELS
     #  oslo_log._options.log_opts[0].default
     #
+    existing = logging.get_default_log_levels()
+    print("Default log levels {}".format(existing))
 
     extra_log_level_defaults = [
-        'dogpile=INFO',
-        'routes=INFO'
+        'haminfo=WARN',
+        'sqlalchemy=FATAL',
+        'sqlalchemy.engine.Engine=FATAL',
+        'oslo.messaging=WARN',
+        'oslo_messaging=WARN',
+        'haminfo=DEBUG',
         ]
+    new = []
 
-    logging.set_defaults(
-        default_log_levels=logging.get_default_log_levels() +
-        extra_log_level_defaults)
+    exist_dict = {}
+    for entry in existing:
+        e_arr = entry.split('=')
+        exist_dict[e_arr[0]] = e_arr[1]
 
-    # Required setup based on configuration and domain
+    for entry in extra_log_level_defaults:
+        e_arr = entry.split('=')
+        exist_dict[e_arr[0]] = e_arr[1]
+
+    for key in exist_dict:
+        new.append("{}={}".format(key, exist_dict[key]))
+
+    #print("NEW ? {}".format(new))
+
+    logging.set_defaults(default_log_levels=new)
+    #print("NEW Default log levels {}".format(logging.get_default_log_levels()))
+
+    # Required step to register common, logging and generic configuration
+    # variables
     logging.setup(CONF, DOMAIN)
-
-
-
 
 
 class Spinner:
