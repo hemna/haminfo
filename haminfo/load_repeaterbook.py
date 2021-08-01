@@ -45,8 +45,8 @@ def fetch_repeaters(sp, url, session):
         print("Failed to fetch repeaters {}".format(resp.status_code))
         return
 
-    # print("{}".format(resp.json()))
     repeater_json = resp.json()
+
     count = 0
     if "count" in repeater_json and repeater_json["count"] > 0:
         sp.write("Found {} repeaters to load".format(
@@ -63,9 +63,10 @@ def fetch_repeaters(sp, url, session):
                     repeater['State'])
                 repeater_obj = db.Station._from_json(repeater)
                 session.add(repeater_obj)
+                session.commit()
             time.sleep(0.001)
             count -= 1
-    session.commit()
+    #session.commit()
     return count
 
 
@@ -84,12 +85,19 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
     if state:
         sp.write("Fetching US State of {}".format(state))
         delete_state_repeaters(state, session)
-        count = fetch_repeaters(sp, url.format(state), session)
+        try:
+            count = fetch_repeaters(sp, url.format(state), session)
+        except Exception as ex:
+            LOG.error("Failed to fetch {}".format(state))
+            raise ex
     else:
         for state in state_names:
             delete_state_repeaters(state, session)
             sp.write("Fetching US State of {}".format(state))
-            count += fetch_repeaters(sp, url.format(state), session)
+            try:
+                count += fetch_repeaters(sp, url.format(state), session)
+            except Exception as ex:
+                LOG.error("Failed to fetch {}".format(state))
     return count
 
 
@@ -168,8 +176,9 @@ def main(disable_spinner, config_file, loglevel, init_db, force):
     session = Session()
 
     count = 0
+    cnt = 0
     with utils.Spinner.get(text="Load and insert repeaters!!!") as sp:
-        cnt = fetch_USA_repeaters_by_state(sp, session, "Wisconsin")
+        #cnt = fetch_USA_repeaters_by_state(sp, session, "Wisconsin")
         #cnt = fetch_USA_repeaters_by_state(sp, session, "Virginia")
         #count += cnt
         #sp.text = "Virginia completed {}".format(cnt)
@@ -180,6 +189,23 @@ def main(disable_spinner, config_file, loglevel, init_db, force):
         #time.sleep(1)
         #cnt = fetch_USA_repeaters_by_state(sp, session, "North Carolina")
         count += cnt
+
+    #my pad
+    lon = -78.84950
+    lat = 37.34433
+    # cool, ca
+    lon = -121.0250012
+    lat = 38.8880406
+
+    #loon lake
+    #lon = -120.296776
+    #lat = 38.9987271
+    query = db.find_nearest_to(session, lat, lon)
+
+    for st, distance, az in query:
+        degrees = az * 57.3
+        cardinal = utils.degrees_to_cardinal(degrees)
+        print("{} {:.2f} {:.2f} {}".format(st, distance / 1609, degrees, cardinal))
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

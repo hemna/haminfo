@@ -85,6 +85,12 @@ def setup_logging():
     logging.setup(CONF, DOMAIN)
 
 
+def degrees_to_cardinal(degrees):
+    dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    ix = round(degrees / (360. / len(dirs)))
+    return dirs[ix % len(dirs)]
+
+
 class Spinner:
     enabled = True
     random = True

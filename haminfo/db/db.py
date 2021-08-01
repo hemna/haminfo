@@ -1,9 +1,9 @@
 from oslo_config import cfg
 from oslo_log import log as logging
-from sqlalchemy import create_engine
-from sqlalchemy import Boolean, Column, Date, Float, Integer, String
+from sqlalchemy import create_engine, func
+from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Sequence
 from sqlalchemy.orm import declarative_base
-from geoalchemy2 import Geometry
+from geoalchemy2 import Geometry, Geography
 from sqlalchemy.orm import sessionmaker
 
 #LOG = logging.getLogger(__name__)
@@ -28,9 +28,24 @@ CONF.register_opts(database_opts, group="database")
 Base = declarative_base()
 
 
+def init_db_schema(engine):
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+
+def setup_connection():
+    connection_str = 'postgresql://haminfo:haminfo@192.168.1.5/haminfo'
+    #engine = create_engine('sqlite:///:memory:', echo=True)
+    engine = create_engine(connection_str, echo=False)
+    return engine
+
+def setup_session(engine):
+    return sessionmaker(bind=engine)
+
+
 class Station(Base):
     __tablename__ = 'station'
 
+    id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
     state_id = Column(String, primary_key=True)
     repeater_id = Column(Integer, primary_key=True)
     last_update = Column(Date)
@@ -39,7 +54,7 @@ class Station(Base):
     offset = Column(String)
     lat = Column(Float)
     long = Column(Float)
-    point = Column(Geometry('POINT'))
+    location = Column(Geography('POINT'))
     uplink_offset = Column(String)
     downlink_offset = Column(String)
     uplink_tone = Column(Float)
@@ -64,6 +79,10 @@ class Station(Base):
     dmr = Column(Boolean)
     dstar = Column(Boolean)
 
+    def __repr__(self):
+        return "<Station(callsign='{}', freq='{}', offset='{}', country='{}', state='{}', county='{}')>".format(
+                 self.callsign, self.frequency, self.offset, self.country, self.state, self.county)
+
     @staticmethod
     def _from_json(r_json):
 
@@ -85,7 +104,7 @@ class Station(Base):
                      offset=offset,
                      uplink_offset=r_json["PL"], downlink_offset=r_json["TSQ"],
                      lat=r_json["Lat"], long=r_json["Long"],
-                     point="POINT({} {})".format(r_json['Lat'], r_json['Long']),
+                     location="POINT({} {})".format(r_json['Long'], r_json['Lat']),
                      callsign=r_json["Callsign"],
                      country=r_json["Country"], state=r_json["State"], county=r_json["County"],
                      nearest_city=r_json["Nearest City"], landmark=r_json["Landmark"],
@@ -97,15 +116,21 @@ class Station(Base):
                      dmr=_bool(r_json["DMR"]), dstar=_bool(r_json["D-Star"]))
         return st
 
-def init_db_schema(engine):
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
 
-def setup_connection():
-    connection_str = 'postgresql://haminfo:haminfo@192.168.1.5/haminfo'
-    #engine = create_engine('sqlite:///:memory:', echo=True)
-    engine = create_engine(connection_str, echo=False)
-    return engine
 
-def setup_session(engine):
-    return sessionmaker(bind=engine)
+def find_nearest_to(session, lat, lon):
+    poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
+    poi_point = func.ST_Point(lon, lat)
+    query = session.query(
+        Station,
+        func.ST_Distance(Station.location, poi).label('distance'),
+        func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)).label('bearing')
+    ).order_by(
+        Station.location.distance_centroid(poi)
+    ).limit(3)
+    #SELECT station.id, station.callsign, station.landmark, station.nearest_city, station.county,
+    #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') / 1609 as dist
+    #FROM station ORDER BY
+    #    station.location <-> 'SRID=4326;POINT(-78.84950 37.34433)'::geometry
+    #LIMIT 10;
+    return query
