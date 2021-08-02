@@ -3,10 +3,12 @@ from oslo_log import log as logging
 from sqlalchemy import create_engine, func
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Sequence
 from sqlalchemy.orm import declarative_base
-from geoalchemy2 import Geometry, Geography
+from geoalchemy2 import Geography
 from sqlalchemy.orm import sessionmaker
 
-#LOG = logging.getLogger(__name__)
+from haminfo import utils
+
+LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 grp = cfg.OptGroup('database')
@@ -32,11 +34,13 @@ def init_db_schema(engine):
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
+
 def setup_connection():
     connection_str = 'postgresql://haminfo:haminfo@192.168.1.5/haminfo'
-    #engine = create_engine('sqlite:///:memory:', echo=True)
+    # engine = create_engine('sqlite:///:memory:', echo=True)
     engine = create_engine(connection_str, echo=False)
     return engine
+
 
 def setup_session(engine):
     return sessionmaker(bind=engine)
@@ -49,16 +53,17 @@ class Station(Base):
     state_id = Column(String, primary_key=True)
     repeater_id = Column(Integer, primary_key=True)
     last_update = Column(Date)
-    frequency = Column(String)
-    input_frequency = Column(String)
-    offset = Column(String)
+    frequency = Column(Float(decimal_return_scale=3))
+    input_frequency = Column(Float(decimal_return_scale=3))
+    freq_band = Column(String)
+    offset = Column(Float(decimal_return_scale=3))
     lat = Column(Float)
     long = Column(Float)
     location = Column(Geography('POINT'))
     uplink_offset = Column(String)
     downlink_offset = Column(String)
-    uplink_tone = Column(Float)
-    downlink_tone = Column(Float)
+    uplink_tone = Column(Float(decimal_return_scale=2))
+    downlink_tone = Column(Float(decimal_return_scale=2))
     nearest_city = Column(String)
     landmark = Column(String)
     country = Column(String)
@@ -83,6 +88,21 @@ class Station(Base):
         return "<Station(callsign='{}', freq='{}', offset='{}', country='{}', state='{}', county='{}')>".format(
                  self.callsign, self.frequency, self.offset, self.country, self.state, self.county)
 
+    def to_dict(self):
+        dict_ = {}
+        for key in self.__mapper__.c.keys():
+            # LOG.debug("KEY {}".format(key))
+            if key == 'last_update':
+                dict_[key] = str(getattr(self, key))
+            elif key == "offset":
+                dict_[key] = "{:.2f}".format(float(getattr(self, key)))
+            elif key == 'location':
+                # don't include this.
+                pass
+            else:
+                dict_[key] = getattr(self, key)
+        return dict_
+
     @staticmethod
     def _from_json(r_json):
 
@@ -98,10 +118,13 @@ class Station(Base):
 
         offset = float(r_json["Input Freq"]) - float(r_json["Frequency"])
 
+        freq_band = utils.frequency_band_mhz(float(r_json["Frequency"]))
+        LOG.error("Freq {}  band {}".format(r_json["Frequency"], freq_band))
+
         st = Station(state_id=r_json["State ID"], repeater_id=r_json["Rptr ID"],
                      last_update=r_json["Last Update"],
                      frequency=r_json["Frequency"], input_frequency=r_json["Input Freq"],
-                     offset=offset,
+                     offset=offset, freq_band=freq_band,
                      uplink_offset=r_json["PL"], downlink_offset=r_json["TSQ"],
                      lat=r_json["Lat"], long=r_json["Long"],
                      location="POINT({} {})".format(r_json['Long'], r_json['Lat']),
@@ -117,17 +140,18 @@ class Station(Base):
         return st
 
 
-
-def find_nearest_to(session, lat, lon):
+def find_nearest_to(session, lat, lon, freq_band="2m", limit=1):
     poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
     poi_point = func.ST_Point(lon, lat)
     query = session.query(
         Station,
         func.ST_Distance(Station.location, poi).label('distance'),
         func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)).label('bearing')
+    ).filter(
+        Station.freq_band==freq_band
     ).order_by(
         Station.location.distance_centroid(poi)
-    ).limit(3)
+    ).limit(limit)
     #SELECT station.id, station.callsign, station.landmark, station.nearest_city, station.county,
     #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') / 1609 as dist
     #FROM station ORDER BY

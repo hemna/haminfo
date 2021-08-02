@@ -28,6 +28,31 @@ LOG_LEVELS = {
     "DEBUG": logging.DEBUG,
 }
 
+# create from
+# http://www.arrl.org/band-plan
+FREQ_BAND_PLAN = {
+    "160m": {"desc": "160 Meters (1.8-2.0 MHz)", "low": 1.8, "high": 2.0},
+    "80m": {"desc": "80 Meters (3.5-4.0 MHz)", "low": 3.5, "high": 4.0},
+    "60m": {"desc": "60 Meters (5 MHz channels)", "low": 5.0, "high": 5.9},
+    "40m": {"desc": "40 Meters (7.0 - 7.3 MHz)", "low": 7.0, "high": 7.3},
+    "30m": {"desc": "30 Meters(10.1 - 10.15 MHz)", "low": 10.1, "high": 10.15},
+    "20m": {"desc": "20 Meters(14.0 - 14.35 MHz)", "low": 14.0, "high": 14.35},
+    "17m": {"desc": "17 Meters(18.068 - 18.168 MHz)", "low": 18.068, "high": 18.168},
+    "15m": {"desc": "15 Meters(21.0 - 21.45 MHz)", "low": 21.0, "high": 21.45},
+    "12m": {"desc": "12 Meters(24.89 - 24.99 MHz)", "low": 24.89, "high": 24.99},
+    "10m": {"desc": "10 Meters(28 - 29.7 MHz)", "low": 28.0, "high": 29.7},
+    "6m": {"desc": "6 Meters(50 - 54 MHz)", "low": 50.0, "high": 54.0},
+    "2m": {"desc": "2 Meters(144 - 148 MHz)", "low": 144.0, "high": 148.0},
+    "1.25m": {"desc": "1.25 Meters(222 - 225 MHz)", "low": 222.0, "high": 225.0},
+    "70cm": {"desc": "70 Centimeters(420 - 450 MHz)", "low": 420.0, "high": 450},
+    "33cm": {"desc": "33 Centimeters(902 - 928 MHz)", "low": 902.0, "high": 928},
+    "23cm": {"desc": "23 Centimeters(1240 - 1300 MHz)", "low": 1240.0, "high": 1300.0},
+    "13cm": {"desc": "13 Centimeters(2300 - 2310 and 2390 - 2450 MHz)", "low": 2300.0, "high": 2450.0},
+    "9cm": {"desc": "9 centimeters(3300-3500 MHz)", "low": 3300.0, "high": 3500.0},
+    "5cm": {"desc": "5 Centimeters(5650.0 - 5925.0 MHz)", "low": 5650.0, "high": 5290.0},
+    "3cm": {"desc": "3 Centimeters(10000.000 - 10500.000 MHz )", "low": 10000.0, "high": 10500.0}
+}
+
 
 def setup_logging():
     """Prepare Oslo Logging (2 or 3 steps)
@@ -89,6 +114,19 @@ def degrees_to_cardinal(degrees):
     dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
     ix = round(degrees / (360. / len(dirs)))
     return dirs[ix % len(dirs)]
+
+
+def frequency_band_mhz(freq):
+    """Convert frequency in hz to Band length.
+
+       Created from: http://www.arrl.org/band-plan
+    """
+    print("Look for {}".format(freq))
+    for band in FREQ_BAND_PLAN:
+        if (freq > FREQ_BAND_PLAN[band]["low"] and
+                freq < FREQ_BAND_PLAN[band]["high"]):
+            print("found band {}".format(band))
+            return band
 
 
 class Spinner:

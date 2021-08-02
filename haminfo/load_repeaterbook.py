@@ -189,6 +189,11 @@ def main(disable_spinner, config_file, loglevel, init_db, force):
         #time.sleep(1)
         #cnt = fetch_USA_repeaters_by_state(sp, session, "North Carolina")
         count += cnt
+        try:
+            cnt = fetch_USA_repeaters_by_state(sp, session)
+        except Exception as ex:
+            LOG.error("Failed to fetch state")
+
 
     #my pad
     lon = -78.84950
