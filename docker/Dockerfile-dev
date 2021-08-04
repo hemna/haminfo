@@ -1,0 +1,51 @@
+FROM python:3.8-slim as haminfo
+
+# Dockerfile for building a container during aprsd development.
+ARG BRANCH
+ARG UID
+ARG GID
+
+ENV CONTAINER_USER=haminfo
+ENV APP_NAME=haminfo
+ENV HOME=/home/haminfo
+ENV APP_GIT=http://github.com/hemna/haminfo.git
+ENV APP_BRANCH=${BRANCH:-master}
+ENV VIRTUAL_ENV=$HOME/.venv3
+ENV UID=${UID:-1000}
+ENV GID=${GID:-1000}
+
+ENV INSTALL=$HOME/install
+RUN apt update
+RUN apt install -y git build-essential
+RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev 
+RUN apt install -y bash bash-completion zsh 
+
+RUN addgroup --gid 1001 $CONTAINER_USER
+RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+USER $CONTAINER_USER
+RUN pip3 install wheel
+#RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN echo "export PATH=\$PATH:\$HOME/.local/bin" >> $HOME/.bashrc
+
+USER root
+WORKDIR $HOME
+RUN mkdir $INSTALL
+RUN git clone -b $APP_BRANCH $APP_GIT $INSTALL/haminfo
+RUN cd $INSTALL/haminfo && pip3 install .
+RUN which haminfo
+RUN mkdir -p /config
+RUN oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
+RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
+
+# override this to run another configuration
+ENV CONF default
+USER $CONTAINER_USER
+VOLUME ["/config"]
+
+ADD bin/run.sh $HOME/
+ENTRYPOINT ["/home/haminfo/run.sh"]

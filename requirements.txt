@@ -14,7 +14,7 @@ requests
 thesmuggler
 update_checker
 sqlalchemy
-psycopg2
+psycopg2>=2.9.0
 GeoAlchemy2
 oslo.config
 oslo.log
