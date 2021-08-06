@@ -2,14 +2,13 @@ import click
 import json
 import logging as python_logging
 import sys
-
+from functools import wraps
 import flask
 import flask_classful
-from flask import request
+from flask import abort, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
-from werkzeug.security import check_password_hash
 
 import haminfo
 from haminfo import utils
@@ -25,12 +24,6 @@ logging.register_options(CONF)
 grp = cfg.OptGroup('web')
 cfg.CONF.register_group(grp)
 web_opts = [
-    cfg.StrOpt('user',
-               help='The API user for auth',
-               ),
-    cfg.StrOpt('password',
-               help='The API users password for auth',
-               ),
     cfg.StrOpt('host_ip',
                default='0.0.0.0',
                help='The hostname/ip address to listen on'
@@ -38,32 +31,48 @@ web_opts = [
     cfg.IntOpt('host_port',
                default=80,
                help='The port to listen on for requests'
-               )
+               ),
+    cfg.StrOpt('api_key',
+               default='abcdefg',
+               help='The api key to allow requests incoming.'
+               ),
 ]
 
 CONF.register_opts(web_opts, group="web")
 
+API_KEY_HEADER = "X-Api-Key"
 
-# HTTPBasicAuth doesn't work on a class method.
-# This has to be out here.  Rely on the APRSDFlask
-# class to initialize the users from the config
-@auth.verify_password
-def verify_password(username, password):
-    global users
+# TODO(waboring) add real users and user management
+# and api key token creation
+# For now, we hard code a token in the config file
+# that needs to be sent along in the request header
+# as X-Api-Key: <token>
 
-    if (username in users and
-            check_password_hash(users.get(username), password)):
-        return username
+
+# The actual decorator function
+def require_appkey(view_function):
+    @wraps(view_function)
+    # the new, post-decoration function. Note *args and **kwargs here.
+    def decorated_function(*args, **kwargs):
+        headers = request.headers
+        apikey = headers.get(API_KEY_HEADER, None)
+        if not apikey:
+            return jsonify({"message": "ERROR: Unauthorized"}), 401
+
+        if apikey == CONF.web.api_key:
+            return view_function(*args, **kwargs)
+        else:
+            abort(401)
+    return decorated_function
 
 
 class HaminfoFlask(flask_classful.FlaskView):
 
     def _get_db_session(self):
         engine = db.setup_connection()
-        Session = db.setup_session(engine)
-        return Session()
+        session = db.setup_session(engine)
+        return session()
 
-    @auth.login_required
     def index(self):
         LOG.debug("INDEX")
         return flask.render_template(
@@ -72,6 +81,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             config_json=json.dumps(CONF),
         )
 
+    @require_appkey
     def nearest(self):
         LOG.debug("Lat {}".format(request.args.get('lat')))
         LOG.debug("Lon {}".format(request.args.get('lon')))
@@ -125,6 +135,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     help="The log level to use for aprsd.log",
 )
 def main(config_file, loglevel):
+    conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:
@@ -132,8 +143,11 @@ def main(config_file, loglevel):
 
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
-
     utils.setup_logging()
+
+    LOG.info("haminfo_api version: {}".format(haminfo.__version__))
+    LOG.info("using config file {}".format(conf_file))
+
     CONF.log_opt_values(LOG, utils.LOG_LEVELS[loglevel])
 
     flask_app = flask.Flask(
@@ -145,7 +159,6 @@ def main(config_file, loglevel):
 
     server = HaminfoFlask()
     flask_app.route("/", methods=["GET"])(server.index)
-    flask_app.route("/stats", methods=["GET"])(server.stats)
     flask_app.route("/nearest", methods=["POST"])(server.nearest)
     flask_app.run(
             host=CONF.web.host_ip,

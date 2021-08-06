@@ -176,7 +176,7 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
 def main(disable_spinner, config_file, log_level, init_db, force):
     global LOG, CONF
 
-    click.echo("config_file = {}".format(config_file))
+    conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:
@@ -185,6 +185,9 @@ def main(disable_spinner, config_file, log_level, init_db, force):
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
     utils.setup_logging()
+
+    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info("using config file {}".format(conf_file))
 
     if CONF.debug and log_level == "DEBUG":
         CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
