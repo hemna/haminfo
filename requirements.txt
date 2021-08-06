@@ -20,3 +20,4 @@ oslo.config
 oslo.log
 yaspin
 tabulate
+pygments

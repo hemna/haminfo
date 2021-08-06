@@ -6,7 +6,6 @@ import pytest
 
 from click.testing import CliRunner
 
-from haminfo import haminfo
 from haminfo import cli
 
 

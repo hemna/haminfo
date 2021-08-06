@@ -1,20 +1,18 @@
 import click
 import click_completion
+import json
 import os
 import requests
 import sys
 import time
 import urllib3
 import logging as python_logging
-import sqlalchemy
-from tabulate import tabulate
-from textwrap import indent
 
 from oslo_config import cfg
 from oslo_log import log as logging
 
 import haminfo
-from haminfo import utils
+from haminfo import utils, spinner
 from haminfo.db import db
 
 CONF = cfg.CONF
@@ -35,9 +33,6 @@ def custom_startswith(string, incomplete):
 click_completion.core.startswith = custom_startswith
 click_completion.init()
 
-def delete_state_repeaters(state, session):
-    stmt = sqlalchemy.delete(db.Station).where(db.Station.state == state).execution_options(synchronize_session="fetch")
-    session.execute(stmt)
 
 def fetch_repeaters(sp, url, session):
     resp = requests.get(url)
@@ -45,59 +40,96 @@ def fetch_repeaters(sp, url, session):
         print("Failed to fetch repeaters {}".format(resp.status_code))
         return
 
-    repeater_json = resp.json()
+    # Filter out unwanted characters
+    # Wisconsin has some bogus characters in it
+    data = resp.text
+    data = ''.join((i if 0x20 <= ord(i) < 127 else ' ' for i in data))
+    repeater_json = json.loads(data)
+    # repeater_json = resp.json()
 
     count = 0
     if "count" in repeater_json and repeater_json["count"] > 0:
         sp.write("Found {} repeaters to load".format(
             repeater_json["count"]
         ))
-        count = repeater_json["count"]
+        countdown = repeater_json["count"]
         for repeater in repeater_json["results"]:
-            if "Callsign" in repeater:
+            if 'Frequency' in repeater:
+                # If we don't have a frequency, it's useless.
                 sp.text = "({}) {} {} : {}, {}".format(
-                    count,
-                    repeater['Callsign'],
+                    countdown,
+                    repeater.get('Callsign', None),
                     repeater['Frequency'],
                     repeater['Country'],
-                    repeater['State'])
-                repeater_obj = db.Station._from_json(repeater)
+                    repeater['State'],
+                )
+
+                station = db.Station.find_station_by_ids(
+                    session, int(repeater['State ID']),
+                    int(repeater['Rptr ID']))
+
+                if station:
+                    # Update an existing record so we maintain the id in the DB
+                    repeater_obj = db.Station.update_from_json(
+                        repeater, station)
+                else:
+                    repeater_obj = db.Station.from_json(repeater)
                 session.add(repeater_obj)
+
+                # Just in case we want to fail on a single repeater
+                # this allows all others to be commited to the DB
+                # and not lost.  less efficient for sure.
                 session.commit()
             time.sleep(0.001)
-            count -= 1
-    #session.commit()
+            countdown -= 1
+            count += 1
+    # session.commit()
     return count
 
 
 def fetch_USA_repeaters_by_state(sp, session, state=None):
-    state_names = ["Alaska", "Alabama", "Arkansas", "American Samoa", "Arizona", "California", "Colorado",
-                   "Connecticut", "District ", "of Columbia", "Delaware", "Florida", "Georgia", "Guam", "Hawaii",
-                   "Iowa", "Idaho", "Illinois", "Indiana", "Kansas", "Kentucky", "Louisiana", "Massachusetts",
-                   "Maryland", "Maine", "Michigan", "Minnesota", "Missouri", "Mississippi", "Montana", "North Carolina",
-                   "North Dakota", "Nebraska", "New Hampshire", "New Jersey", "New Mexico", "Nevada", "New York",
-                   "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Puerto Rico", "Rhode Island", "South Carolina",
-                   "South Dakota", "Tennessee", "Texas", "Utah", "Virginia", "Virgin Islands", "Vermont", "Washington",
-                   "Wisconsin", "West Virginia", "Wyoming"]
+    """Only fetch United States repeaters.
 
-    url = "https://www.repeaterbook.com/api/export.php?country=United%20States&state={}"
+    TODO(waboring): fetch non US repeaters is needed
+    """
+    state_names = ["Alaska", "Alabama", "Arkansas", "American Samoa",
+                   "Arizona", "California", "Colorado", "Connecticut",
+                   "District of Columbia", "Delaware", "Florida", "Georgia",
+                   "Guam", "Hawaii", "Iowa", "Idaho", "Illinois", "Indiana",
+                   "Kansas", "Kentucky", "Louisiana", "Massachusetts",
+                   "Maryland", "Maine", "Michigan", "Minnesota", "Missouri",
+                   "Mississippi", "Montana", "North Carolina", "North Dakota",
+                   "Nebraska", "New Hampshire", "New Jersey", "New Mexico",
+                   "Nevada", "New York", "Ohio", "Oklahoma", "Oregon",
+                   "Pennsylvania", "Puerto Rico", "Rhode Island",
+                   "South Carolina", "South Dakota", "Tennessee", "Texas",
+                   "Utah", "Virginia", "Virgin Islands", "Vermont",
+                   "Washington", "Wisconsin", "West Virginia", "Wyoming"]
+
+    url = ("https://www.repeaterbook.com/api/export.php?"
+           "country=United%20States&state={}")
     count = 0
     if state:
-        sp.write("Fetching US State of {}".format(state))
-        delete_state_repeaters(state, session)
+        msg = "Fetching US State of {}".format(state)
+        sp.write(msg)
+        LOG.info(msg)
+        # db.delete_USA_state_repeaters(state, session)
         try:
             count = fetch_repeaters(sp, url.format(state), session)
         except Exception as ex:
-            LOG.error("Failed to fetch {}".format(state))
+            LOG.error("Failed fetching state '{}'  '{}'".format(state, ex))
             raise ex
     else:
         for state in state_names:
-            delete_state_repeaters(state, session)
-            sp.write("Fetching US State of {}".format(state))
+            db.delete_USA_state_repeaters(state, session)
+            msg = "Fetching US State of {}".format(state)
+            sp.write(msg)
+            LOG.info(msg)
             try:
                 count += fetch_repeaters(sp, url.format(state), session)
             except Exception as ex:
-                LOG.error("Failed to fetch {}".format(state))
+                # Log the exception and continue
+                LOG.error("Failed to fetch '{}' because {}".format(state, ex))
     return count
 
 
@@ -113,8 +145,9 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
     help="The aprsd config file to use for options.",
 )
 @click.option(
-    "--loglevel",
-    default="DEBUG",
+    "--log-level",
+    "log_level",
+    default="INFO",
     show_default=True,
     type=click.Choice(
         ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
@@ -140,10 +173,10 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
     help="Used with -i, means don't wait for a DB wipe",
 )
 @click.version_option()
-def main(disable_spinner, config_file, loglevel, init_db, force):
+def main(disable_spinner, config_file, log_level, init_db, force):
     global LOG, CONF
-    print(sys.argv[1:])
-    print("config_file = {}".format(config_file))
+
+    click.echo("config_file = {}".format(config_file))
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:
@@ -152,19 +185,19 @@ def main(disable_spinner, config_file, loglevel, init_db, force):
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
     utils.setup_logging()
-    LOG.warning("PISS '{}".format(CONF.config_file))
 
-    CONF.log_opt_values(LOG, utils.LOG_LEVELS[loglevel])
+    if CONF.debug and log_level == "DEBUG":
+        CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
 
     if disable_spinner or not sys.stdout.isatty():
-        utils.Spinner.enabled = False
+        spinner.Spinner.enabled = False
 
     engine = db.setup_connection()
     if init_db:
         if not force:
             count = 10
-            wait_text ="Wiping out the ENTIRE DB in {}"
-            with utils.Spinner.get(text=wait_text.format(count)) as sp:
+            wait_text = "Wiping out the ENTIRE DB in {}"
+            with spinner.Spinner.get(text=wait_text.format(count)) as sp:
                 for i in range(10):
                     time.sleep(1)
                     count -= 1
@@ -176,41 +209,15 @@ def main(disable_spinner, config_file, loglevel, init_db, force):
     session = Session()
 
     count = 0
-    cnt = 0
-    with utils.Spinner.get(text="Load and insert repeaters!!!") as sp:
-        #cnt = fetch_USA_repeaters_by_state(sp, session, "Wisconsin")
-        #cnt = fetch_USA_repeaters_by_state(sp, session, "Virginia")
-        #count += cnt
-        #sp.text = "Virginia completed {}".format(cnt)
-        #time.sleep(1)
-        #cnt = fetch_USA_repeaters_by_state(sp, session, "California")
-        #count += cnt
-        #sp.text = "California completed {}".format(cnt)
-        #time.sleep(1)
-        #cnt = fetch_USA_repeaters_by_state(sp, session, "North Carolina")
-        count += cnt
+    with spinner.Spinner.get(text="Load and insert repeaters from USA") as sp:
         try:
-            cnt = fetch_USA_repeaters_by_state(sp, session)
+            # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
+            count += fetch_USA_repeaters_by_state(sp, session)
         except Exception as ex:
-            LOG.error("Failed to fetch state")
+            LOG.error("Failed to fetch state because {}".format(ex))
 
+    LOG.info("Loaded {} repeaters to the DB.".format(count))
 
-    #my pad
-    lon = -78.84950
-    lat = 37.34433
-    # cool, ca
-    lon = -121.0250012
-    lat = 38.8880406
-
-    #loon lake
-    #lon = -120.296776
-    #lat = 38.9987271
-    query = db.find_nearest_to(session, lat, lon)
-
-    for st, distance, az in query:
-        degrees = az * 57.3
-        cardinal = utils.degrees_to_cardinal(degrees)
-        print("{} {:.2f} {:.2f} {}".format(st, distance / 1609, degrees, cardinal))
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

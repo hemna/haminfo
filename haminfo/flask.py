@@ -9,7 +9,7 @@ from flask import request
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 import haminfo
 from haminfo import utils
@@ -43,6 +43,7 @@ web_opts = [
 
 CONF.register_opts(web_opts, group="web")
 
+
 # HTTPBasicAuth doesn't work on a class method.
 # This has to be out here.  Rely on the APRSDFlask
 # class to initialize the users from the config
@@ -50,22 +51,12 @@ CONF.register_opts(web_opts, group="web")
 def verify_password(username, password):
     global users
 
-    if username in users and check_password_hash(users.get(username), password):
+    if (username in users and
+            check_password_hash(users.get(username), password)):
         return username
 
 
 class HaminfoFlask(flask_classful.FlaskView):
-    config = None
-
-    def set_config(self, config):
-        global users
-        self.users = {}
-        for user in self.config["aprsd"]["web"]["users"]:
-            self.users[user] = generate_password_hash(
-                self.config["aprsd"]["web"]["users"][user],
-            )
-
-        users = self.users
 
     def _get_db_session(self):
         engine = db.setup_connection()
@@ -82,7 +73,6 @@ class HaminfoFlask(flask_classful.FlaskView):
         )
 
     def nearest(self):
-        LOG.debug("PEEPIS {}".format(request))
         LOG.debug("Lat {}".format(request.args.get('lat')))
         LOG.debug("Lon {}".format(request.args.get('lon')))
         lat = request.args.get('lat')
@@ -91,14 +81,16 @@ class HaminfoFlask(flask_classful.FlaskView):
         count = request.args.get('count', 1)
 
         session = self._get_db_session()
-        query = db.find_nearest_to(session, lat, lon, freq_band=band, limit=count)
+        query = db.find_nearest_to(session, lat, lon, freq_band=band,
+                                   limit=count)
 
         results = []
 
         for st, distance, az in query:
             degrees = az * 57.3
             cardinal = utils.degrees_to_cardinal(degrees)
-            LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609, degrees, cardinal))
+            LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
+                                                   degrees, cardinal))
             dict_ = st.to_dict()
             dict_["distance"] = "{:.2f}".format(distance / 1609)
             dict_["degrees"] = int(degrees)
@@ -110,7 +102,6 @@ class HaminfoFlask(flask_classful.FlaskView):
     def stats(self):
         stats = {}
         return json.dumps(stats)
-
 
 
 @click.command()
@@ -160,6 +151,7 @@ def main(config_file, loglevel):
             host=CONF.web.host_ip,
             port=CONF.web.host_port
         )
+
 
 if __name__ == "__main__":
     main()
