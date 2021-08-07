@@ -85,22 +85,29 @@ class HaminfoFlask(flask_classful.FlaskView):
     def nearest(self):
         LOG.debug("Lat {}".format(request.args.get('lat')))
         LOG.debug("Lon {}".format(request.args.get('lon')))
-        lat = request.args.get('lat')
-        lon = request.args.get('lon')
-        band = request.args.get('band', None)
-        count = request.args.get('count', 1)
+        try:
+            params = request.get_json()
+        except Exception as ex:
+            LOG.error("Failed to find json in request becase {}".format(ex))
+            return
+
+        filters = params.get('filters', None)
+        if filters:
+            filters = filters.split(',')
 
         session = self._get_db_session()
-        query = db.find_nearest_to(session, lat, lon, freq_band=band,
-                                   limit=count)
+        query = db.find_nearest_to(session, params['lat'], params['lon'],
+                                   freq_band=params.get('band', None),
+                                   limit=params.get('count', 1),
+                                   filters=filters)
 
         results = []
 
         for st, distance, az in query:
             degrees = az * 57.3
             cardinal = utils.degrees_to_cardinal(degrees)
-            LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
-                                                   degrees, cardinal))
+            #LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
+            #                                       degrees, cardinal))
             dict_ = st.to_dict()
             dict_["distance"] = "{:.2f}".format(distance / 1609)
             dict_["degrees"] = int(degrees)

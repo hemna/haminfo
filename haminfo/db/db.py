@@ -1,7 +1,7 @@
 from oslo_config import cfg
 from oslo_log import log as logging
 import sqlalchemy
-from sqlalchemy import create_engine, func, and_
+from sqlalchemy import create_engine, func, and_, text
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Sequence
 from sqlalchemy.orm import declarative_base
 from geoalchemy2 import Geography
@@ -26,8 +26,22 @@ database_opts = [
 ]
 
 CONF.register_opts(database_opts, group="database")
-Base = declarative_base()
 
+# Mapping of human filter string to db column name
+STATION_FEATURES = {
+    "ares": "ares",
+    "races": "races",
+    "skywarn": "skywarn",
+    "allstar": "allstar_node",
+    "echolink": "echolink_node",
+    "irlp": "irlp_node",
+    "wires": "wires_node",
+    "fm": "fm_analog",
+    "dmr": "dmr",
+    "dstar": "dstar",
+}
+
+Base = declarative_base()
 
 def init_db_schema(engine):
     Base.metadata.drop_all(engine)
@@ -53,19 +67,20 @@ def delete_USA_state_repeaters(state, session):
     session.execute(stmt)
 
 
-def find_nearest_to(session, lat, lon, freq_band="2m", limit=1):
+def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
     poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
     poi_point = func.ST_Point(lon, lat)
-    query = session.query(
-        Station,
-        func.ST_Distance(Station.location, poi).label('distance'),
-        func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
-                        ).label('bearing')
-    ).filter(
-        Station.freq_band == freq_band
-    ).order_by(
-        Station.location.distance_centroid(poi)
-    ).limit(limit)
+    LOG.info("Band: {}  Limit: {} Filters? {}".format(
+        freq_band, limit, filters))
+
+    # query = session.query(
+    #    Station,
+    #    func.ST_Distance(Station.location, poi).label('distance'),
+    #    func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
+    #                    ).label('bearing')
+    # ).filter(
+    #    Station.freq_band == freq_band
+    # )
     # SELECT station.id, station.callsign, station.landmark,
     #        station.nearest_city, station.county,
     #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') /
@@ -73,6 +88,29 @@ def find_nearest_to(session, lat, lon, freq_band="2m", limit=1):
     # FROM station ORDER BY
     #    station.location <-> 'SRID=4326;POINT(-78.84950 37.34433)'::geometry
     # LIMIT 10;
+    filter_parts = []
+    filter_parts.append(Station.freq_band == freq_band)
+    if filters:
+        # We need to add a where clause for filtering
+        filter_parts = []
+        for filter in filters:
+            # make sure it matches a column name
+            LOG.info("Add filter '{}".format(filter))
+            if filter in STATION_FEATURES:
+                filter_str = STATION_FEATURES[filter]
+                filter_parts.append(getattr(Station, filter_str) == True)
+
+    query = session.query(
+        Station,
+        func.ST_Distance(Station.location, poi).label('distance'),
+        func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
+                        ).label('bearing')
+    ).filter(
+        *filter_parts
+    ).order_by(
+        Station.location.distance_centroid(poi)
+    ).limit(limit)
+
     return query
 
 
@@ -83,17 +121,17 @@ class Station(Base):
     state_id = Column(Integer, primary_key=True)
     repeater_id = Column(Integer, primary_key=True)
     last_update = Column(Date)
-    frequency = Column(Float(decimal_return_scale=3))
-    input_frequency = Column(Float(decimal_return_scale=3))
+    frequency = Column(Float(decimal_return_scale=4))
+    input_frequency = Column(Float(decimal_return_scale=4))
     freq_band = Column(String)
-    offset = Column(Float(decimal_return_scale=3))
+    offset = Column(Float(decimal_return_scale=4))
     lat = Column(Float)
     long = Column(Float)
     location = Column(Geography('POINT'))
     uplink_offset = Column(String)
     downlink_offset = Column(String)
-    uplink_tone = Column(Float(decimal_return_scale=2))
-    downlink_tone = Column(Float(decimal_return_scale=2))
+    uplink_tone = Column(Float(decimal_return_scale=3))
+    downlink_tone = Column(Float(decimal_return_scale=3))
     nearest_city = Column(String)
     landmark = Column(String)
     country = Column(String)
@@ -126,8 +164,15 @@ class Station(Base):
             # LOG.debug("KEY {}".format(key))
             if key == 'last_update':
                 dict_[key] = str(getattr(self, key))
-            elif key == "offset":
-                dict_[key] = "{:.2f}".format(float(getattr(self, key)))
+            elif (key == "offset" or key == "uplink_offset"
+                  or key == "uplink_tone" or key == "downlink_tone"
+                  or key == "frequency" or key == "input_frequency"):
+                val = getattr(self, key, 0.0)
+                if val and utils.isfloat(val):
+                    val = float(val)
+                else:
+                    val = 0.000
+                dict_[key] = "{:.3f}".format(val)
             elif key == 'location':
                 # don't include this.
                 pass

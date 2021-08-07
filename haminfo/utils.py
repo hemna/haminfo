@@ -61,6 +61,8 @@ FREQ_BAND_PLAN = {
 }
 
 
+
+
 def setup_logging():
     """Prepare Oslo Logging (2 or 3 steps)
 
@@ -117,6 +119,14 @@ def bool_from_str(bool_str):
         return False
     else:
         return True
+
+
+def isfloat(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
 
 
 def degrees_to_cardinal(degrees):

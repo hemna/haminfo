@@ -215,7 +215,11 @@ def main(disable_spinner, config_file, log_level, init_db, force):
     with spinner.Spinner.get(text="Load and insert repeaters from USA") as sp:
         try:
             # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
-            count += fetch_USA_repeaters_by_state(sp, session)
+            # count += fetch_USA_repeaters_by_state(sp, session)
+            station = db.Station.find_station_by_ids(
+                session, 51, 11438)
+            LOG.info(station)
+            LOG.info("{}".format(station.to_dict()))
         except Exception as ex:
             LOG.error("Failed to fetch state because {}".format(ex))
 
