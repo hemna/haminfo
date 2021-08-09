@@ -56,16 +56,15 @@ def fetch_repeaters(sp, url, session):
         for repeater in repeater_json["results"]:
             if 'Frequency' in repeater:
                 # If we don't have a frequency, it's useless.
-                sp.text = "({}) {} {} : {}, {}".format(
+                sp.text = "({}) {} {} : {}".format(
                     countdown,
                     repeater.get('Callsign', None),
                     repeater['Frequency'],
-                    repeater['Country'],
-                    repeater['State'],
+                    repeater['Country']
                 )
 
                 station = db.Station.find_station_by_ids(
-                    session, int(repeater['State ID']),
+                    session, repeater['State ID'],
                     int(repeater['Rptr ID']))
 
                 if station:
@@ -86,12 +85,74 @@ def fetch_repeaters(sp, url, session):
     # session.commit()
     return count
 
+def fetch_NA_country_repeaters_by_state(sp, session, country,
+                                        state=None, state_names=None):
+
+    count = 0
+    if state:
+        msg = "Fetching {} State of {}".format(country, state)
+        sp.write(msg)
+        LOG.info(msg)
+        try:
+            url = ("https://www.repeaterbook.com/api/export.php?"
+                   "country={}&state={}").format(
+                requests.utils.quote(country),
+                requests.utils.quote(state))
+            count = fetch_repeaters(sp, url, session)
+        except Exception as ex:
+            LOG.error("Failed fetching state '{}'  '{}'".format(state, ex))
+            raise ex
+    elif state_names:
+        # Fetch by state name
+        for state in state_names:
+            msg = "Fetching {} State of {}".format(country, state)
+            sp.write(msg)
+            LOG.info(msg)
+            try:
+                url = ("https://www.repeaterbook.com/api/export.php?"
+                       "country={}&state={}").format(
+                    requests.utils.quote(country),
+                    requests.utils.quote(state))
+                count += fetch_repeaters(sp, url, session)
+            except Exception as ex:
+                # Log the exception and continue
+                LOG.error("Failed to fetch '{}' because {}".format(state, ex))
+    else:
+        # Just fetch by country
+        msg = "Fetching {}".format(country)
+        sp.write(msg)
+        LOG.info(msg)
+        try:
+            url = ("https://www.repeaterbook.com/api/export.php?"
+                   "country={}").format(
+                requests.utils.quote(country))
+            count = fetch_repeaters(sp, url, session)
+        except Exception as ex:
+            LOG.error("Failed fetching Country '{}'  '{}'".format(country, ex))
+            raise ex
+    return count
+
+
+def fetch_EU_country_repeaters(sp, session, country):
+    # Just fetch by country
+    msg = "Fetching {}".format(country)
+    sp.write(msg)
+    LOG.info(msg)
+    try:
+        url = ("https://www.repeaterbook.com/api/exportROW.php?"
+               "country={}").format(
+            requests.utils.quote(country))
+        count = fetch_repeaters(sp, url, session)
+    except Exception as ex:
+        LOG.error("Failed fetching Country '{}'".format(country))
+        LOG.exception(ex)
+        raise ex
+    return count
+
 
 def fetch_USA_repeaters_by_state(sp, session, state=None):
-    """Only fetch United States repeaters.
-
-    TODO(waboring): fetch non US repeaters is needed
-    """
+    """Only fetch United States repeaters."""
+    country = "United States"
     state_names = ["Alaska", "Alabama", "Arkansas", "American Samoa",
                    "Arizona", "California", "Colorado", "Connecticut",
                    "District of Columbia", "Delaware", "Florida", "Georgia",
@@ -105,31 +166,97 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
                    "South Carolina", "South Dakota", "Tennessee", "Texas",
                    "Utah", "Virginia", "Virgin Islands", "Vermont",
                    "Washington", "Wisconsin", "West Virginia", "Wyoming"]
+    LOG.info("Fetching repeaters for {}".format(country))
+    return fetch_NA_country_repeaters_by_state(sp, session, country, state, state_names)
 
-    url = ("https://www.repeaterbook.com/api/export.php?"
-           "country=United%20States&state={}")
+
+def fetch_Canada_repeaters(sp, session):
+    country = "Canada"
+    state_names = ["Alberta", "British Columbia", "Manitoba", "New Brunswick",
+                   "Newfoundland and Labrador", "Nova Scotia", "Nunavut",
+                   "Northwest Territories", "Prince Edward Island",
+                   "Quebec", "Saskatchewan", "Yukon"]
+    LOG.info("Fetching repeaters for {}".format(country))
+    return fetch_NA_country_repeaters_by_state(
+        sp, session, country, state=None, state_names=state_names)
+
+
+def fetch_south_america_repeaters(sp, session):
+    countries = ["Argentina", "Bolivia", "Brazil", "Caribbean Netherlands",
+                 "Chile", "Columbia", "Curacao", "Ecuador", "Panama",
+                 "Paraguay", "Peru", "Uruguay", "Venezuela"]
+
     count = 0
-    if state:
-        msg = "Fetching US State of {}".format(state)
-        sp.write(msg)
-        LOG.info(msg)
-        # db.delete_USA_state_repeaters(state, session)
-        try:
-            count = fetch_repeaters(sp, url.format(state), session)
-        except Exception as ex:
-            LOG.error("Failed fetching state '{}'  '{}'".format(state, ex))
-            raise ex
-    else:
-        for state in state_names:
-            db.delete_USA_state_repeaters(state, session)
-            msg = "Fetching US State of {}".format(state)
-            sp.write(msg)
-            LOG.info(msg)
-            try:
-                count += fetch_repeaters(sp, url.format(state), session)
-            except Exception as ex:
-                # Log the exception and continue
-                LOG.error("Failed to fetch '{}' because {}".format(state, ex))
+    for country in countries:
+        count += fetch_EU_country_repeaters(sp, session, country)
+
+    return count
+
+def fetch_Mexico_repeaters(sp, session):
+    country = "Mexico"
+    LOG.info("Fetching repeaters for {}".format(country))
+    return fetch_NA_country_repeaters_by_state(
+        sp, session, country, state=None)
+
+def fetch_Switzerland_repeaters(sp, session):
+    country = "Switzerland"
+    LOG.info("Fetching repeaters for {}".format(country))
+    return fetch_EU_country_repeaters(sp, session, country)
+
+def fetch_EU_repeaters(sp, session):
+    EU_COUNTRIES = ["Ablania", "Andorra", "Austria", "Belarus",
+                    "Belgium", "Bosnia and Herzegovina",
+                    "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
+                    "Denmark", "Estonia", "Faroe Islands", "Finland",
+                    "France", "Georgia", "Germany", "Guernsey",
+                    "Greece", "Hungary", "Iceland", "Isle of Man",
+                    "Ireland", "Italy", "Jersey", "Kosovo", "Latvia",
+                    "Liechtenstein", "Lithuania", "Luxembourg", "Macedonia",
+                    "Malta", "Netherlands", "Norway", "Poland", "Portugal",
+                    "Romania", "Russian Federation", "San Marino", "Serbia",
+                    "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland",
+                    "Ukraine", "United Kingdom"]
+    count = 0
+    for country in EU_COUNTRIES:
+        count += fetch_EU_country_repeaters(sp, session, country)
+
+    return count
+
+
+def fetch_asian_repeaters(sp, session):
+    countries = ["Australia", "Azerbaijan", "China", "India", "Indonesia",
+                 "Israel", "Japan", "Jordan", "Kuwait", "Malaysia", "Nepal",
+                 "New Zealand", "Oman", "Philippines", "Singapore",
+                 "South Korea", "Sri Lanka", "Thailand", "Turkey",
+                 "Taiwan", "United Arab Emirates"]
+
+    count = 0
+    for country in countries:
+        count += fetch_EU_country_repeaters(sp, session, country)
+
+    return count
+
+
+def fetch_africa_repeaters(sp, session):
+    countries = ["Morocco", "Namibia", "South Africa"]
+
+    count = 0
+    for country in countries:
+        count += fetch_EU_country_repeaters(sp, session, country)
+
+    return count
+
+def fetch_caribbean_repeaters(sp, session):
+    countries = ["Bahamas", "Barbados", "Costa Rica", "Cayman Islands",
+                 "Dominican Republic", "El Salvador", "Grenada",
+                 "Guatemala", "Haiti", "Honduras", "Jamaica", "Nicaragua",
+                 "Saint Vincent and the Grenadines",
+                 "Trinidad and Tobago"]
+
+    count = 0
+    for country in countries:
+        count += fetch_EU_country_repeaters(sp, session, country)
+
     return count
 
 
@@ -197,6 +324,7 @@ def main(disable_spinner, config_file, log_level, init_db, force):
 
     engine = db.setup_connection()
     if init_db:
+        LOG.warning("Wiping out entire database!")
         if not force:
             count = 10
             wait_text = "Wiping out the ENTIRE DB in {}"
@@ -216,10 +344,14 @@ def main(disable_spinner, config_file, log_level, init_db, force):
         try:
             # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
             # count += fetch_USA_repeaters_by_state(sp, session)
-            station = db.Station.find_station_by_ids(
-                session, 51, 11438)
-            LOG.info(station)
-            LOG.info("{}".format(station.to_dict()))
+            # count += fetch_Canada_repeaters(sp, session)
+            # count += fetch_Switzerland_repeaters(sp, session)
+            # count += fetch_EU_repeaters(sp, session)
+            # count += fetch_asian_repeaters(sp, session)
+            # count += fetch_south_america_repeaters(sp, session)
+            count += fetch_africa_repeaters(sp, session)
+            count += fetch_caribbean_repeaters(sp, session)
+
         except Exception as ex:
             LOG.error("Failed to fetch state because {}".format(ex))
 

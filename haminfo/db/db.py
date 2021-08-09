@@ -44,7 +44,9 @@ STATION_FEATURES = {
 Base = declarative_base()
 
 def init_db_schema(engine):
+    LOG.info("Dropping all tables")
     Base.metadata.drop_all(engine)
+    LOG.info("Creating all tables")
     Base.metadata.create_all(engine)
 
 
@@ -118,7 +120,7 @@ class Station(Base):
     __tablename__ = 'station'
 
     id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
-    state_id = Column(Integer, primary_key=True)
+    state_id = Column(String, primary_key=True)
     repeater_id = Column(Integer, primary_key=True)
     last_update = Column(Date)
     frequency = Column(Float(decimal_return_scale=4))
@@ -214,16 +216,22 @@ class Station(Base):
                                                      r_json['Lat'])
             station.callsign = r_json["Callsign"]
             station.country = r_json["Country"]
-            station.state = r_json["State"]
-            station.county = r_json["County"]
+            if 'State' in r_json:
+                station.state = r_json["State"]
+            if 'County' in r_json:
+                station.county = r_json["County"]
             station.nearest_city = r_json["Nearest City"]
             station.landmark = r_json["Landmark"]
             station.operational_status = r_json["Operational Status"]
             station.use = r_json["Use"]
-            station.ares = utils.bool_from_str(r_json["ARES"])
-            station.races = utils.bool_from_str(r_json["RACES"])
-            station.skywarn = utils.bool_from_str(r_json["SKYWARN"])
-            station.canwarn = utils.bool_from_str(r_json["CANWARN"])
+            if 'ARES' in r_json:
+                station.ares = utils.bool_from_str(r_json["ARES"])
+            if 'RACES' in r_json:
+                station.races = utils.bool_from_str(r_json["RACES"])
+            if 'SKYWARN' in r_json:
+                station.skywarn = utils.bool_from_str(r_json["SKYWARN"])
+            if 'CANWARN' in r_json:
+                station.canwarn = utils.bool_from_str(r_json["CANWARN"])
             station.allstar_node = utils.bool_from_str(r_json["AllStar Node"])
             station.echolink_node = utils.bool_from_str(
                 r_json["EchoLink Node"])
@@ -260,16 +268,10 @@ class Station(Base):
                                                     r_json['Lat']),
                      callsign=r_json["Callsign"],
                      country=r_json["Country"],
-                     state=r_json["State"],
-                     county=r_json["County"],
                      nearest_city=r_json["Nearest City"],
                      landmark=r_json["Landmark"],
                      operational_status=r_json["Operational Status"],
                      use=r_json["Use"],
-                     ares=utils.bool_from_str(r_json["ARES"]),
-                     races=utils.bool_from_str(r_json["RACES"]),
-                     skywarn=utils.bool_from_str(r_json["SKYWARN"]),
-                     canwarn=utils.bool_from_str(r_json["CANWARN"]),
                      allstar_node=utils.bool_from_str(r_json["AllStar Node"]),
                      echolink_node=utils.bool_from_str(
                          r_json["EchoLink Node"]),
@@ -278,4 +280,17 @@ class Station(Base):
                      fm_analog=utils.bool_from_str(r_json["FM Analog"]),
                      dmr=utils.bool_from_str(r_json["DMR"]),
                      dstar=utils.bool_from_str(r_json["D-Star"]))
+
+        if "State" in r_json:
+            st.state = r_json["State"]
+        if "County" in r_json:
+            st.county = r_json["County"]
+        if 'ARES' in r_json:
+            st.ares = utils.bool_from_str(r_json["ARES"])
+        if 'RACES' in r_json:
+            st.races = utils.bool_from_str(r_json["RACES"]),
+        if 'SKYWARN' in r_json:
+            st.skywarn = utils.bool_from_str(r_json["SKYWARN"]),
+        if 'CANWARN' in r_json:
+            st.canwarn = utils.bool_from_str(r_json["CANWARN"]),
         return st
