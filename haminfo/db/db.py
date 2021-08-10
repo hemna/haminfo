@@ -158,7 +158,8 @@ class Station(Base):
         return ("<Station(callsign='{}', freq='{}', offset='{}', country='{}',"
                 "state='{}', county='{}')>".format(
                     self.callsign, self.frequency, self.offset,
-                    self.country, self.state, self.county))
+                    self.country, self.state, self.county,
+        ))
 
     def to_dict(self):
         dict_ = {}
@@ -285,12 +286,21 @@ class Station(Base):
             st.state = r_json["State"]
         if "County" in r_json:
             st.county = r_json["County"]
+
         if 'ARES' in r_json:
             st.ares = utils.bool_from_str(r_json["ARES"])
+        else:
+            st.ares = False
         if 'RACES' in r_json:
-            st.races = utils.bool_from_str(r_json["RACES"]),
+            st.races = utils.bool_from_str(r_json["RACES"])
+        else:
+            st.races = False
         if 'SKYWARN' in r_json:
-            st.skywarn = utils.bool_from_str(r_json["SKYWARN"]),
+            st.skywarn = utils.bool_from_str(r_json["SKYWARN"])
+        else:
+            st.skywarn = False
         if 'CANWARN' in r_json:
-            st.canwarn = utils.bool_from_str(r_json["CANWARN"]),
+            st.canwarn = utils.bool_from_str(r_json["CANWARN"])
+        else:
+            st.canwarn = False
         return st

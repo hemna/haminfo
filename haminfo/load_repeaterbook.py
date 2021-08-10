@@ -35,6 +35,7 @@ click_completion.init()
 
 
 def fetch_repeaters(sp, url, session):
+    LOG.debug("Fetching {}".format(url))
     resp = requests.get(url)
     if resp.status_code != 200:
         print("Failed to fetch repeaters {}".format(resp.status_code))
@@ -73,6 +74,7 @@ def fetch_repeaters(sp, url, session):
                         repeater, station)
                 else:
                     repeater_obj = db.Station.from_json(repeater)
+
                 session.add(repeater_obj)
 
                 # Just in case we want to fail on a single repeater
@@ -90,7 +92,7 @@ def fetch_NA_country_repeaters_by_state(sp, session, country,
 
     count = 0
     if state:
-        msg = "Fetching {} State of {}".format(country, state)
+        msg = "Fetching {}, {}".format(country, state)
         sp.write(msg)
         LOG.info(msg)
         try:
@@ -105,7 +107,7 @@ def fetch_NA_country_repeaters_by_state(sp, session, country,
     elif state_names:
         # Fetch by state name
         for state in state_names:
-            msg = "Fetching {} State of {}".format(country, state)
+            msg = "Fetching {}, {}".format(country, state)
             sp.write(msg)
             LOG.info(msg)
             try:
@@ -198,11 +200,6 @@ def fetch_Mexico_repeaters(sp, session):
     return fetch_NA_country_repeaters_by_state(
         sp, session, country, state=None)
 
-def fetch_Switzerland_repeaters(sp, session):
-    country = "Switzerland"
-    LOG.info("Fetching repeaters for {}".format(country))
-    return fetch_EU_country_repeaters(sp, session, country)
-
 def fetch_EU_repeaters(sp, session):
     EU_COUNTRIES = ["Ablania", "Andorra", "Austria", "Belarus",
                     "Belgium", "Bosnia and Herzegovina",
@@ -257,6 +254,18 @@ def fetch_caribbean_repeaters(sp, session):
     for country in countries:
         count += fetch_EU_country_repeaters(sp, session, country)
 
+    return count
+
+
+def fetch_all_countries(sp, session):
+    count = 0
+    count += fetch_USA_repeaters_by_state(sp, session)
+    count += fetch_Canada_repeaters(sp, session)
+    count += fetch_EU_repeaters(sp, session)
+    count += fetch_asian_repeaters(sp, session)
+    count += fetch_south_america_repeaters(sp, session)
+    count += fetch_africa_repeaters(sp, session)
+    count += fetch_caribbean_repeaters(sp, session)
     return count
 
 
@@ -345,12 +354,12 @@ def main(disable_spinner, config_file, log_level, init_db, force):
             # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
             # count += fetch_USA_repeaters_by_state(sp, session)
             # count += fetch_Canada_repeaters(sp, session)
-            # count += fetch_Switzerland_repeaters(sp, session)
             # count += fetch_EU_repeaters(sp, session)
             # count += fetch_asian_repeaters(sp, session)
             # count += fetch_south_america_repeaters(sp, session)
-            count += fetch_africa_repeaters(sp, session)
-            count += fetch_caribbean_repeaters(sp, session)
+            # count += fetch_africa_repeaters(sp, session)
+            # count += fetch_caribbean_repeaters(sp, session)
+            count = fetch_all_countries(sp, session)
 
         except Exception as ex:
             LOG.error("Failed to fetch state because {}".format(ex))
