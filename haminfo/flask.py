@@ -142,6 +142,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     show_choices=True,
     help="The log level to use for aprsd.log",
 )
+@click.version_option()
 def main(config_file, log_level):
     conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:

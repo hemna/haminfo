@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
 set -x
 
-if [ ! -z "${APRSD_PLUGINS}" ]; then
-    OLDIFS=$IFS
-    IFS=','
-    echo "Installing pypi plugins '$APRSD_PLUGINS'";
-    for plugin in ${APRSD_PLUGINS}; do
-        IFS=$OLDIFS
-        # call your procedure/other scripts here below
-        echo "Installing '$plugin'"
-        pip3 install $plugin
-    done
-fi
-
 # check to see if there is a config file
 APP_CONFIG="/config/haminfo.conf"
 if [ ! -e "$APP_CONFIG" ]; then
@@ -24,5 +12,6 @@ else
         echo "Initializing Database"
         /usr/local/bin/haminfo_load  --config-file $APP_CONFIG --log-level DEBUG -i --force
     fi
+    haminfo_api --help
     /usr/local/bin/haminfo_api --config-file $APP_CONFIG --log-level DEBUG
 fi
