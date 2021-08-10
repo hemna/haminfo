@@ -33,13 +33,19 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN echo "export PATH=\$PATH:\$HOME/.local/bin" >> $HOME/.bashrc
 
 USER root
+RUN ln -s $HOME/.config/haminfo /config
+RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
+
+USER $CONTAINER_USER
 WORKDIR $HOME
 RUN mkdir $INSTALL
 RUN git clone -b $APP_BRANCH $APP_GIT $INSTALL/haminfo
+USER root
 RUN cd $INSTALL/haminfo && pip3 install .
-RUN mkdir -p /config
+
+user $CONTAINER_USER
+RUN mkdir -p $HOME/.config/haminfo
 RUN oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
-RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
 
 # override this to run another configuration
 ENV CONF default

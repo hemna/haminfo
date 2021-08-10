@@ -12,9 +12,9 @@ else
         echo "Initializing Database"
         which haminfo_load
         haminfo_load --help
-        haminfo_load  --config-file $APP_CONFIG -i --force
+        haminfo_load -i --force
     fi
     which haminfo_api
     haminfo_api --help
-    haminfo_api --config-file $APP_CONFIG
+    haminfo_api $APP_CONFIG
 fi
