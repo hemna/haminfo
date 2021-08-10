@@ -39,6 +39,8 @@ RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
 # override this to run another configuration
 ENV CONF default
 VOLUME ["/config"]
+EXPOSE 80/tcp
+EXPOSE 80/udp
 
 USER $CONTAINER_USER
 ADD bin/run.sh /usr/local/bin

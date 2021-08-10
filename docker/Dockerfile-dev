@@ -1,4 +1,4 @@
-FROM python:3.8-slim as haminfo
+FROM python:3.9-slim as haminfo
 
 # Dockerfile for building a container during aprsd development.
 ARG BRANCH
@@ -46,6 +46,8 @@ RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
 ENV CONF default
 USER $CONTAINER_USER
 VOLUME ["/config"]
+EXPOSE 80/tcp
+EXPOSE 80/udp
 
 ADD bin/run.sh $HOME/
 ENTRYPOINT ["/home/haminfo/run.sh"]

@@ -131,7 +131,8 @@ class HaminfoFlask(flask_classful.FlaskView):
     help="The aprsd config file to use for options.",
 )
 @click.option(
-    "--loglevel",
+    "--log-level",
+    "log_level",
     default="DEBUG",
     show_default=True,
     type=click.Choice(
@@ -141,7 +142,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     show_choices=True,
     help="The log level to use for aprsd.log",
 )
-def main(config_file, loglevel):
+def main(config_file, log_level):
     conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
@@ -155,7 +156,7 @@ def main(config_file, loglevel):
     LOG.info("haminfo_api version: {}".format(haminfo.__version__))
     LOG.info("using config file {}".format(conf_file))
 
-    CONF.log_opt_values(LOG, utils.LOG_LEVELS[loglevel])
+    CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
 
     flask_app = flask.Flask(
         utils.DOMAIN,

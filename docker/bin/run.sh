@@ -20,5 +20,9 @@ if [ ! -e "$APP_CONFIG" ]; then
     oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
-    /usr/local/bin/haminfo_api --config-file $APP_CONFIG --loglevel DEBUG
+    if [ ! -z "${INIT_DB}" ]; then
+        echo "Initializing Database"
+        /usr/local/bin/haminfo_load  --config-file $APP_CONFIG --log-level DEBUG -i --force
+    fi
+    /usr/local/bin/haminfo_api --config-file $APP_CONFIG --log-level DEBUG
 fi
