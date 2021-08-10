@@ -10,8 +10,11 @@ if [ ! -e "$APP_CONFIG" ]; then
 else
     if [ ! -z "${INIT_DB}" ]; then
         echo "Initializing Database"
-        /usr/local/bin/haminfo_load  --config-file $APP_CONFIG --log-level DEBUG -i --force
+        which haminfo_load
+        haminfo_load --help
+        haminfo_load  --config-file $APP_CONFIG -i --force
     fi
+    which haminfo_api
     haminfo_api --help
-    /usr/local/bin/haminfo_api --config-file $APP_CONFIG --log-level DEBUG
+    haminfo_api --config-file $APP_CONFIG
 fi

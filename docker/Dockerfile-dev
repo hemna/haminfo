@@ -37,7 +37,6 @@ WORKDIR $HOME
 RUN mkdir $INSTALL
 RUN git clone -b $APP_BRANCH $APP_GIT $INSTALL/haminfo
 RUN cd $INSTALL/haminfo && pip3 install .
-RUN which haminfo
 RUN mkdir -p /config
 RUN oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
 RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
@@ -46,8 +45,8 @@ RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
 ENV CONF default
 USER $CONTAINER_USER
 VOLUME ["/config"]
-EXPOSE 80/tcp
-EXPOSE 80/udp
+EXPOSE 8081/tcp
+EXPOSE 8081/udp
 
 ADD bin/run.sh $HOME/
 ENTRYPOINT ["/home/haminfo/run.sh"]
