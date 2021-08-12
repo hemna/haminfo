@@ -116,6 +116,11 @@ def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
     return query
 
 
+def get_num_repeaters_in_db(session):
+    rows = session.query(Station).count()
+    return rows
+
+
 class Station(Base):
     __tablename__ = 'station'
 

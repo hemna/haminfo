@@ -154,10 +154,16 @@ def main(config_file, log_level):
     python_logging.captureWarnings(True)
     utils.setup_logging()
 
-    LOG.info("haminfo_api version: {}".format(haminfo.__version__))
-    LOG.info("using config file {}".format(conf_file))
+
+    engine = db.setup_connection()
+    Session = db.setup_session(engine)
+    session = Session()
 
     CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
+    LOG.info("haminfo_api version: {}".format(haminfo.__version__))
+    LOG.info("using config file {}".format(conf_file))
+    LOG.info("Number of repeaters in DB {}".format(
+        db.get_num_repeaters_in_db(session)))
 
     flask_app = flask.Flask(
         utils.DOMAIN,
