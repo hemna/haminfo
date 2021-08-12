@@ -28,6 +28,8 @@ LOG_LEVELS = {
 # create from
 # http://www.arrl.org/band-plan
 FREQ_BAND_PLAN = {
+    "2200m": {"desc": "2200 Meters (.13Mhz to .14Mhz", "low": .13, "high": .14},
+    "640m": {"desc": "640 Meters (.47Mhz to .48Mhz", "low": .47, "high": .48},
     "160m": {"desc": "160 Meters (1.8-2.0 MHz)", "low": 1.8, "high": 2.0},
     "80m": {"desc": "80 Meters (3.5-4.0 MHz)", "low": 3.5, "high": 4.0},
     "60m": {"desc": "60 Meters (5 MHz channels)", "low": 5.0, "high": 5.9},
@@ -54,10 +56,24 @@ FREQ_BAND_PLAN = {
              "low": 2300.0, "high": 2450.0},
     "9cm": {"desc": "9 centimeters(3300-3500 MHz)",
             "low": 3300.0, "high": 3500.0},
+    "6cm": {"desc": "6 centimeters (5600-5900 Mhz)",
+            "low": 5600.0, "high": 5900.0},
     "5cm": {"desc": "5 Centimeters(5650.0 - 5925.0 MHz)",
             "low": 5650.0, "high": 5290.0},
     "3cm": {"desc": "3 Centimeters(10000.000 - 10500.000 MHz )",
-            "low": 10000.0, "high": 10500.0}
+            "low": 10000.0, "high": 10500.0},
+    "2cm": {"desc": "2 centimeters (24000.000 - 24300.000 MHz )",
+            "low": 24000.0, "high": 24300.0},
+    "6mm": {"desc": "6 millimeters (47000.000 - 47200.000 MHz )",
+            "low": 47000.0, "high": 47200.0},
+    "4mm": {"desc": "4 millimeters (76000.000 - 78200.000 MHz )",
+            "low": 76000.0, "high": 78200.0},
+    "2.5mm": {"desc": "2.5 millimeters (122000.000 - 123000.000 MHz )",
+              "low": 122000.0, "high": 123000.0},
+    "2mm": {"desc": "2 millimeters (134000.000 - 141000.000 MHz )",
+            "low": 134000.0, "high": 141000.0},
+    "1.2mm": {"desc": "1.2 millimeters (241000.000 - 250000.000 MHz )",
+              "low": 241000.0, "high": 250000.0},
 }
 
 
