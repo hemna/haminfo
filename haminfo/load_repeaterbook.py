@@ -81,7 +81,7 @@ def fetch_repeaters(sp, url, session):
                 # this allows all others to be commited to the DB
                 # and not lost.  less efficient for sure.
                 session.commit()
-            time.sleep(0.001)
+            # time.sleep(0.001)
             countdown -= 1
             count += 1
     # session.commit()
