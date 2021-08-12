@@ -17,8 +17,8 @@ ENV GID=${GID:-1000}
 ENV INSTALL=$HOME/install
 RUN apt update
 RUN apt install -y git build-essential
-RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev 
-RUN apt install -y bash bash-completion zsh 
+RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev cron sudo
+RUN apt install -y bash bash-completion zsh
 
 RUN addgroup --gid 1001 $CONTAINER_USER
 RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
@@ -35,6 +35,8 @@ RUN echo "export PATH=\$PATH:\$HOME/.local/bin" >> $HOME/.bashrc
 USER root
 RUN ln -s $HOME/.config/haminfo /config
 RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
+RUN echo "haminfo  ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/haminfo
+RUN usermod -aG sudo haminfo
 
 USER $CONTAINER_USER
 WORKDIR $HOME
@@ -54,5 +56,7 @@ VOLUME ["/config"]
 EXPOSE 8081/tcp
 EXPOSE 8081/udp
 
-ADD bin/run.sh $HOME/
-ENTRYPOINT ["/home/haminfo/run.sh"]
+ADD bin/api_entry.sh $HOME/
+ADD bin/reload_db.sh $HOME/
+ADD bin/cron_entry.sh $HOME/
+ENTRYPOINT ["/home/haminfo/api_entry.sh"]

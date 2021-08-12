@@ -85,15 +85,17 @@ class HaminfoFlask(flask_classful.FlaskView):
     def nearest(self):
         LOG.debug("Lat {}".format(request.args.get('lat')))
         LOG.debug("Lon {}".format(request.args.get('lon')))
+        params = {}
         try:
             params = request.get_json()
         except Exception as ex:
             LOG.error("Failed to find json in request becase {}".format(ex))
             return
 
-        filters = params.get('filters', None)
-        if filters:
-            filters = filters.split(',')
+        if 'filters' in params:
+            filters = params.get('filters', None)
+            if filters:
+                filters = filters.split(',')
 
         session = self._get_db_session()
         query = db.find_nearest_to(session, params['lat'], params['lon'],

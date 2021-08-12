@@ -1,11 +1,45 @@
-version: "3"
+# Use postgres/example user/password credentials
+version: '3.1'
+
 services:
-  aprsd:
-    image: hemna6969/aprsd:latest
-    container_name: aprsd
+
+  haminfo:
+    image: hemna6969/haminfo:latest
+    restart: unless-stopped
+    depends_on:
+        - "db"
+    ports:
+      - 8060:80
     volumes:
-        - $HOME/.config/aprsd:/config
+      - /opt/docker/haminfo/config:/config
+    environment:
+      - INIT_DB=False
+
+  cron:
+    image: hemna6969/haminfo:latest
+    restart: unless-stopped
+    depends_on:
+        - "haminfo"
+    volumes:
+      - /opt/docker/haminfo/config:/config
+    entrypoint: /home/haminfo/cron_entry.sh
+    environment:
+      - INIT_DB=False
+
+  db:
+    image: postgis/postgis:latest
     restart: unless-stopped
     environment:
-        - TZ=America/New_York
-        - APRS_PLUGINS=aprsd-slack-plugin>=1.0.2
+      POSTGRES_DB: haminfo
+      POSTGRES_USER: haminfo
+      POSTGRES_PASSWORD: haminfo
+    ports:
+      - 5432:5432
+
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    depends_on:
+        - "db"
+    ports:
+      - 8066:8080
