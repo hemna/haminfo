@@ -92,6 +92,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             LOG.error("Failed to find json in request becase {}".format(ex))
             return
 
+        filters = None
         if 'filters' in params:
             filters = params.get('filters', None)
             if filters:
@@ -115,6 +116,8 @@ class HaminfoFlask(flask_classful.FlaskView):
             dict_["degrees"] = int(degrees)
             dict_["direction"] = cardinal
             results.append(dict_)
+
+        LOG.debug(f"{results}")
 
         return json.dumps(results)
 
