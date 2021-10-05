@@ -63,6 +63,7 @@ def fetch_repeaters(sp, url, session):
                     repeater['Frequency'],
                     repeater['Country']
                 )
+                LOG.debug("{}".format(sp.text))
 
                 station = db.Station.find_station_by_ids(
                     session, repeater['State ID'],
@@ -81,6 +82,8 @@ def fetch_repeaters(sp, url, session):
                 # this allows all others to be commited to the DB
                 # and not lost.  less efficient for sure.
                 session.commit()
+            else:
+                LOG.warning("No frequency for {}".format(repeater))
             # time.sleep(0.001)
             countdown -= 1
             count += 1
@@ -176,7 +179,7 @@ def fetch_Canada_repeaters(sp, session):
     country = "Canada"
     state_names = ["Alberta", "British Columbia", "Manitoba", "New Brunswick",
                    "Newfoundland and Labrador", "Nova Scotia", "Nunavut",
-                   "Northwest Territories", "Prince Edward Island",
+                   "Ontario", "Northwest Territories", "Prince Edward Island",
                    "Quebec", "Saskatchewan", "Yukon"]
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
