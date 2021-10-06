@@ -180,7 +180,7 @@ class Station(Base):
                     val = float(val)
                 else:
                     val = 0.000
-                dict_[key] = "{:.3f}".format(val)
+                dict_[key] = "{:.4f}".format(val)
             elif key == 'location':
                 # don't include this.
                 pass
@@ -194,6 +194,16 @@ class Station(Base):
             station = session.query(Station).filter(
                 and_(Station.state_id == state_id,
                      Station.repeater_id == repeater_id)).one()
+            return station
+        except NoResultFound:
+            return None
+
+    @staticmethod
+    def find_station_by_callsign(session, callsign):
+        try:
+            station = session.query(Station).filter(
+                Station.callsign == callsign
+            ).one()
             return station
         except NoResultFound:
             return None
