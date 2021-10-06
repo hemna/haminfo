@@ -11,7 +11,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 import haminfo
-from haminfo import utils
+from haminfo import utils, trace
 from haminfo.db import db
 
 
@@ -83,14 +83,15 @@ class HaminfoFlask(flask_classful.FlaskView):
 
     @require_appkey
     def nearest(self):
-        LOG.debug("Lat {}".format(request.args.get('lat')))
-        LOG.debug("Lon {}".format(request.args.get('lon')))
         params = {}
         try:
             params = request.get_json()
         except Exception as ex:
             LOG.error("Failed to find json in request becase {}".format(ex))
             return
+
+        LOG.debug("Lat '{}'  Lon '{}'".format(
+            params.get('lat'), params.get('lon')))
 
         filters = None
         if 'filters' in params:
@@ -119,7 +120,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             dict_["direction"] = cardinal
             results.append(dict_)
 
-        LOG.debug(f"{results}")
+        LOG.debug(f"Returning {results}")
 
         return json.dumps(results)
 
