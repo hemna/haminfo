@@ -112,7 +112,15 @@ class HaminfoFlask(flask_classful.FlaskView):
             #LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
             #                                       degrees, cardinal))
             dict_ = st.to_dict()
-            dict_["distance"] = "{:.2f}".format(distance / 1609)
+            if dict_["country"].lower() == "united states":
+                # return distance in miles
+                dict_["distance"] = "{:.2f}".format(distance / 1609)
+                dict_["distance_units"] = "mi"
+            else:
+                # return distance in km
+                dict_["distance"] = "{:.2f}".format(distance / 1000)
+                dict_["distance_units"] = "km"
+
             dict_["degrees"] = int(degrees)
             dict_["direction"] = cardinal
             results.append(dict_)
