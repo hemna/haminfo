@@ -77,8 +77,6 @@ FREQ_BAND_PLAN = {
 }
 
 
-
-
 def setup_logging():
     """Prepare Oslo Logging (2 or 3 steps)
 

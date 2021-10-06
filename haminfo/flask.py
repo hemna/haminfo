@@ -109,17 +109,11 @@ class HaminfoFlask(flask_classful.FlaskView):
         for st, distance, az in query:
             degrees = az * 57.3
             cardinal = utils.degrees_to_cardinal(degrees)
-            #LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
-            #                                       degrees, cardinal))
+            # LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
+            #                                        degrees, cardinal))
             dict_ = st.to_dict()
-            if dict_["country"].lower() == "united states":
-                # return distance in miles
-                dict_["distance"] = "{:.2f}".format(distance / 1609)
-                dict_["distance_units"] = "mi"
-            else:
-                # return distance in km
-                dict_["distance"] = "{:.2f}".format(distance / 1000)
-                dict_["distance_units"] = "km"
+            dict_["distance"] = "{:.2f}".format(distance)
+            dict_["distance_units"] = "meters"
 
             dict_["degrees"] = int(degrees)
             dict_["direction"] = cardinal
@@ -166,7 +160,6 @@ def main(config_file, log_level):
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
     utils.setup_logging()
-
 
     engine = db.setup_connection()
     Session = db.setup_session(engine)

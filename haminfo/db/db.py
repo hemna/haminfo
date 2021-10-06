@@ -1,7 +1,7 @@
 from oslo_config import cfg
 from oslo_log import log as logging
 import sqlalchemy
-from sqlalchemy import create_engine, func, and_, text
+from sqlalchemy import create_engine, func, and_
 from sqlalchemy import Boolean, Column, Date, Float, Integer, String, Sequence
 from sqlalchemy.orm import declarative_base
 from geoalchemy2 import Geography
@@ -42,6 +42,7 @@ STATION_FEATURES = {
 }
 
 Base = declarative_base()
+
 
 def init_db_schema(engine):
     LOG.info("Dropping all tables")
@@ -100,7 +101,7 @@ def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
             LOG.info("Add filter '{}".format(filter))
             if filter in STATION_FEATURES:
                 filter_str = STATION_FEATURES[filter]
-                filter_parts.append(getattr(Station, filter_str) == True)
+                filter_parts.append(getattr(Station, filter_str) == True)  # noqa
 
     query = session.query(
         Station,
@@ -163,8 +164,8 @@ class Station(Base):
         return ("<Station(callsign='{}', freq='{}', offset='{}', country='{}',"
                 "state='{}', county='{}')>".format(
                     self.callsign, self.frequency, self.offset,
-                    self.country, self.state, self.county,
-        ))
+                    self.country, self.state, self.county)
+                )
 
     def to_dict(self):
         dict_ = {}
