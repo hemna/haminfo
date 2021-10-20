@@ -71,7 +71,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     def _get_db_session(self):
         engine = db.setup_connection()
         session = db.setup_session(engine)
-        return session()
+        return session
 
     def index(self):
         LOG.debug("INDEX")
@@ -99,28 +99,28 @@ class HaminfoFlask(flask_classful.FlaskView):
             if filters:
                 filters = filters.split(',')
 
-        session = self._get_db_session()
-        query = db.find_nearest_to(session, params['lat'], params['lon'],
-                                   freq_band=params.get('band', None),
-                                   limit=params.get('count', 1),
-                                   filters=filters)
-
         results = []
+        session = self._get_db_session()
+        with session() as session:
+            query = db.find_nearest_to(session, params['lat'], params['lon'],
+                                       freq_band=params.get('band', None),
+                                       limit=params.get('count', 1),
+                                       filters=filters)
 
-        for st, distance, az in query:
-            degrees = az * 57.3
-            cardinal = utils.degrees_to_cardinal(degrees)
-            # LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
-            #                                        degrees, cardinal))
-            dict_ = st.to_dict()
-            dict_["distance"] = "{:.2f}".format(distance)
-            dict_["distance_units"] = "meters"
+            for st, distance, az in query:
+                degrees = az * 57.3
+                cardinal = utils.degrees_to_cardinal(degrees)
+                # LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
+                #                                        degrees, cardinal))
+                dict_ = st.to_dict()
+                dict_["distance"] = "{:.2f}".format(distance)
+                dict_["distance_units"] = "meters"
 
-            dict_["degrees"] = int(degrees)
-            dict_["direction"] = cardinal
-            results.append(dict_)
+                dict_["degrees"] = int(degrees)
+                dict_["direction"] = cardinal
+                results.append(dict_)
 
-        LOG.debug(f"Returning {results}")
+            LOG.debug(f"Returning {results}")
 
         return json.dumps(results)
 
