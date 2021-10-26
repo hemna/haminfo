@@ -369,6 +369,8 @@ def main(disable_spinner, config_file, log_level, init_db, force):
 
     LOG.info("Loaded {} repeaters to the DB.".format(count))
 
+    session.close()
+
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
