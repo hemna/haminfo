@@ -167,7 +167,7 @@ def main(config_file, log_level):
     python_logging.captureWarnings(True)
     import sentry_sdk
     sentry_sdk.init(
-        CONF.sentry_url,
+        CONF.web.sentry_url,
         # Set traces_sample_rate to 1.0 to capture 100%
         # of transactions for performance monitoring.
         # We recommend adjusting this value in production.
