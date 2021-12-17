@@ -9,6 +9,8 @@ from flask import abort, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
+
+from sentry_sdk.integrations.flask import FlaskIntegration
 import sentry_sdk
 
 import haminfo
@@ -165,13 +167,15 @@ def main(config_file, log_level):
 
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
-    import sentry_sdk
+    version = haminfo.__version__
     sentry_sdk.init(
-        CONF.web.sentry_url,
+        dsn=CONF.web.sentry_url,
         # Set traces_sample_rate to 1.0 to capture 100%
         # of transactions for performance monitoring.
         # We recommend adjusting this value in production.
-        traces_sample_rate=1.0
+        traces_sample_rate=1.0,
+        integrations=[FlaskIntegration()],
+        release=f"haminfo@{version}",
     )
     utils.setup_logging()
 
