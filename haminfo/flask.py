@@ -9,10 +9,12 @@ from flask import abort, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
+import sentry_sdk
 
 import haminfo
 from haminfo import utils, trace
 from haminfo.db import db
+
 
 
 auth = HTTPBasicAuth()
@@ -36,6 +38,9 @@ web_opts = [
                default='abcdefg',
                help='The api key to allow requests incoming.'
                ),
+    cfg.StrOpt('sentry_url',
+               default='http://',
+               help='The Sentry init url')
 ]
 
 CONF.register_opts(web_opts, group="web")
@@ -160,6 +165,14 @@ def main(config_file, log_level):
 
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
+    import sentry_sdk
+    sentry_sdk.init(
+        CONF.sentry_url,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
+        # We recommend adjusting this value in production.
+        traces_sample_rate=1.0
+    )
     utils.setup_logging()
 
     engine = db.setup_connection()

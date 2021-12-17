@@ -21,3 +21,4 @@ oslo.log
 yaspin
 tabulate
 pygments
+sentry-sdk
