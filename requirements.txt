@@ -22,3 +22,4 @@ yaspin
 tabulate
 pygments
 sentry-sdk
+blinker
