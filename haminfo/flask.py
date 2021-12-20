@@ -11,6 +11,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from sentry_sdk.integrations.flask import FlaskIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
@@ -174,7 +175,8 @@ def main(config_file, log_level):
         # of transactions for performance monitoring.
         # We recommend adjusting this value in production.
         traces_sample_rate=1.0,
-        integrations=[FlaskIntegration()],
+        integrations=[FlaskIntegration(),
+                      SqlalchemyIntegration()],
         release=f"haminfo@{version}",
     )
     utils.setup_logging()
