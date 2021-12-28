@@ -1,0 +1,4 @@
+Generic single-database configuration.
+
+To upgrade the schema
+alembic upgrade head

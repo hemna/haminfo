@@ -1,3 +1,4 @@
+alembic
 click
 click-completion
 flask
