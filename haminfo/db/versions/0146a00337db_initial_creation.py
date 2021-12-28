@@ -9,7 +9,6 @@ from alembic import op
 import sqlalchemy as sa
 import geoalchemy2
 import imp
-import os
 
 # revision identifiers, used by Alembic.
 revision = '0146a00337db'
@@ -22,7 +21,9 @@ def upgrade():
     alembic_helpers = imp.load_source('alembic_helpers', (
         op.get_context().script.dir + '/alembic_helpers.py'))
     if alembic_helpers.table_does_not_exist('station'):
-        op.execute("create sequence station_id_seq")
+        print("Creating sequence station_id_seq")
+        ret = op.execute("create sequence station_id_seq")
+        print(f"ret {ret}")
         print("Creating table station")
         op.create_table('station',
             sa.Column('id', sa.Integer(), sa.Sequence('station_id_seq'), nullable=False),  # noqa

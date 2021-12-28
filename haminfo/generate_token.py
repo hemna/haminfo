@@ -34,7 +34,6 @@ click_completion.core.startswith = custom_startswith
 click_completion.init()
 
 
-
 @click.command()
 @click.option('--disable-spinner', is_flag=True, default=False,
               help='Disable all terminal spinning wait animations.')
@@ -82,7 +81,7 @@ def main(disable_spinner, config_file, log_level):
     if disable_spinner or not sys.stdout.isatty():
         spinner.Spinner.enabled = False
 
-    with spinner.Spinner.get(text="Generating api Key") as sp:
+    with spinner.Spinner.get(text="Generating api Key"):
         time.sleep(2)
         apikey = secrets.token_urlsafe()
 

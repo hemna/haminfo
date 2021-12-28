@@ -5,6 +5,7 @@ from haminfo.db.models.modelbase import ModelBase
 
 factory = None
 
+
 def global_init(db_file):
     global factory
 

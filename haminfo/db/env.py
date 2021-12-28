@@ -3,16 +3,13 @@ import os
 import logging as python_logging
 from logging.config import fileConfig
 
-from sqlalchemy import create_engine
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 from oslo_config import cfg
 from oslo_log import log as logging
 
-import haminfo
-from haminfo import utils, spinner
-from haminfo.db import db
+from haminfo import utils
 from haminfo.db.models.modelbase import ModelBase
 import haminfo.db.models.__all_models
 
@@ -43,10 +40,7 @@ target_metadata = ModelBase.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-#config_file = context.get_x_argument(as_dictionary=True).get('config_file')
-#if not config_file:
 print(sys.argv)
-#config_file = utils.DEFAULT_CONFIG_FILE
 config_file = ["--config-file", utils.DEFAULT_CONFIG_FILE]
 CONF(config_file, project='haminfo', version=haminfo.__version__)
 utils.setup_logging()
@@ -73,7 +67,7 @@ def run_migrations_offline():
     script output.
 
     """
-    #url = config.get_main_option("sqlalchemy.url")
+    # url = config.get_main_option("sqlalchemy.url")
     url = get_url()
     context.configure(
         url=url,
@@ -96,8 +90,8 @@ def run_migrations_online():
 
     """
     url = get_url()
-    #connectable = create_engine(url)
-    #context.config.set_main_option('sqlalchemy.url', url)
+    # connectable = create_engine(url)
+    # context.config.set_main_option('sqlalchemy.url', url)
     context.config.set_section_option(config.config_ini_section,
                                       "sqlalchemy.url", url)
     connectable = engine_from_config(

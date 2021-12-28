@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from haminfo.db.models.station import Station
 from haminfo.db.models.modelbase import ModelBase
+from haminfo.db.models.request import Request
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -64,6 +65,19 @@ def delete_USA_state_repeaters(state, session):
         Station.state == state
     ).execution_options(synchronize_session="fetch")
     session.execute(stmt)
+
+
+def log_request(session, params, results):
+    """Log a nearest request to the DB."""
+    r = Request.from_json(params)
+    LOG.info(r)
+    stations = []
+    for result in results:
+        stations.append(result["callsign"])
+
+    r.stations = ','.join(stations)
+    session.add(r)
+    session.commit()
 
 
 def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):

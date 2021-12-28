@@ -15,9 +15,8 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
-from haminfo import utils, trace
+from haminfo import utils
 from haminfo.db import db
-
 
 
 auth = HTTPBasicAuth()
@@ -50,13 +49,12 @@ CONF.register_opts(web_opts, group="web")
 
 API_KEY_HEADER = "X-Api-Key"
 
+
 # TODO(waboring) add real users and user management
 # and api key token creation
 # For now, we hard code a token in the config file
 # that needs to be sent along in the request header
 # as X-Api-Key: <token>
-
-
 # The actual decorator function
 def require_appkey(view_function):
     @wraps(view_function)
@@ -129,6 +127,7 @@ class HaminfoFlask(flask_classful.FlaskView):
                 results.append(dict_)
 
             LOG.debug(f"Returning {results}")
+            db.log_request(session, params, results)
 
         return json.dumps(results)
 
