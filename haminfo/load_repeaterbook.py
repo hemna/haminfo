@@ -4,7 +4,6 @@ import json
 import os
 import requests
 import sys
-import time
 import urllib3
 import logging as python_logging
 
@@ -14,6 +13,7 @@ from oslo_log import log as logging
 import haminfo
 from haminfo import utils, spinner
 from haminfo.db import db
+from haminfo.db.models.station import Station
 
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
@@ -65,16 +65,16 @@ def fetch_repeaters(sp, url, session):
                 )
                 LOG.debug("{}".format(sp.text))
 
-                station = db.Station.find_station_by_ids(
+                station = Station.find_station_by_ids(
                     session, repeater['State ID'],
                     int(repeater['Rptr ID']))
 
                 if station:
                     # Update an existing record so we maintain the id in the DB
-                    repeater_obj = db.Station.update_from_json(
+                    repeater_obj = Station.update_from_json(
                         repeater, station)
                 else:
-                    repeater_obj = db.Station.from_json(repeater)
+                    repeater_obj = Station.from_json(repeater)
 
                 session.add(repeater_obj)
 
@@ -89,6 +89,7 @@ def fetch_repeaters(sp, url, session):
             count += 1
     # session.commit()
     return count
+
 
 def fetch_NA_country_repeaters_by_state(sp, session, country,
                                         state=None, state_names=None):
@@ -172,7 +173,8 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
                    "Utah", "Virginia", "Virgin Islands", "Vermont",
                    "Washington", "Wisconsin", "West Virginia", "Wyoming"]
     LOG.info("Fetching repeaters for {}".format(country))
-    return fetch_NA_country_repeaters_by_state(sp, session, country, state, state_names)
+    return fetch_NA_country_repeaters_by_state(sp, session, country, state,
+                                               state_names)
 
 
 def fetch_Canada_repeaters(sp, session):
@@ -197,11 +199,13 @@ def fetch_south_america_repeaters(sp, session):
 
     return count
 
+
 def fetch_Mexico_repeaters(sp, session):
     country = "Mexico"
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
         sp, session, country, state=None)
+
 
 def fetch_EU_repeaters(sp, session):
     EU_COUNTRIES = ["Ablania", "Andorra", "Austria", "Belarus",
@@ -245,6 +249,7 @@ def fetch_africa_repeaters(sp, session):
         count += fetch_EU_country_repeaters(sp, session, country)
 
     return count
+
 
 def fetch_caribbean_repeaters(sp, session):
     countries = ["Bahamas", "Barbados", "Costa Rica", "Cayman Islands",
@@ -296,14 +301,6 @@ def fetch_all_countries(sp, session):
     help="The log level to use for aprsd.log",
 )
 @click.option(
-    "-i",
-    "init_db",
-    show_default=True,
-    is_flag=True,
-    default=False,
-    help="Wipe out the entire DB and recreate it from scratch.",
-)
-@click.option(
     "--force",
     "force",
     show_default=True,
@@ -312,7 +309,7 @@ def fetch_all_countries(sp, session):
     help="Used with -i, means don't wait for a DB wipe",
 )
 @click.version_option()
-def main(disable_spinner, config_file, log_level, init_db, force):
+def main(disable_spinner, config_file, log_level, force):
     global LOG, CONF
 
     conf_file = config_file
@@ -335,19 +332,6 @@ def main(disable_spinner, config_file, log_level, init_db, force):
         spinner.Spinner.enabled = False
 
     engine = db.setup_connection()
-    if init_db:
-        LOG.warning("Wiping out entire database!")
-        if not force:
-            count = 10
-            wait_text = "Wiping out the ENTIRE DB in {}"
-            with spinner.Spinner.get(text=wait_text.format(count)) as sp:
-                for i in range(10):
-                    time.sleep(1)
-                    count -= 1
-                    sp.text = wait_text.format(count)
-
-        db.init_db_schema(engine)
-
     Session = db.setup_session(engine)
     session = Session()
 

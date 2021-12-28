@@ -1,5 +1,18 @@
 .PHONY: clean clean-test clean-pyc clean-build docs help
+WORKDIR?=.
+VENVDIR ?= $(WORKDIR)/.haminfo-venv
+
 .DEFAULT_GOAL := help
+include Makefile.venv
+Makefile.venv:
+	curl \
+			-o Makefile.fetched \
+			-L "https://github.com/sio/Makefile.venv/raw/v2020.08.14/Makefile.venv"
+	echo "5afbcf51a82f629cd65ff23185acde90ebe4dec889ef80bbdc12562fbd0b2611 *Makefile.fetched" \
+			| sha256sum --check - \
+	 		&& mv Makefile.fetched Makefile.venv
+
+
 
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -23,8 +36,13 @@ export PRINT_HELP_PYSCRIPT
 
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
-help:
+help2:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+
+help:	# Help for the Makefile
+	@egrep -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+dev: venv  ## Create the virtualenv with all the requirements installed
 
 clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
 
