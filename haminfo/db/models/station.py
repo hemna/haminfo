@@ -9,7 +9,7 @@ from haminfo import utils
 class Station(ModelBase):
     __tablename__ = 'station'
 
-    id = sa.Column(sa.Integer, sa.Sequence('user_id_seq'), primary_key=True)
+    id = sa.Column(sa.Integer, sa.Sequence('station_id_seq'), primary_key=True)
     state_id = sa.Column(sa.String, primary_key=True)
     repeater_id = sa.Column(sa.Integer, primary_key=True)
     last_update = sa.Column(sa.Date)

@@ -20,10 +20,12 @@ depends_on = None
 
 def upgrade():
     alembic_helpers = imp.load_source('alembic_helpers', (
-        os.getcwd() + '/' + op.get_context().script.dir + '/alembic_helpers.py'))
+        op.get_context().script.dir + '/alembic_helpers.py'))
     if alembic_helpers.table_does_not_exist('station'):
+        op.execute("create sequence station_id_seq")
+        print("Creating table station")
         op.create_table('station',
-            sa.Column('id', sa.Integer(), nullable=False),  # noqa
+            sa.Column('id', sa.Integer(), sa.Sequence('station_id_seq'), nullable=False),  # noqa
             sa.Column('state_id', sa.String(), nullable=False),
             sa.Column('repeater_id', sa.Integer(), nullable=False),
             sa.Column('last_update', sa.Date(), nullable=True),

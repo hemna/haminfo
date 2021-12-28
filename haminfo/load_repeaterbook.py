@@ -334,7 +334,7 @@ def main(disable_spinner, config_file, log_level, force):
     count = 0
     with spinner.Spinner.get(text="Load and insert repeaters from USA") as sp:
         try:
-            # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
+            count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
             # count += fetch_USA_repeaters_by_state(sp, session)
             # count += fetch_Canada_repeaters(sp, session)
             # count += fetch_EU_repeaters(sp, session)
@@ -342,7 +342,7 @@ def main(disable_spinner, config_file, log_level, force):
             # count += fetch_south_america_repeaters(sp, session)
             # count += fetch_africa_repeaters(sp, session)
             # count += fetch_caribbean_repeaters(sp, session)
-            count = fetch_all_countries(sp, session)
+            # count = fetch_all_countries(sp, session)
 
         except Exception as ex:
             LOG.error("Failed to fetch state because {}".format(ex))
