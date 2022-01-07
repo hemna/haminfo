@@ -9,7 +9,9 @@ from alembic import context
 from oslo_config import cfg
 from oslo_log import log as logging
 
+import haminfo  # noqa
 from haminfo import utils
+from haminfo.db import db  # noqa
 from haminfo.db.models.modelbase import ModelBase
 import haminfo.db.models.__all_models
 
@@ -40,6 +42,8 @@ target_metadata = ModelBase.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+# config_file = context.get_x_argument(as_dictionary=True).get('config_file')
+# if not config_file:
 print(sys.argv)
 config_file = ["--config-file", utils.DEFAULT_CONFIG_FILE]
 CONF(config_file, project='haminfo', version=haminfo.__version__)

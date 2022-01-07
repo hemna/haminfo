@@ -36,7 +36,7 @@ class Request(ModelBase):
             latitude=r_json["lat"],
             longitude=r_json["lon"],
             band=r_json["band"],
-            callsign=r_json.get("Callsign", "None"),
+            callsign=r_json.get("callsign", "None"),
             count=r_json.get("count", 1),
             filters=r_json.get("filters", "None"),
             stations=r_json.get("stations", "None"),
