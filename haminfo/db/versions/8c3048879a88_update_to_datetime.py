@@ -31,5 +31,4 @@ def downgrade():
                existing_type=sa.DateTime(),
                type_=sa.DATE(),
                existing_nullable=True)
-    )
     # ### end Alembic commands ###
