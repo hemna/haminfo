@@ -8,7 +8,7 @@ class Request(ModelBase):
     __tablename__ = 'request'
 
     id = sa.Column(sa.Integer, sa.Sequence('request_id_seq'), primary_key=True)
-    created = sa.Column(sa.Date)
+    created = sa.Column(sa.DateTime)
     latitude = sa.Column(sa.Float)
     longitude = sa.Column(sa.Float)
     band = sa.Column(sa.String)
