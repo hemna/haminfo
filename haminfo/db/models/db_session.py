@@ -1,8 +1,6 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 
-from haminfo.db.models.modelbase import ModelBase
-
 factory = None
 
 

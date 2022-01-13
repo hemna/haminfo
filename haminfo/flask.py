@@ -15,7 +15,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
-from haminfo import utils
+from haminfo import utils, log
 from haminfo.db import db
 
 
@@ -24,6 +24,13 @@ users = None
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
+
+app = flask.Flask(
+    utils.DOMAIN,
+    static_url_path="/static",
+    static_folder="web/static",
+    template_folder="web/templates",
+)
 
 grp = cfg.OptGroup('web')
 cfg.CONF.register_group(grp)
@@ -40,6 +47,9 @@ web_opts = [
                default='abcdefg',
                help='The api key to allow requests incoming.'
                ),
+    cfg.BoolOpt('sentry_enable',
+                default=False,
+                help="Enable logging sentry alerts"),
     cfg.StrOpt('sentry_url',
                default='http://',
                help='The Sentry init url')
@@ -75,12 +85,9 @@ def require_appkey(view_function):
 class HaminfoFlask(flask_classful.FlaskView):
 
     def _get_db_session(self):
-        engine = db.setup_connection()
-        session = db.setup_session(engine)
-        return session
+        return db.setup_session()
 
     def index(self):
-        LOG.debug("INDEX")
         return flask.render_template(
             "index.html",
             version=haminfo.__version__,
@@ -135,6 +142,35 @@ class HaminfoFlask(flask_classful.FlaskView):
         stats = {}
         return json.dumps(stats)
 
+    def requests(self):
+        try:
+            params = request.get_json()
+        except Exception as ex:
+            LOG.error("Failed to find json in request because {}".format(ex))
+            return
+
+        # last_id = params.get("last_id", 0)
+        number = params.get("number", 25)
+        LOG.debug(f"REQUESTS for LAST {number}")
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            query = db.find_requests(
+                session,
+                number
+            )
+
+            if query:
+                for r in query:
+                    if r:
+                        _dict = r.to_dict()
+                        t = str(_dict['created'])
+                        t = t[:t.rindex('.')]
+                        _dict['created'] = t
+                        entries.append(_dict)
+
+        return json.dumps(entries)
+
 
 @click.command()
 @click.option(
@@ -165,45 +201,48 @@ def main(config_file, log_level):
     else:
         config_file = ["--config-file", config_file]
 
+    flask_app = create_app(config_file=config_file, log_level=log_level)
+    flask_app.run(
+        host=CONF.web.host_ip,
+        port=CONF.web.host_port
+    )
+
+
+def create_app(config_file=None, log_level=None):
+    if not config_file:
+        conf_file = utils.DEFAULT_CONFIG_FILE
+        config_file = ["--config-file", conf_file]
+    if not log_level:
+        log_level = "DEBUG"
+
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
     version = haminfo.__version__
-    sentry_sdk.init(
-        dsn=CONF.web.sentry_url,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for performance monitoring.
-        # We recommend adjusting this value in production.
-        traces_sample_rate=1.0,
-        integrations=[FlaskIntegration(),
-                      SqlalchemyIntegration()],
-        release=f"haminfo@{version}",
-    )
-    utils.setup_logging()
-
-    engine = db.setup_connection()
-    Session = db.setup_session(engine)
-    session = Session()
-
+    if CONF.web.sentry_enable:
+        sentry_sdk.init(
+            dsn=CONF.web.sentry_url,
+            # Set traces_sample_rate to 1.0 to capture 100%
+            # of transactions for performance monitoring.
+            # We recommend adjusting this value in production.
+            traces_sample_rate=1.0,
+            integrations=[FlaskIntegration(),
+                          SqlalchemyIntegration()],
+            release=f"haminfo@{version}",
+        )
+    log.setup_logging(app)
+    session = db.setup_session()
     CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
     LOG.info("haminfo_api version: {}".format(haminfo.__version__))
-    LOG.info("using config file {}".format(conf_file))
+    LOG.info("using config file {}".format(config_file))
     LOG.info("Number of repeaters in DB {}".format(
         db.get_num_repeaters_in_db(session)))
 
-    flask_app = flask.Flask(
-        utils.DOMAIN,
-        static_url_path="/static",
-        static_folder="web/static",
-        template_folder="web/templates",
-    )
-
     server = HaminfoFlask()
-    flask_app.route("/", methods=["GET"])(server.index)
-    flask_app.route("/nearest", methods=["POST"])(server.nearest)
-    flask_app.run(
-            host=CONF.web.host_ip,
-            port=CONF.web.host_port
-        )
+    app.route("/", methods=["GET"])(server.index)
+    app.route("/nearest", methods=["POST"])(server.nearest)
+    app.route("/stats", methods=["GET"])(server.stats)
+    app.route("/requests", methods=["POST"])(server.requests)
+    return app
 
 
 if __name__ == "__main__":

@@ -77,57 +77,6 @@ FREQ_BAND_PLAN = {
 }
 
 
-def setup_logging():
-    """Prepare Oslo Logging (2 or 3 steps)
-
-    Use of Oslo Logging involves the following:
-
-    * logging.register_options
-    * logging.set_defaults (optional)
-    * logging.setup
-    """
-
-    # Optional step to set new defaults if necessary for
-    # * logging_context_format_string
-    # * default_log_levels
-    #
-    # These variables default to respectively:
-    #
-    #  import oslo_log
-    #  oslo_log._options.DEFAULT_LOG_LEVELS
-    #  oslo_log._options.log_opts[0].default
-    #
-    existing = logging.get_default_log_levels()
-
-    extra_log_level_defaults = [
-        'haminfo=WARN',
-        'sqlalchemy=FATAL',
-        'sqlalchemy.engine.Engine=FATAL',
-        'oslo.messaging=WARN',
-        'oslo_messaging=WARN',
-        'haminfo=DEBUG',
-        ]
-    new = []
-
-    exist_dict = {}
-    for entry in existing:
-        e_arr = entry.split('=')
-        exist_dict[e_arr[0]] = e_arr[1]
-
-    for entry in extra_log_level_defaults:
-        e_arr = entry.split('=')
-        exist_dict[e_arr[0]] = e_arr[1]
-
-    for key in exist_dict:
-        new.append("{}={}".format(key, exist_dict[key]))
-
-    logging.set_defaults(default_log_levels=new)
-
-    # Required step to register common, logging and generic configuration
-    # variables
-    logging.setup(CONF, DOMAIN)
-
-
 def bool_from_str(bool_str):
     if bool_str == "No":
         return False
@@ -220,3 +169,14 @@ def alert_percent_color(percent, start=0, end=120):
     are hue.  Green is 120 hue.
     """
     return pick_color(percent, 0, 100, start, end)
+
+
+def rgb_from_name(name):
+    """Create an rgb tuple from a string."""
+    hash = 0
+    for char in name:
+        hash = ord(char) + ((hash << 5) - hash)
+    red = hash & 255
+    green = (hash >> 8) & 255
+    blue = (hash >> 16) & 255
+    return red, green, blue

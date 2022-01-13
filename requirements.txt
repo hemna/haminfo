@@ -4,6 +4,7 @@ click-completion
 flask
 flask-classful
 flask-httpauth
+flask-socketio
 opencage
 pluggy
 pbr
@@ -24,3 +25,6 @@ tabulate
 pygments
 sentry-sdk
 blinker
+mapbox
+geojson
+pylibmc
