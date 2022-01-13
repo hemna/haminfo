@@ -1,14 +1,21 @@
+from hashlib import md5
 from oslo_config import cfg
 from oslo_log import log as logging
+
+from dogpile.cache.region import make_region
 import sqlalchemy
 from sqlalchemy import create_engine, func
+from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm import sessionmaker
 
+from haminfo.db import caching_query
 from haminfo.db.models.station import Station
 from haminfo.db.models.modelbase import ModelBase
 from haminfo.db.models.request import Request
+from haminfo import utils
 
-LOG = logging.getLogger(__name__)
+
+LOG = logging.getLogger(utils.DOMAIN)
 CONF = cfg.CONF
 
 grp = cfg.OptGroup('database')
@@ -25,6 +32,13 @@ database_opts = [
 
 CONF.register_opts(database_opts, group="database")
 
+memcached_opts = [
+    cfg.StrOpt('url',
+               help='The memcached connection string to use.',
+               secret=True),
+]
+CONF.register_opts(memcached_opts, group="memcached")
+
 # Mapping of human filter string to db column name
 STATION_FEATURES = {
     "ares": "ares",
@@ -39,6 +53,9 @@ STATION_FEATURES = {
     "dstar": "dstar",
 }
 
+# the global cache object
+cache = None
+
 
 # Probably should nuke this now we are using alembic
 def init_db_schema(engine):
@@ -48,14 +65,45 @@ def init_db_schema(engine):
     ModelBase.metadata.create_all(engine)
 
 
-def setup_connection():
+def md5_key_mangler(key):
+    """Receive cache keys as long concatenated strings;
+    distill them into an md5 hash.
+
+    """
+    return md5(key.encode("ascii")).hexdigest()
+
+
+def _create_cache_regions():
+    regions = {}
+
+    regions["default"] = make_region(
+        # the "dbm" backend needs
+        # string-encoded keys
+        key_mangler=md5_key_mangler
+    ).configure(
+        "dogpile.cache.pylibmc",
+        expiration_time=3600,
+        arguments={"url": [CONF.memcached.url]},
+    )
+    return regions
+
+
+def _setup_connection():
     # engine = create_engine('sqlite:///:memory:', echo=True)
-    engine = create_engine(CONF.database.connection, echo=CONF.database.debug)
+    engine = create_engine(CONF.database.connection,
+                           echo=CONF.database.debug, )
     return engine
 
 
-def setup_session(engine):
-    return sessionmaker(bind=engine)
+def setup_session():
+    global cache
+    regions = _create_cache_regions()
+    engine = _setup_connection()
+    session = scoped_session(sessionmaker(bind=engine))
+    cache = caching_query.ORMCache(regions)
+    cache.listen_on_session(session)
+
+    return session
 
 
 def delete_USA_state_repeaters(state, session):
@@ -78,6 +126,60 @@ def log_request(session, params, results):
     r.stations = ','.join(stations)
     session.add(r)
     session.commit()
+    invalidate_requests_cache(session)
+
+
+def find_requests(session, number=None):
+    if number:
+        query = session.query(
+            Request
+        ).options(
+            caching_query.FromCache('default')
+        ).order_by(
+            Request.id.desc()
+        ).limit(
+            number
+        )
+    else:
+        # Get them all.
+        query = session.query(
+            Request
+        ).options(
+            caching_query.FromCache('default')
+        ).order_by(
+            Request.id.desc()
+        )
+
+    return query
+
+
+def invalidate_requests_cache(session):
+    """This nukes the cached queries for requests."""
+    global cache
+
+    LOG.info("Invalidate requests cache")
+
+    cache.invalidate(
+        session.query(Request).order_by(
+            Request.id.desc()
+        ).limit(25),
+        {},
+        caching_query.FromCache("default")
+    )
+    cache.invalidate(
+        session.query(Request).order_by(
+            Request.id.desc()
+        ).limit(50),
+        {},
+        caching_query.FromCache("default")
+    )
+    cache.invalidate(
+        session.query(Request).order_by(
+            Request.id.desc()
+        ),
+        {},
+        caching_query.FromCache("default")
+    )
 
 
 def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
