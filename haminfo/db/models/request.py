@@ -16,12 +16,13 @@ class Request(ModelBase):
     count = sa.Column(sa.Integer)
     callsign = sa.Column(sa.String)
     stations = sa.Column(sa.String)
+    repeater_ids = sa.Column(sa.String)
 
     def __repr__(self):
         return (f"<Request(callsign='{self.callsign}', created='{self.created}'"
                 f", latitude='{self.latitude}', longitude='{self.longitude}'), "
                 f"count='{self.count}' filters='{self.filters}' "
-                f"stations='{self.stations}'>")
+                f"stations='{self.stations}' repeater_ids='{self.repeater_ids}'>")
 
     def to_dict(self):
         dict_ = {}
@@ -40,6 +41,7 @@ class Request(ModelBase):
             count=r_json.get("count", 1),
             filters=r_json.get("filters", "None"),
             stations=r_json.get("stations", "None"),
+            repeater_ids=r_json.get("repeater_ids", "None"),
             created=datetime.datetime.now()
         )
 

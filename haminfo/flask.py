@@ -171,6 +171,45 @@ class HaminfoFlask(flask_classful.FlaskView):
 
         return json.dumps(entries)
 
+    def stations(self):
+        """Find stations by their callsigns."""
+        try:
+            params = request.get_json()
+        except Exception as ex:
+            LOG.error("Failed to find json in stations because {}".format(ex))
+
+        callsigns = params.get('callsigns', [])
+        repeater_ids = params.get('repeater_ids', [])
+        LOG.debug(f"Find stations by callsign {params} or IDS {repeater_ids}")
+        for call in callsigns:
+            LOG.info(f"Callsign {call}")
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            # priorities looking by ids
+            if repeater_ids:
+                query = db.find_stations_by_ids(
+                    session,
+                    repeater_ids
+                )
+            else:
+                # Try by callsigns
+                query = db.find_stations_by_callsign(
+                    session,
+                    callsigns
+                )
+
+            if query:
+                for r in query:
+                    if r:
+                        _dict = r.to_dict()
+                        entries.append(_dict)
+            else:
+                LOG.error(query)
+
+        LOG.debug(f"Returning {len(entries)} for {callsigns}")
+        return json.dumps(entries)
+
 
 @click.command()
 @click.option(
@@ -242,6 +281,7 @@ def create_app(config_file=None, log_level=None):
     app.route("/nearest", methods=["POST"])(server.nearest)
     app.route("/stats", methods=["GET"])(server.stats)
     app.route("/requests", methods=["POST"])(server.requests)
+    app.route("/stations", methods=["POST"])(server.stations)
     return app
 
 

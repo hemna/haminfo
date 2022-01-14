@@ -120,13 +120,41 @@ def log_request(session, params, results):
     r = Request.from_json(params)
     LOG.info(r)
     stations = []
+    station_ids = []
     for result in results:
         stations.append(result["callsign"])
+        # Use our DB ID here, not repeater_id
+        station_ids.append(result["id"])
 
     r.stations = ','.join(stations)
+    r.repeater_ids = ','.join(station_ids)
     session.add(r)
     session.commit()
     invalidate_requests_cache(session)
+
+
+def find_stations_by_callsign(session, stations):
+    """Find data for the stations."""
+    query = session.query(
+        Station
+    ).options(
+        caching_query.FromCache('default')
+    ).filter(
+        Station.callsign.in_(tuple(stations))
+    )
+    return query
+
+
+def find_stations_by_ids(session, repeater_ids):
+    """Find data for the stations."""
+    query = session.query(
+        Station
+    ).options(
+        caching_query.FromCache('default')
+    ).filter(
+        Station.callsign.in_(tuple(repeater_ids))
+    )
+    return query
 
 
 def find_requests(session, number=None):

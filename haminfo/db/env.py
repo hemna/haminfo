@@ -10,7 +10,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 import haminfo  # noqa
-from haminfo import utils
+from haminfo import utils, log
 from haminfo.db import db  # noqa
 from haminfo.db.models.modelbase import ModelBase
 import haminfo.db.models.__all_models
@@ -47,7 +47,7 @@ target_metadata = ModelBase.metadata
 print(sys.argv)
 config_file = ["--config-file", utils.DEFAULT_CONFIG_FILE]
 CONF(config_file, project='haminfo', version=haminfo.__version__)
-utils.setup_logging()
+log.setup_logging()
 python_logging.captureWarnings(True)
 CONF.log_opt_values(LOG, utils.LOG_LEVELS["DEBUG"])
 
