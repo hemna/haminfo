@@ -124,7 +124,7 @@ def log_request(session, params, results):
     for result in results:
         stations.append(result["callsign"])
         # Use our DB ID here, not repeater_id
-        station_ids.append(result["id"])
+        station_ids.append(str(result["id"]))
 
     LOG.info(f"Station_ids {station_ids}")
     r.stations = ','.join(stations)
