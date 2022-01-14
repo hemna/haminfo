@@ -126,6 +126,7 @@ def log_request(session, params, results):
         # Use our DB ID here, not repeater_id
         station_ids.append(result["id"])
 
+    LOG.info(f"Station_ids {station_ids}")
     r.stations = ','.join(stations)
     r.repeater_ids = ','.join(station_ids)
     session.add(r)
