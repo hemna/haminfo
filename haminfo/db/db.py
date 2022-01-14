@@ -153,7 +153,7 @@ def find_stations_by_ids(session, repeater_ids):
     ).options(
         caching_query.FromCache('default')
     ).filter(
-        Station.callsign.in_(tuple(repeater_ids))
+        Station.id.in_(tuple(repeater_ids))
     )
     return query
 
