@@ -5,6 +5,7 @@ flask
 flask-classful
 flask-httpauth
 flask-socketio
+werkzeug==2.1.2 # fixes a problem
 opencage
 pluggy
 pbr
