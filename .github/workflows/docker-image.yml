@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - name: Get Branch Name
+      id: branch-name
+      uses: tj-actions/branch-names@v6
     - name: Setup QEMU
       uses: docker/setup-qemu-action@v2
     - name: Setup Docker Buildx
@@ -24,6 +27,6 @@ jobs:
       uses: docker/build-push-action@v3
       with:
         context: ./docker
-        platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
+        platforms: linux/amd64
         push: true
-        tags: hemna6969/haminfo:master
+        tags: hemna6969/haminfo:${{ steps.branch-name.outputs.current_branch }}
