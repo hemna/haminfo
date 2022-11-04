@@ -1,0 +1,18 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - 'release-*'
+
+jobs:
+  test:
+    name: Test - unit & Integration
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - run: python -m tox
