@@ -29,4 +29,6 @@ jobs:
         context: ./docker
         platforms: linux/amd64
         push: true
-        tags: hemna6969/haminfo:${{ steps.branch-name.outputs.current_branch }}
+        tags: |
+          hemna6969/haminfo:${{ steps.branch-name.outputs.current_branch }}
+          hemna6969/haminfo:latest
