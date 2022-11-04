@@ -57,20 +57,8 @@ docker buildx rm multiarch
 echo "Creating new buildx container"
 docker buildx create --name multiarch --platform linux/arm/v7,linux/arm/v6,linux/arm64,linux/amd64 --config ./buildkit.toml --use --driver-opt image=moby/buildkit:master
 
-if [ $DEV -eq 1 ]
-then
     echo "Build -DEV- with tag=${TAG} BRANCH=${BRANCH} platforms?=${PLATFORMS}"
     # Use this script to locally build the docker image
-    docker buildx build --push --platform $PLATFORMS \
-        -t harbor.hemna.com/hemna6969/haminfo:$TAG \
-        -f Dockerfile-dev --build-arg branch=$BRANCH --no-cache .
-else
-    # Use this script to locally build the docker image
-        #-t hemna6969/haminfo:$VERSION \
-        #-t hemna6969/haminfo:$TAG \
-    echo "Build with tag=${TAG} BRANCH=${BRANCH} platforms?=${PLATFORMS}"
     docker buildx build --platform $PLATFORMS \
-        -t harbor.hemna.com/hemna6969/haminfo:$TAG \
-        -t harbor.hemna.com/hemna6969/haminfo:$VERSION \
-        -f Dockerfile-dev --build-arg branch=$BRANCH --no-cache --push .
-fi
+        -t hemna6969/haminfo:$TAG \
+        -f Dockerfile-dev --build-arg branch=$BRANCH --no-cache .

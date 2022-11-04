@@ -1,47 +1,63 @@
-FROM python:3.8-slim as aprsd
+FROM python:3.9-slim as haminfo
 
 # Dockerfile for building a container during aprsd development.
-
+ARG BRANCH
 ARG UID
 ARG GID
-ARG TZ
+
 ENV CONTAINER_USER=haminfo
+ENV APP_NAME=haminfo
 ENV HOME=/home/haminfo
-ENV TZ=${TZ:-US/Eastern}
+ENV APP_GIT=http://github.com/hemna/haminfo.git
+ENV APP_BRANCH=${BRANCH:-master}
+ENV VIRTUAL_ENV=$HOME/.venv3
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
+
+ENV INSTALL=$HOME/install
+RUN apt update
+RUN apt install -y git build-essential
+RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev cron sudo
+RUN apt install -y bash bash-completion zsh
+
+RUN addgroup --gid 1001 $CONTAINER_USER
+RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
+
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-RUN apt update
-RUN apt install -y git build-essential
-RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev 
-#RUN apt-get install -y apt-utils
-#RUN apt-get install -y pkg-config
-#RUN apt upgrade -y
-#RUN apk add --update git wget bash
-#RUN apk add --update gcc linux-headers musl-dev libffi-dev libc-dev
-#RUN apk add --update openssl-dev
-#RUN add cmd:pip3 lsb-release
+USER $CONTAINER_USER
+RUN pip3 install wheel
+#RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN echo "export PATH=\$PATH:\$HOME/.local/bin" >> $HOME/.bashrc
 
-RUN addgroup --gid $GID $CONTAINER_USER
-RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
-
-# Install aprsd
-RUN /usr/local/bin/pip3 install haminfo
-
-# Ensure /config is there with a default config file
 USER root
-RUN mkdir -p /config
-RUN aprsd sample-config > /config/haminfo.yml
+RUN ln -s $HOME/.config/haminfo /config
 RUN chown -R $CONTAINER_USER:$CONTAINER_USER /config
+RUN echo "haminfo  ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/haminfo
+RUN usermod -aG sudo haminfo
+
+USER $CONTAINER_USER
+WORKDIR $HOME
+RUN mkdir $INSTALL
+RUN git clone -b $APP_BRANCH $APP_GIT $INSTALL/haminfo
+USER root
+RUN cd $INSTALL/haminfo && pip3 install .
+RUN pip3 install gunicorn
+
+user $CONTAINER_USER
+RUN mkdir -p $HOME/.config/haminfo
+RUN oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
 
 # override this to run another configuration
 ENV CONF default
-VOLUME ["/config"]
-EXPOSE 80/tcp
-EXPOSE 80/udp
-
 USER $CONTAINER_USER
-ADD bin/run.sh /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/run.sh"]
+VOLUME ["/config"]
+EXPOSE 8081/tcp
+EXPOSE 8081/udp
+
+ADD bin/api_entry.sh $HOME/
+ADD bin/reload_db.sh $HOME/
+ADD bin/cron_entry.sh $HOME/
+ENTRYPOINT ["/home/haminfo/api_entry.sh"]
