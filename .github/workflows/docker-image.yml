@@ -22,9 +22,8 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build the Docker image
       uses: docker/build-push-action@v3
-      working-directory: ./docker
       with:
-        context: .
+        context: ./docker
         platforms: linux/amd64,linux/arm64
         push: true
         tags: hemna6969/haminfo:latest
