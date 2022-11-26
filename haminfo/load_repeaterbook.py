@@ -276,6 +276,50 @@ def fetch_all_countries(sp, session):
     count += fetch_caribbean_repeaters(sp, session)
     return count
 
+@click.command()
+@click.option(
+    "-c",
+    "--config-file",
+    "config_file",
+    show_default=True,
+    default=utils.DEFAULT_CONFIG_FILE,
+    help="The aprsd config file to use for options.",
+)
+@click.option(
+    "--log-level",
+    "log_level",
+    default="INFO",
+    show_default=True,
+    type=click.Choice(
+        ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        case_sensitive=False,
+    ),
+    show_choices=True,
+    help="The log level to use for aprsd.log",
+)
+@click.version_option()
+def init_schema(config_file, log_level):
+    global LOG, CONF
+
+    conf_file = config_file
+    if config_file != utils.DEFAULT_CONFIG_FILE:
+        config_file = sys.argv[1:]
+    else:
+        config_file = ["--config-file", config_file]
+
+    CONF(config_file, project='haminfo', version=haminfo.__version__)
+    python_logging.captureWarnings(True)
+    log.setup_logging()
+
+    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info("using config file {}".format(conf_file))
+
+    if CONF.debug and log_level == "DEBUG":
+        CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
+
+    engine = db._setup_connection()
+    db.init_db_schema(engine)
+
 
 @click.command()
 @click.option('--disable-spinner', is_flag=True, default=False,
@@ -331,8 +375,7 @@ def main(disable_spinner, config_file, log_level, force):
     if disable_spinner or not sys.stdout.isatty():
         spinner.Spinner.enabled = False
 
-    engine = db.setup_connection()
-    Session = db.setup_session(engine)
+    Session = db.setup_session()
     session = Session()
 
     count = 0
