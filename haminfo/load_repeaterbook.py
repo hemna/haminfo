@@ -11,7 +11,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 import haminfo
-from haminfo import utils, spinner
+from haminfo import utils, spinner, log
 from haminfo.db import db
 from haminfo.db.models.station import Station
 
@@ -320,7 +320,7 @@ def main(disable_spinner, config_file, log_level, force):
 
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
-    utils.setup_logging()
+    log.setup_logging()
 
     LOG.info("haminfo_load version: {}".format(haminfo.__version__))
     LOG.info("using config file {}".format(conf_file))
