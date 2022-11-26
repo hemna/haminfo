@@ -16,7 +16,7 @@ ENV GID=${GID:-1000}
 
 ENV INSTALL=$HOME/install
 RUN apt update
-RUN apt install -y git build-essential
+RUN apt install -y git build-essential cron sudo
 RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev 
 RUN apt install -y libmemcached-dev zlib1g-dev
 #RUN apt-get install -y apt-utils
