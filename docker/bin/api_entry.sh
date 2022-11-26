@@ -3,6 +3,9 @@
 
 set -x
 
+COLUMNS=${COLUMNS:-160}
+export COLUMNS
+
 # TODO(walt): setup a cron to run haminfo_load
 # once a day.
 INIT_DB=${INIT_DB:-False}

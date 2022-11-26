@@ -18,6 +18,7 @@ ENV INSTALL=$HOME/install
 RUN apt update
 RUN apt install -y git build-essential
 RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev cron sudo
+RUN apt install -y libmemcached-dev zlib1g-dev
 RUN apt install -y bash bash-completion zsh
 
 RUN addgroup --gid 1001 $CONTAINER_USER

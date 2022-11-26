@@ -17,10 +17,17 @@ ENV GID=${GID:-1000}
 ENV INSTALL=$HOME/install
 RUN apt update
 RUN apt install -y git build-essential
-RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev cron sudo
-RUN apt install -y bash bash-completion zsh
+RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev 
+RUN apt install -y libmemcached-dev zlib1g-dev
+#RUN apt-get install -y apt-utils
+#RUN apt-get install -y pkg-config
+#RUN apt upgrade -y
+#RUN apk add --update git wget bash
+#RUN apk add --update gcc linux-headers musl-dev libffi-dev libc-dev
+#RUN apk add --update openssl-dev
+#RUN add cmd:pip3 lsb-release
 
-RUN addgroup --gid 1001 $CONTAINER_USER
+RUN addgroup --gid $GID $CONTAINER_USER
 RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
 
 ENV LC_ALL=C.UTF-8
