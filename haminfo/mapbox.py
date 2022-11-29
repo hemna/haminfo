@@ -13,6 +13,7 @@ from geojson import Feature, Point
 
 import haminfo
 from haminfo import utils
+from haminfo import log
 from haminfo.db import db
 
 
@@ -91,7 +92,7 @@ def main(disable_spinner, config_file, log_level, force, id, show):
 
     CONF(config_file, project='haminfo', version=haminfo.__version__)
     python_logging.captureWarnings(True)
-    utils.setup_logging()
+    log.setup_logging()
 
     LOG.info("haminfo_load version: {}".format(haminfo.__version__))
     LOG.info("using config file {}".format(conf_file))
