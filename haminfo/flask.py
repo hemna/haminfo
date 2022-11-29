@@ -277,7 +277,7 @@ def create_app(config_file=None, log_level=None):
         db.get_num_repeaters_in_db(session)))
 
     server = HaminfoFlask()
-    app.route("/", methods=["GET"])(server.index)
+    # app.route("/", methods=["GET"])(server.index)
     app.route("/nearest", methods=["POST"])(server.nearest)
     app.route("/stats", methods=["GET"])(server.stats)
     app.route("/requests", methods=["POST"])(server.requests)
