@@ -106,7 +106,7 @@ def setup_session():
     return session
 
 
-def delete_USA_state_repeaters(state, session):
+def delete_USA_state_repeaters(state, session):   # noqa: N802
     stmt = sqlalchemy.delete(
         Station
     ).where(

@@ -91,7 +91,7 @@ def fetch_repeaters(sp, url, session):
     return count
 
 
-def fetch_NA_country_repeaters_by_state(sp, session, country,
+def fetch_NA_country_repeaters_by_state(sp, session, country,       # noqa:N802
                                         state=None, state_names=None):
 
     count = 0
@@ -139,7 +139,7 @@ def fetch_NA_country_repeaters_by_state(sp, session, country,
     return count
 
 
-def fetch_EU_country_repeaters(sp, session, country):
+def fetch_EU_country_repeaters(sp, session, country):   # noqa: N802
     # Just fetch by country
     msg = "Fetching {}".format(country)
     sp.write(msg)
@@ -156,7 +156,7 @@ def fetch_EU_country_repeaters(sp, session, country):
     return count
 
 
-def fetch_USA_repeaters_by_state(sp, session, state=None):
+def fetch_USA_repeaters_by_state(sp, session, state=None):  # noqa: N802
     """Only fetch United States repeaters."""
     country = "United States"
     state_names = ["Alaska", "Alabama", "Arkansas", "American Samoa",
@@ -177,7 +177,7 @@ def fetch_USA_repeaters_by_state(sp, session, state=None):
                                                state_names)
 
 
-def fetch_Canada_repeaters(sp, session):
+def fetch_Canada_repeaters(sp, session):  # noqa: N802
     country = "Canada"
     state_names = ["Alberta", "British Columbia", "Manitoba", "New Brunswick",
                    "Newfoundland and Labrador", "Nova Scotia", "Nunavut",
@@ -200,15 +200,15 @@ def fetch_south_america_repeaters(sp, session):
     return count
 
 
-def fetch_Mexico_repeaters(sp, session):
+def fetch_Mexico_repeaters(sp, session):  # noqa: N802
     country = "Mexico"
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
         sp, session, country, state=None)
 
 
-def fetch_EU_repeaters(sp, session):
-    EU_COUNTRIES = ["Ablania", "Andorra", "Austria", "Belarus",
+def fetch_EU_repeaters(sp, session):    # noqa: N802
+    eu_countries = ["Ablania", "Andorra", "Austria", "Belarus",
                     "Belgium", "Bosnia and Herzegovina",
                     "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
                     "Denmark", "Estonia", "Faroe Islands", "Finland",
@@ -221,7 +221,7 @@ def fetch_EU_repeaters(sp, session):
                     "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland",
                     "Ukraine", "United Kingdom"]
     count = 0
-    for country in EU_COUNTRIES:
+    for country in eu_countries:
         count += fetch_EU_country_repeaters(sp, session, country)
 
     return count
@@ -275,6 +275,7 @@ def fetch_all_countries(sp, session):
     count += fetch_africa_repeaters(sp, session)
     count += fetch_caribbean_repeaters(sp, session)
     return count
+
 
 @click.command()
 @click.option(
@@ -375,8 +376,8 @@ def main(disable_spinner, config_file, log_level, force):
     if disable_spinner or not sys.stdout.isatty():
         spinner.Spinner.enabled = False
 
-    Session = db.setup_session()
-    session = Session()
+    db_session = db.setup_session()
+    session = db_session()
 
     count = 0
     with spinner.Spinner.get(text="Load and insert repeaters from USA") as sp:

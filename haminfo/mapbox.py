@@ -113,9 +113,8 @@ def main(disable_spinner, config_file, log_level, force, id, show):
             console.print(f_json)
     else:
         # Load all the requests and put it in the dataset
-        engine = db.setup_connection()
-        Session = db.setup_session(engine)
-        session = Session()
+        db_session = db.setup_session()
+        session = db_session()
 
         with console.status("Fetching Records") as status:
             with session:
