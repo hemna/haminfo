@@ -36,6 +36,10 @@ memcached_opts = [
     cfg.StrOpt('url',
                help='The memcached connection string to use.',
                secret=True),
+    cfg.StrOpt('expire_time',
+               help='The time the cache data is valid for. Default is 5 minutes',
+               default=300,
+               secret=True),
 ]
 CONF.register_opts(memcached_opts, group="memcached")
 
@@ -82,7 +86,7 @@ def _create_cache_regions():
         key_mangler=md5_key_mangler
     ).configure(
         "dogpile.cache.pylibmc",
-        expiration_time=3600,
+        expiration_time=CONF.memcached.expire_time,
         arguments={"url": [CONF.memcached.url]},
     )
     return regions
