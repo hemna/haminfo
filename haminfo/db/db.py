@@ -36,7 +36,7 @@ memcached_opts = [
     cfg.StrOpt('url',
                help='The memcached connection string to use.',
                secret=True),
-    cfg.StrOpt('expire_time',
+    cfg.IntOpt('expire_time',
                help='The time the cache data is valid for. Default is 5 minutes',
                default=300,
                secret=True),
