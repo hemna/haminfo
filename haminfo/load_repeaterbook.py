@@ -184,10 +184,11 @@ def fetch_USA_repeaters_by_state(sp, session, state=None, fetch_only=False):  # 
                    "Washington", "Wisconsin", "West Virginia", "Wyoming"]
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(sp, session, country, state,
-                                               state_names, fetch_only)
+                                               state_names,
+                                               fetch_only=fetch_only)
 
 
-def fetch_Canada_repeaters(sp, session, fetch_only):  # noqa: N802
+def fetch_Canada_repeaters(sp, session, fetch_only=False):  # noqa: N802
     country = "Canada"
     state_names = ["Alberta", "British Columbia", "Manitoba", "New Brunswick",
                    "Newfoundland and Labrador", "Nova Scotia", "Nunavut",
@@ -195,7 +196,8 @@ def fetch_Canada_repeaters(sp, session, fetch_only):  # noqa: N802
                    "Quebec", "Saskatchewan", "Yukon"]
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
-        sp, session, country, state=None, state_names=state_names)
+        sp, session, country, state=None, state_names=state_names,
+        fetch_only=fetch_only)
 
 
 def fetch_south_america_repeaters(sp, session):
@@ -210,14 +212,14 @@ def fetch_south_america_repeaters(sp, session):
     return count
 
 
-def fetch_Mexico_repeaters(sp, session):  # noqa: N802
+def fetch_Mexico_repeaters(sp, session, fetch_only=False):  # noqa: N802
     country = "Mexico"
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
-        sp, session, country, state=None)
+        sp, session, country, state=None, fetch_only=fetch_only)
 
 
-def fetch_EU_repeaters(sp, session):    # noqa: N802
+def fetch_EU_repeaters(sp, session, fetch_only=False):    # noqa: N802
     eu_countries = ["Ablania", "Andorra", "Austria", "Belarus",
                     "Belgium", "Bosnia and Herzegovina",
                     "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
@@ -232,7 +234,8 @@ def fetch_EU_repeaters(sp, session):    # noqa: N802
                     "Ukraine", "United Kingdom"]
     count = 0
     for country in eu_countries:
-        count += fetch_EU_country_repeaters(sp, session, country)
+        count += fetch_EU_country_repeaters(sp, session, country,
+                                            fetch_only=fetch_only)
 
     return count
 
