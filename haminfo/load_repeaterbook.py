@@ -142,7 +142,7 @@ def fetch_NA_country_repeaters_by_state(sp, session, country,       # noqa:N802
             url = ("https://www.repeaterbook.com/api/export.php?"
                    "country={}").format(
                 requests.utils.quote(country))
-            count = fetch_repeaters(sp, url, session)
+            count = fetch_repeaters(sp, url, session, fetch_only)
         except Exception as ex:
             LOG.error("Failed fetching Country '{}'  '{}'".format(country, ex))
             raise ex
@@ -200,14 +200,15 @@ def fetch_Canada_repeaters(sp, session, fetch_only=False):  # noqa: N802
         fetch_only=fetch_only)
 
 
-def fetch_south_america_repeaters(sp, session):
+def fetch_south_america_repeaters(sp, session, fetch_only=False):
     countries = ["Argentina", "Bolivia", "Brazil", "Caribbean Netherlands",
                  "Chile", "Columbia", "Curacao", "Ecuador", "Panama",
                  "Paraguay", "Peru", "Uruguay", "Venezuela"]
 
     count = 0
     for country in countries:
-        count += fetch_EU_country_repeaters(sp, session, country)
+        count += fetch_EU_country_repeaters(sp, session, country,
+                                            fetch_only=fetch_only)
 
     return count
 
