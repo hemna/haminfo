@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from alembic import context
 from oslo_config import cfg
 from oslo_log import log as logging
+from geoalchemy2 import alembic_helpers
 
 import haminfo  # noqa
 from haminfo import utils, log
@@ -79,6 +80,9 @@ def run_migrations_offline():
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=alembic_helpers.include_object,
+        process_revision_directives=alembic_helpers.writer,
+        render_item=alembic_helpers.render_item,
     )
     context.config.set_section_option(config.config_ini_section,
                                       "sqlalchemy.url", url)
@@ -109,6 +113,9 @@ def run_migrations_online():
         context.configure(
             connection=connection, target_metadata=target_metadata,
             compare_type=True,
+            include_object=alembic_helpers.include_object,
+            process_revision_directives=alembic_helpers.writer,
+            render_item=alembic_helpers.render_item,
         )
 
         with context.begin_transaction():
