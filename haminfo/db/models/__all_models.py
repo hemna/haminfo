@@ -5,4 +5,5 @@
 
 from haminfo.db.models.station import Station  # noqa
 from haminfo.db.models.request import Request  # noqa
+from haminfo.db.models.weather_report import WeatherStation  # noqa
 from haminfo.db.models.weather_report import WeatherReport  # noqa

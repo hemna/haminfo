@@ -1,0 +1,82 @@
+import abc
+import logging
+import threading
+
+import wrapt
+from haminfo import utils
+
+
+LOG = logging.getLogger(utils.DOMAIN)
+
+
+class MyThreadList:
+    """Singleton class that keeps track of application wide threads."""
+
+    _instance = None
+
+    threads_list = []
+    lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls.threads_list = []
+        return cls._instance
+
+    @wrapt.synchronized(lock)
+    def add(self, thread_obj):
+        self.threads_list.append(thread_obj)
+
+    @wrapt.synchronized(lock)
+    def remove(self, thread_obj):
+        self.threads_list.remove(thread_obj)
+
+    @wrapt.synchronized(lock)
+    def stop_all(self):
+        """Iterate over all threads and call stop on them."""
+        for th in self.threads_list:
+            LOG.info(f"Stopping Thread {th.name}")
+            if hasattr(th, "packet"):
+                LOG.info(F"{th.name} packet {th.packet}")
+            th.stop()
+
+    @wrapt.synchronized(lock)
+    def __len__(self):
+        return len(self.threads_list)
+
+
+class MyThread(threading.Thread, metaclass=abc.ABCMeta):
+
+    def __init__(self, name):
+        super().__init__(name=name)
+        self.thread_stop = False
+        MyThreadList().add(self)
+
+    def _should_quit(self):
+        """ see if we have a quit message from the global queue."""
+        if self.thread_stop:
+            return True
+
+    def stop(self):
+        self.thread_stop = True
+
+    @abc.abstractmethod
+    def loop(self):
+        pass
+
+    def _cleanup(self):
+        """Add code to subclass to do any cleanup"""
+
+    def __str__(self):
+        out = f"Thread <{self.__class__.__name__}({self.name}) Alive? {self.is_alive()}>"
+        return out
+
+    def run(self):
+        LOG.debug("Starting")
+        while not self._should_quit():
+            can_loop = self.loop()
+            if not can_loop:
+                self.stop()
+        self._cleanup()
+        MyThreadList().remove(self)
+        LOG.debug("Exiting")

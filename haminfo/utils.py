@@ -180,3 +180,16 @@ def rgb_from_name(name):
     green = (hash >> 8) & 255
     blue = (hash >> 16) & 255
     return red, green, blue
+
+
+def strfdelta(tdelta, fmt="{hours:{width}}:{minutes:{width}}:{seconds:{width}}"):
+    d = {
+        "days": tdelta.days,
+        "width": "02",
+    }
+    if tdelta.days > 0:
+        fmt = "{days} days " + fmt
+
+    d["hours"], rem = divmod(tdelta.seconds, 3600)
+    d["minutes"], d["seconds"] = divmod(rem, 60)
+    return fmt.format(**d)

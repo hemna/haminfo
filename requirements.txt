@@ -32,3 +32,4 @@ pylibmc
 rich
 dogpile.cache
 ratelimit
+paho-mqtt
