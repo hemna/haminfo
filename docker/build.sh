@@ -61,4 +61,4 @@ docker buildx create --name multiarch --platform linux/arm/v7,linux/arm/v6,linux
     # Use this script to locally build the docker image
     docker buildx build --platform $PLATFORMS \
         -t hemna6969/haminfo:$TAG \
-        -f Dockerfile-dev --build-arg branch=$BRANCH --no-cache .
+        -f Dockerfile --build-arg branch=$BRANCH --no-cache .
