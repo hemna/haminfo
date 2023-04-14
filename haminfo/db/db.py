@@ -12,6 +12,7 @@ from haminfo.db import caching_query
 from haminfo.db.models.station import Station
 from haminfo.db.models.modelbase import ModelBase
 from haminfo.db.models.request import Request
+from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 from haminfo import utils
 
 
@@ -158,6 +159,16 @@ def find_stations_by_ids(session, repeater_ids):
         caching_query.FromCache('default')
     ).filter(
         Station.id.in_(tuple(repeater_ids))
+    )
+    return query
+
+
+def find_wx_stations(session):
+    """Get all wx stations."""
+    query = session.query(
+        WeatherStation
+    ).options(
+        caching_query.FromCache('default')
     )
     return query
 

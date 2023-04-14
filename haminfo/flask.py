@@ -210,6 +210,23 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f"Returning {len(entries)} for {callsigns}")
         return json.dumps(entries)
 
+    def wx_stations(self):
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            # priorities looking by ids
+            query = db.find_wx_stations(session)
+            if query:
+                for r in query:
+                    if r:
+                        _dict = r.to_dict()
+                        entries.append(_dict)
+            else:
+                LOG.error(query)
+
+        LOG.debug(f"Returning {len(entries)}")
+        return json.dumps(entries)
+
 
 @click.command()
 @click.option(
@@ -281,6 +298,7 @@ def create_app(config_file=None, log_level=None):
     app.route("/stats", methods=["GET"])(server.stats)
     app.route("/requests", methods=["POST"])(server.requests)
     app.route("/stations", methods=["POST"])(server.stations)
+    app.route("/wxstations", methods=["POST"])(server.wx_stations)
     return app
 
 
