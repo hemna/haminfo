@@ -70,4 +70,5 @@ ADD bin/api_entry.sh $HOME/
 ADD bin/reload_db.sh $HOME/
 ADD bin/db_upgrade.sh $HOME/
 ADD bin/cron_entry.sh $HOME/
+ADD bin/run_mqtt.sh $HOME/
 ENTRYPOINT ["/home/haminfo/api_entry.sh"]
