@@ -208,6 +208,7 @@ def setup_logging(flask_app=None):
         'oslo.messaging=WARN',
         'oslo_messaging=WARN',
         'haminfo=DEBUG',
+        'paho_mqtt=FATAL',
     ]
     new = []
 
