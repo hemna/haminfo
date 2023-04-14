@@ -14,17 +14,17 @@ INIT_DB=${INIT_DB:-False}
 APP_CONFIG="/config/haminfo.conf"
 if [ ! -e "$APP_CONFIG" ]; then
     echo "'$APP_CONFIG' File does not exist. Creating."
-    oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
+    $HOME/.local/bin/oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
     case "$INIT_DB" in
         True|true|yes)
             echo "Initializing Database"
             time haminfo_load -i --force
-            haminfo_api
+            $HOME/.local/bin/haminfo_api
             ;;
         *)
-            haminfo_api
+            $HOME/.local/bin/haminfo_api
             ;;
     esac
 fi

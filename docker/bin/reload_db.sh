@@ -3,4 +3,4 @@
 # update the database from repeaterbook
 set -x
 
-time haminfo_load
+time $HOME/.local/bin/haminfo_load
