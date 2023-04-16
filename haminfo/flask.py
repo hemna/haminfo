@@ -300,6 +300,8 @@ def create_app(config_file=None, log_level=None):
     app.route("/requests", methods=["POST"])(server.requests)
     app.route("/stations", methods=["POST"])(server.stations)
     app.route("/wxstations", methods=["GET"])(server.wx_stations)
+    LOG.debug("URL MAP")
+    LOG.debug(f"{app.url_map}")
     return app
 
 
