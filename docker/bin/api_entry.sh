@@ -24,7 +24,7 @@ else
             $HOME/.local/bin/haminfo_api
             ;;
         *)
-            $HOME/.local/bin/haminfo_api
+            $HOME/.local/bin/haminfo_api --loglevel DEBUG
             ;;
     esac
 fi
