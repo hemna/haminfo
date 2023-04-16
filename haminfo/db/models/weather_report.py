@@ -69,11 +69,14 @@ class WeatherStation(ModelBase):
         return station
 
     def to_dict(self):
-        dict_ = {}
-        for key in self.__mapper__.c.keys():
-            # LOG.debug("KEY {}".format(key))
-            dict_[key] = getattr(self, key)
-        return dict_
+        return  {
+            "callsign": self.callsign,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "symbol": self.symbol,
+            "symbol_table": self.symbol_table,
+            "comment": self.comment
+        }
 
     def __repr__(self):
         return (
