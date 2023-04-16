@@ -83,6 +83,7 @@ def require_appkey(view_function):
 
 
 class HaminfoFlask(flask_classful.FlaskView):
+    app = None
 
     def _get_db_session(self):
         return db.setup_session()
@@ -228,6 +229,10 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f"Returning {len(entries)}")
         return json.dumps(entries)
 
+    @require_appkey
+    def test(self):
+        LOG.warning(f"URL MAP {self.app.url_map}")
+
 
 @click.command()
 @click.option(
@@ -294,12 +299,14 @@ def create_app(config_file=None, log_level=None):
         db.get_num_repeaters_in_db(session)))
 
     server = HaminfoFlask()
+    server.app = app
     # app.route("/", methods=["GET"])(server.index)
     app.route("/nearest", methods=["POST"])(server.nearest)
     app.route("/stats", methods=["GET"])(server.stats)
     app.route("/requests", methods=["POST"])(server.requests)
     app.route("/stations", methods=["POST"])(server.stations)
     app.route("/wxstations", methods=["GET"])(server.wx_stations)
+    app.route("/test", methods=["GET"])(server.test)
     LOG.debug("URL MAP")
     LOG.debug(f"{app.url_map}")
     return app
