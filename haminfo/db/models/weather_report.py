@@ -70,6 +70,7 @@ class WeatherStation(ModelBase):
 
     def to_dict(self):
         return  {
+            "id": self.id,
             "callsign": self.callsign,
             "latitude": self.latitude,
             "longitude": self.longitude,
