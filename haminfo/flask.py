@@ -210,6 +210,7 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f"Returning {len(entries)} for {callsigns}")
         return json.dumps(entries)
 
+    @require_appkey
     def wx_stations(self):
         session = self._get_db_session()
         entries = []
@@ -298,7 +299,7 @@ def create_app(config_file=None, log_level=None):
     app.route("/stats", methods=["GET"])(server.stats)
     app.route("/requests", methods=["POST"])(server.requests)
     app.route("/stations", methods=["POST"])(server.stations)
-    app.route("/wxstations", methods=["POST"])(server.wx_stations)
+    app.route("/wxstations", methods=["GET"])(server.wx_stations)
     return app
 
 
