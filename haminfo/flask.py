@@ -244,7 +244,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     help="The aprsd config file to use for options.",
 )
 @click.option(
-    "--log-level",
+    "--loglevel",
     "log_level",
     default="DEBUG",
     show_default=True,
