@@ -15,7 +15,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
-from haminfo import utils, log
+from haminfo import utils, log, trace
 from haminfo.db import db
 
 
@@ -212,6 +212,7 @@ class HaminfoFlask(flask_classful.FlaskView):
         return json.dumps(entries)
 
     @require_appkey
+    @trace.timeit
     def wx_stations(self):
         session = self._get_db_session()
         entries = []
@@ -226,8 +227,35 @@ class HaminfoFlask(flask_classful.FlaskView):
             else:
                 LOG.error(query)
 
-        LOG.debug(f"Returning {len(entries)}")
         return json.dumps(entries)
+
+    @require_appkey
+    @trace.timeit
+    def wxstation_report(self):
+        """Get a single weather report for a station."""
+        wx_station_id = None
+        try:
+            LOG.info(f"REQUEST {request.args}")
+            wx_station_id = request.args['wx_station_id']
+        except Exception as ex:
+            LOG.error("Failed to find json in wx_report because {}".format(ex))
+
+        if not wx_station_id:
+            return None
+
+        # We need a single station id.
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            report = db.get_wx_station_report(
+                session,
+                wx_station_id
+            )
+            if report:
+                LOG.info(f"station report {report}")
+                return json.dumps(report.to_dict())
+
+
 
     @require_appkey
     def test(self):
@@ -306,6 +334,7 @@ def create_app(config_file=None, log_level=None):
     app.route("/requests", methods=["POST"])(server.requests)
     app.route("/stations", methods=["POST"])(server.stations)
     app.route("/wxstations", methods=["GET"])(server.wx_stations)
+    app.route("/wxstation_report", methods=["GET"])(server.wxstation_report)
     app.route("/test", methods=["GET"])(server.test)
     LOG.debug("URL MAP")
     LOG.debug(f"{app.url_map}")

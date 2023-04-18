@@ -172,6 +172,31 @@ def find_wx_stations(session):
     )
     return query
 
+def find_wx_station_by_callsign(session, callsign):
+    """Find data for the stations."""
+    query = session.query(
+        WeatherStation
+    ).options(
+        caching_query.FromCache('default')
+    ).filter(
+        WeatherStation.callsign.in_(tuple(callsign))
+    )
+    return query
+
+def get_wx_station_report(session, wx_station_id):
+    """Find the latest wx report for a station."""
+    query = session.query(
+        WeatherReport
+    ).options(
+        caching_query.FromCache('default')
+    ).filter(
+        WeatherReport.weather_station_id==wx_station_id
+    ).order_by(
+        WeatherReport.time.desc()
+    ).first()
+    return query
+
+
 
 def find_requests(session, number=None):
     if number:

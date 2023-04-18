@@ -31,6 +31,7 @@ class WeatherStation(ModelBase):
     symbol = sa.Column(sa.CHAR)
     symbol_table = sa.Column(sa.CHAR)
     reports: Mapped[List["WeatherReport"]] = relationship(
+        order_by="desc(WeatherReport.time)",
         back_populates="weather_station", cascade="all, delete")
 
     @staticmethod
@@ -107,6 +108,19 @@ class WeatherReport(ModelBase):
     rain_24h = sa.Column(sa.Float(decimal_return_scale=2))
     rain_since_midnight = sa.Column(sa.Float(decimal_return_scale=2))
     time = sa.Column(sa.DateTime)
+
+    def to_dict(self):
+        return {
+            "temperature": self.temperature,
+            "humidity": self.humidity,
+            "pressure": self.pressure,
+            "wind_direction": self.wind_direction,
+            "wind_gust": self.wind_gust,
+            "rain_1h": self.rain_1h,
+            "rain_24h": self.rain_24h,
+            "rain_since_midnight": self.rain_since_midnight,
+            "time": f"{self.time}",
+        }
 
     def __repr__(self):
         return (
