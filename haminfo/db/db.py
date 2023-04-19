@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from haminfo.db import caching_query
 from haminfo.db.models.station import Station
 from haminfo.db.models.modelbase import ModelBase
-from haminfo.db.models.request import Request
+from haminfo.db.models.request import Request, WXRequest
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 from haminfo import utils
 
@@ -137,6 +137,24 @@ def log_request(session, params, results):
     session.add(r)
     session.commit()
     invalidate_requests_cache(session)
+
+def log_wx_request(session, params, results):
+    """Log a nearest request to the DB."""
+    r = WXRequest.from_json(params)
+    LOG.info(r)
+    callsigns = []
+    station_ids = []
+    for result in results:
+        callsigns.append(result["callsign"])
+        # Use our DB ID here, not repeater_id
+        station_ids.append(str(result["id"]))
+
+    LOG.info(f"wx_station_ids {station_ids}")
+    r.station_callsigns = ','.join(callsigns)
+    r.wx_station_ids = ','.join(station_ids)
+    session.add(r)
+    session.commit()
+    invalidate_wxrequests_cache(session)
 
 
 def find_stations_by_callsign(session, stations):
@@ -296,6 +314,90 @@ def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
     ).limit(limit)
 
     return query
+
+
+def find_wxnearest_to(session, lat, lon, limit=1):
+    poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
+    poi_point = func.ST_Point(lon, lat)
+
+    # query = session.query(
+    #    Station,
+    #    func.ST_Distance(Station.location, poi).label('distance'),
+    #    func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
+    #                    ).label('bearing')
+    # ).filter(
+    #    Station.freq_band == freq_band
+    # )
+    # SELECT station.id, station.callsign, station.landmark,
+    #        station.nearest_city, station.county,
+    #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') /
+    #                1609 as dist
+    # FROM station ORDER BY
+    #    station.location <-> 'SRID=4326;POINT(-78.84950 37.34433)'::geometry
+    # LIMIT 10;
+    query = session.query(
+        WeatherStation,
+        func.ST_Distance(WeatherStation.location, poi).label('distance'),
+        func.ST_Azimuth(
+            poi_point,
+            func.ST_Point(WeatherStation.longitude, WeatherStation.latitude)
+        ).label('bearing')
+    ).order_by(
+        WeatherStation.location.distance_centroid(poi)
+    ).limit(limit)
+
+    return query
+
+def find_wxrequests(session, number=None):
+    if number:
+        query = session.query(
+            WXRequest
+        ).options(
+            caching_query.FromCache('default')
+        ).order_by(
+            WXRequest.id.desc()
+        ).limit(
+            number
+        )
+    else:
+        # Get them all.
+        query = session.query(
+            WXRequest
+        ).options(
+            caching_query.FromCache('default')
+        ).order_by(
+            WXRequest.id.desc()
+        )
+
+    return query
+
+def invalidate_wxrequests_cache(session):
+    """This nukes the cached queries for requests."""
+    global cache
+
+    LOG.info("Invalidate requests cache")
+
+    cache.invalidate(
+        session.query(WXRequest).order_by(
+            WXRequest.id.desc()
+        ).limit(25),
+        {},
+        caching_query.FromCache("default")
+    )
+    cache.invalidate(
+        session.query(WXRequest).order_by(
+            WXRequest.id.desc()
+        ).limit(50),
+        {},
+        caching_query.FromCache("default")
+    )
+    cache.invalidate(
+        session.query(WXRequest).order_by(
+            WXRequest.id.desc()
+        ),
+        {},
+        caching_query.FromCache("default")
+    )
 
 
 def get_num_repeaters_in_db(session):

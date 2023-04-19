@@ -139,6 +139,67 @@ class HaminfoFlask(flask_classful.FlaskView):
 
         return json.dumps(results)
 
+    @require_appkey
+    def wxnearest(self):
+        """Find the N nearest weather stations from lat/lon.
+
+           Find the stations and then return the latest weather reports
+           from those stations.
+        """
+        params = {}
+        try:
+            params = request.get_json()
+        except Exception as ex:
+            LOG.error("Failed to find json in request becase {}".format(ex))
+            return
+
+        LOG.debug("Lat '{}'  Lon '{}'".format(
+            params.get('lat'), params.get('lon')))
+
+        results = []
+        session = self._get_db_session()
+        with session() as session:
+            query = db.find_wxnearest_to(
+                session, params['lat'], params['lon'],
+                limit=params.get('count', 1),
+            )
+
+            for st, distance, az in query:
+                LOG.warning(f"Station {st}")
+                degrees = az * 57.3
+                cardinal = utils.degrees_to_cardinal(degrees)
+                # LOG.debug("{} {:.2f} {:.2f} {}".format(st, distance / 1609,
+                #                                        degrees, cardinal))
+                dict_ = st.to_dict()
+                # now find the latest report for the station
+                wx_report = db.get_wx_station_report(
+                    session,
+                    st.id
+                )
+
+                if not wx_report:
+                    LOG.error(f"Can't find a WX report for station {st.id}:{st.callsign}")
+                    break
+
+                dict_["report"] = wx_report.to_dict()
+                distance_units = "meters"
+                if distance > 1000:
+                    # lets put it in km instead
+                    distance = distance / 1000
+                    distance_units = "km"
+                dict_["distance"] = "{:.2f}".format(distance)
+                dict_["distance_units"] = distance_units
+
+                dict_["degrees"] = int(degrees)
+                dict_["direction"] = cardinal
+                results.append(dict_)
+
+            LOG.debug(f"Returning {results}")
+            # Need a new wx_request table for wxnow service
+            db.log_wx_request(session, params, results)
+        return json.dumps(results)
+
+
     def stats(self):
         stats = {}
         return json.dumps(stats)
@@ -255,7 +316,35 @@ class HaminfoFlask(flask_classful.FlaskView):
                 LOG.info(f"station report {report}")
                 return json.dumps(report.to_dict())
 
+    @require_appkey
+    def wxrequests(self):
+        try:
+            params = request.get_json()
+        except Exception as ex:
+            LOG.error("Failed to find json in request because {}".format(ex))
+            return
 
+        # last_id = params.get("last_id", 0)
+        number = params.get("number", 25)
+        LOG.debug(f"WXREQUESTS for LAST {number}")
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            query = db.find_wxrequests(
+                session,
+                number
+            )
+
+            if query:
+                for r in query:
+                    if r:
+                        _dict = r.to_dict()
+                        t = str(_dict['created'])
+                        t = t[:t.rindex('.')]
+                        _dict['created'] = t
+                        entries.append(_dict)
+
+        return json.dumps(entries)
 
     @require_appkey
     def test(self):
@@ -335,6 +424,8 @@ def create_app(config_file=None, log_level=None):
     app.route("/stations", methods=["POST"])(server.stations)
     app.route("/wxstations", methods=["GET"])(server.wx_stations)
     app.route("/wxstation_report", methods=["GET"])(server.wxstation_report)
+    app.route("/wxnearest", methods=["POST"])(server.wxnearest)
+    app.route("/wxrequests", methods=["POST"])(server.wxrequests)
     app.route("/test", methods=["GET"])(server.test)
     LOG.debug("URL MAP")
     LOG.debug(f"{app.url_map}")
