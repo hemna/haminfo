@@ -1,7 +1,7 @@
-"""Create Request Table
+"""Add repeater ids to request object
 
 Rrevision ID: 5d3ebd160dee
-Revises: 0146a00337db
+Revises: 8c3048879a88
 Create Date: 2021-12-28 12:21:24.704183
 
 """
