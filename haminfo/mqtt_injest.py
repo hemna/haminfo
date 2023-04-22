@@ -121,6 +121,7 @@ class MQTTThread(threads.MyThread):
             else:
                 # Failed to get station from json
                 return
+
         report = WeatherReport.from_json(aprs_data)
         station.reports.append(report)
         # LOG.debug(f"station reports {station.reports}")

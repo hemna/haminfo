@@ -108,6 +108,7 @@ class WeatherReport(ModelBase):
     rain_24h = sa.Column(sa.Float(decimal_return_scale=2))
     rain_since_midnight = sa.Column(sa.Float(decimal_return_scale=2))
     time = sa.Column(sa.DateTime)
+    raw_report = sa.Column(sa.String)
 
     def to_dict(self):
         return {
@@ -120,6 +121,7 @@ class WeatherReport(ModelBase):
             "rain_24h": self.rain_24h,
             "rain_since_midnight": self.rain_since_midnight,
             "time": f"{self.time}",
+            "raw_report": self.raw_report
         }
 
     def __repr__(self):
@@ -127,7 +129,8 @@ class WeatherReport(ModelBase):
             f"<WeatherReport(time='{self.time}', "
             f"Station ID='{self.weather_station_id}', "
             f"temperature={self.temperature}, "
-            f"rain_since_midnight={self.rain_since_midnight} "
+            f"rain_since_midnight={self.rain_since_midnight}, "
+            f"raw_report='{self.raw_report}' "
             ")>"
         )
 
@@ -148,6 +151,7 @@ class WeatherReport(ModelBase):
         rain_1h = station_json.get("rain_1h", 0.00)
         rain_24h = station_json.get("rain_24h", 0.00)
         rain_since_midnight = station_json.get("rain_since_midnight", 0.00)
+        raw_report = station_json.get("raw", None)
         if "weather" in station_json:
             temperature = station_json["weather"].get("temperature", temperature)
             wind_speed = station_json["weather"].get(
@@ -186,7 +190,8 @@ class WeatherReport(ModelBase):
             wind_gust=wind_gust,
             rain_1h=rain_1h,
             rain_24h=rain_24h,
-            rain_since_midnight=rain_since_midnight
+            rain_since_midnight=rain_since_midnight,
+            raw_report=raw_report
         )
         return report
 
