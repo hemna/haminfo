@@ -42,7 +42,10 @@ mqtt_opts = [
                help="the mqtt password"),
     cfg.StrOpt('topic',
                default="aprs/weather",
-               help="The MQTT Topic to subscribe for messages")
+               help="The MQTT Topic to subscribe for messages"),
+    cfg.StrOpt('keepalive_file',
+               default='/tmp/haminfo_mqtt_keepalive.json',
+               help="The keepalive thread's file to update.")
 ]
 CONF.register_opts(mqtt_opts, group="mqtt")
 
@@ -207,9 +210,6 @@ def main(disable_spinner, config_file, log_level):
     mqtt_thread.join()
     LOG.info("Waiting for keepalive thread to quit")
     keepalive.join()
-
-
-
 
 
 if __name__ == "__main__":
