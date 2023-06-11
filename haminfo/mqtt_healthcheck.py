@@ -41,7 +41,6 @@ logging.register_options(CONF)
 )
 @click.version_option()
 def main(config_file, log_level):
-    conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:

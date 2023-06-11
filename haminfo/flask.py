@@ -302,7 +302,8 @@ class HaminfoFlask(flask_classful.FlaskView):
             LOG.error("Failed to find json in wx_report because {}".format(ex))
 
         if not wx_station_id:
-            return None
+            LOG.warning(f"No wx_station_id in request")
+            return {}
 
         # We need a single station id.
         session = self._get_db_session()
@@ -315,6 +316,9 @@ class HaminfoFlask(flask_classful.FlaskView):
             if report:
                 LOG.info(f"station report {report}")
                 return json.dumps(report.to_dict())
+            else:
+                LOG.error(f"Can't find a report for station {wx_station_id}")
+                return {}
 
     @require_appkey
     def wxrequests(self):

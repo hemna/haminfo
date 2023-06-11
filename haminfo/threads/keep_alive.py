@@ -13,6 +13,7 @@ from haminfo import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
 
+
 class KeepAliveThread(MyThread):
     cntr = 0
 
@@ -22,11 +23,19 @@ class KeepAliveThread(MyThread):
         max_timeout = {"hours": 0.0, "minutes": 2, "seconds": 0}
         self.max_delta = datetime.timedelta(**max_timeout)
         self.data = {'update_at': str(datetime.datetime.now())}
+        self._dump_keepalive()
+
+    def _dump_keepalive(self):
+        try:
+            fp = open(CONF.mqtt.keepalive_file, "w+")
+            json.dump(self.data, fp)
+            fp.close()
+        except Exception as ex:
+            LOG.error(f"Failed to write keepalive file {str(ex)}")
 
     def loop(self):
         if self.cntr % 60 == 0:
             thread_list = MyThreadList()
-            now = datetime.datetime.now()
 
             current, peak = tracemalloc.get_traced_memory()
             keepalive = (
@@ -50,8 +59,6 @@ class KeepAliveThread(MyThread):
         # every 5 minutes
         if self.cntr % 300 == 0:
             # update the keepalive file
-            fp = open(CONF.mqtt.keepalive_file, "w+")
-            json.dump(self.data, fp)
-            fp.close()
+            self._dump_keepalive()
         time.sleep(1)
         return True

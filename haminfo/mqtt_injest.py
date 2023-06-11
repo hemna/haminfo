@@ -93,7 +93,8 @@ class MQTTThread(threads.MyThread):
 
     def on_connect(self, client, userdata, flags, rc):
         LOG.info(
-            f"Connected to mqtt://{CONF.mqtt.host_ip}:{CONF.mqtt.host_port}/{CONF.mqtt.topic} ({rc})"
+            f"Connected to mqtt://{CONF.mqtt.host_ip}:{CONF.mqtt.host_port}"
+            f"/{CONF.mqtt.topic} ({rc})"
         )
         client.subscribe(CONF.mqtt.topic)
 
@@ -137,7 +138,7 @@ class MQTTThread(threads.MyThread):
 
         if self.counter % 50 == 0:
             LOG.debug(f"Report counter:{self.counter}")
-            #LOG.debug(f"Station {repr(station)}")
+            # LOG.debug(f"Station {repr(station)}")
             LOG.debug(f"Report({station.callsign}):  {repr(report)}")
 
     def stop(self):
@@ -183,7 +184,6 @@ def main(disable_spinner, config_file, log_level):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    conf_file = config_file
     if config_file != utils.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:
