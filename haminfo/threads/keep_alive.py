@@ -24,6 +24,7 @@ class KeepAliveThread(MyThread):
         self.max_delta = datetime.timedelta(**max_timeout)
         self.data = {'update_at': str(datetime.datetime.now())}
         self._dump_keepalive()
+        self.report_counter = 0
 
     def _dump_keepalive(self):
         try:
@@ -49,6 +50,14 @@ class KeepAliveThread(MyThread):
             for thread in thread_list.threads_list:
                 thread_name = thread.__class__.__name__
                 alive = thread.is_alive()
+                if thread_name is 'MQTTThread':
+                    LOG.info(f"{thread_name}.report_counter = {thread.report_counter} == {self.report_counter}")
+                    if thread.report_counter <= self.report_counter:
+                        # the thread counter hasn't changed
+                        alive = False
+                    else:
+                        self.report_counter = thread.report_counter
+
                 self.data[thread_name] = alive
                 thread_out.append(f"{thread.__class__.__name__}:{alive}")
                 if not alive:

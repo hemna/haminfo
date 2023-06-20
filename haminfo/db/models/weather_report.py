@@ -3,6 +3,7 @@ from datetime import datetime
 import time
 from typing import List
 
+from cachetools import cached, LFUCache
 from oslo_log import log as logging
 import sqlalchemy as sa
 from geoalchemy2 import Geography
@@ -10,12 +11,12 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import relationship
 from sqlalchemy.exc import NoResultFound
 
+from haminfo.db import caching_query
 from haminfo.db.models.modelbase import ModelBase
 from haminfo import utils
 
 
 LOG = logging.getLogger(utils.DOMAIN)
-
 
 class WeatherStation(ModelBase):
     __tablename__ = 'weather_station'
@@ -36,36 +37,42 @@ class WeatherStation(ModelBase):
 
     @staticmethod
     def find_station_by_callsign(session, callsign):
+        callsign = callsign.replace('\x00', '')
         try:
-            station = session.query(WeatherStation).filter(
+            station = session.query(
+                WeatherStation
+            ).options(
+                caching_query.FromCache('default')
+            ).filter(
                 WeatherStation.callsign == callsign
             ).one()
             return station
         except NoResultFound:
+            LOG.info(f'Failed to find station "{callsign}"')
             return None
 
     @staticmethod
     def from_json(station_json):
         if not station_json.get('latitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no latitude!")
+            LOG.warning(f"Station {station_json['from_call']} has no latitude!   {station_json}")
             #LOG.warning(f"Station {station_json}")
             return None
         if not station_json.get('longitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no longitude!")
+            LOG.warning(f"Station {station_json['from_call']} has no longitude!  {station_json}")
             #LOG.warning(f"Station {station_json}")
             return None
 
         station = WeatherStation(
-            callsign=station_json["from_call"],
+            callsign=station_json["from_call"].replace('\x00', ''),
             latitude=station_json["latitude"],
             longitude=station_json["longitude"],
             location="POINT({} {})".format(
                 station_json['longitude'],
                 station_json['latitude']
             ),
-            comment=station_json.get("comment", None).rstrip(),
-            symbol=station_json.get("symbol", "_"),
-            symbol_table=station_json.get('symbol_table', '/')
+            comment=station_json.get("comment", None).replace('\x00', ''),
+            symbol=station_json.get("symbol", "_").replace('\x00', ''),
+            symbol_table=station_json.get('symbol_table', '/').replace('\x00', ''),
         )
         return station
 
@@ -82,11 +89,12 @@ class WeatherStation(ModelBase):
 
     def __repr__(self):
         return (
-            f"<WeatherStation(ID='{self.id}, callsign='{self.callsign}',"
+            f"<WeatherStation(ID={self.id}, callsign='{self.callsign}',"
             f"lat={self.latitude}, "
             f"long={self.longitude}, "
             f"Comment='{self.comment}', "
-            f"Symbol='{self.symbol}' "
+            f"Symbol='{self.symbol}', "
+            f"SymbolTable='{self.symbol_table}' "
             ")>"
         )
 
@@ -127,15 +135,22 @@ class WeatherReport(ModelBase):
     def __repr__(self):
         return (
             f"<WeatherReport(time='{self.time}', "
-            f"Station ID='{self.weather_station_id}', "
-            f"temperature={self.temperature}, "
+            f"Station ID={self.weather_station_id}, "
+            f"Temperature={self.temperature}, "
+            f"Pressure={self.pressure}, "
             f"rain_since_midnight={self.rain_since_midnight}, "
-            f"raw_report='{self.raw_report}' "
+            f"rain_24h={self.rain_24h}, "
+            f"rain_1h={self.rain_1h}, "
+            f"wind_gust={self.wind_gust}, "
+            f"wind_direction={self.wind_direction}, "
+            f"wind_speed={self.wind_speed}, "
+            f"raw_report='{self.raw_report}', "
+            f"Station={self.weather_station} "
             ")>"
         )
 
     @staticmethod
-    def from_json(station_json):
+    def from_json(station_json, station_id):
 
         ts_str = station_json.get('timestamp', None)
         if not ts_str:
@@ -151,7 +166,7 @@ class WeatherReport(ModelBase):
         rain_1h = station_json.get("rain_1h", 0.00)
         rain_24h = station_json.get("rain_24h", 0.00)
         rain_since_midnight = station_json.get("rain_since_midnight", 0.00)
-        raw_report = station_json.get("raw", None)
+        raw_report = station_json.get("raw").replace('\x00', '')
         if "weather" in station_json:
             temperature = station_json["weather"].get("temperature", temperature)
             wind_speed = station_json["weather"].get(
@@ -179,8 +194,7 @@ class WeatherReport(ModelBase):
                 "rain_since_midnight", rain_since_midnight
             )
 
-
-        report = WeatherReport(
+        return WeatherReport(
             time=report_time,
             temperature=temperature,
             humidity=humidity,
@@ -191,8 +205,31 @@ class WeatherReport(ModelBase):
             rain_1h=rain_1h,
             rain_24h=rain_24h,
             rain_since_midnight=rain_since_midnight,
-            raw_report=raw_report
+            raw_report=raw_report,
+            weather_station_id=station_id
         )
-        return report
+
+    def is_valid(self):
+        """Make sure the report has good data."""
+
+        # One common issue is there is no data at all
+        # in which case the report will have 0 for all measurements
+        if (
+            self.temperature == 0 and
+            self.humidity == 0 and
+            self.pressure == 0 and
+            self.wind_direction == 0 and
+            self.wind_speed == 0 and
+            self.wind_gust == 0 and
+            self.rain_since_midnight == 0 and
+            self.rain_24h == 0 and
+            self.rain_1h == 0
+        ):
+            # all values are 0
+            return False
+
+        else:
+            return True
+
 
 

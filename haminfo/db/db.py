@@ -215,6 +215,25 @@ def get_wx_station_report(session, wx_station_id):
     return query
 
 
+def add_wx_report(session, report: WeatherReport):
+    stmt = sqlalchemy.insert(
+        WeatherReport
+    ).values(
+        weather_station_id=report.weather_station_id,
+        temperature=report.temperature,
+        humidity=report.humidity,
+        pressure=report.pressure,
+        wind_direction=report.wind_direction,
+        wind_speed=report.wind_speed,
+        wind_gust=report.wind_gust,
+        rain_1h=report.rain_1h,
+        rain_24h=report.rain_24h,
+        rain_since_midnight=report.rain_since_midnight,
+        time=report.time,
+        raw_report=report.raw_report.rstrip('\x00')
+    )
+    session.execute(stmt)
+
 
 def find_requests(session, number=None):
     if number:

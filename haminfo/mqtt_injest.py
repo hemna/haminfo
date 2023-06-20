@@ -8,6 +8,7 @@ import time
 
 from oslo_config import cfg
 from oslo_log import log as logging
+import pyroscope
 import sqlalchemy
 
 import paho.mqtt.client as mqtt
@@ -20,6 +21,22 @@ from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
+
+
+pyroscope.configure(
+  application_name    = "haminfo_mqtt", # replace this with some name for your application
+  server_address      = "http://192.168.1.22:4040", # replace this with the address of your pyroscope server
+  # auth_token          = "{YOUR_API_KEY}", # optional, if authentication is enabled, specify the API key
+  sample_rate         = 100, # default is 100
+  detect_subprocesses = False, # detect subprocesses started by the main process; default is False
+  oncpu               = True, # report cpu time only; default is True
+  native              = False, # profile native extensions; default is False
+  gil_only            = True, # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
+  #log_level           = "info", # default is info, possible values: trace, debug, info, warn, error and critical
+  tags           = {
+    "region":   '{os.getenv("REGION")}',
+  }
+)
 
 
 grp = cfg.OptGroup('mqtt')
@@ -67,6 +84,8 @@ class MQTTThread(threads.MyThread):
     client = None
     session = None
     counter = 0
+    reports = []
+    report_counter = 0
 
     def __init__(self, session=None):
         super().__init__("MQTTThread")
@@ -100,46 +119,94 @@ class MQTTThread(threads.MyThread):
 
     def on_message(self, client, userdata, msg):
         self.counter += 1
-        aprs_data = json.loads(msg.payload)
+        aprs_data = json.loads(msg.payload.decode('utf-8').replace('\x00', ''))
         # We got a message, lets build the DB model object and insert it.
         try:
             station = WeatherStation.find_station_by_callsign(
                 self.session,
                 aprs_data["from_call"]
             )
-        except sqlalchemy.exc.DatabaseError as ex:
-            LOG.error(ex)
+        except Exception as ex:
+            LOG.error(f"Failed to find station {aprs_data}")
+            LOG.exception(ex)
             return
 
         if not station:
+            LOG.info(f"Didn't find station {aprs_data['from_call']}")
             station = WeatherStation.from_json(aprs_data)
             if station:
-                self.session.add(station)
                 try:
+                    self.session.add(station)
                     self.session.commit()
                 except Exception as ex:
                     self.session.rollback()
-                    LOG.error(ex)
-                    LOG.warning(f"Failed for report {aprs_data}")
+                    # LOG.error(ex)
+                    LOG.warning("Failed getting/creating station for "
+                                f"report {aprs_data}")
+                    LOG.warning(station)
                     return
             else:
                 # Failed to get station from json
                 return
 
-        report = WeatherReport.from_json(aprs_data)
-        station.reports.append(report)
-        # LOG.debug(f"station reports {station.reports}")
         try:
-            self.session.commit()
+            report = WeatherReport.from_json(aprs_data, station.id)
+        except Exception as ex:
+            LOG.error(aprs_data)
+            LOG.error(f"Failed to create WeatherReport because")
+            LOG.exception(ex)
+            return
+
+        try:
+            # Make sure there is valid data to add to the DB
+            if report.is_valid():
+                self.reports.append(report)
+                self.report_counter += 1
+                #self.session.add(report)
+                # db.add_wx_report(self.session, report)
+            else:
+                # LOG.info(f"Ignoring report {report}")
+                return
+        except ValueError as ex:
+            self.session.rollback()
+            LOG.exception(ex)
+            LOG.error(report)
+            return
         except Exception as ex:
             self.session.rollback()
+            LOG.error("Failed to add_wx_report {report}")
             LOG.error(ex)
-            LOG.warning(f"Failed for report {aprs_data}")
+            return
 
-        if self.counter % 50 == 0:
-            LOG.debug(f"Report counter:{self.counter}")
+        if self.counter % 25 == 0:
+            LOG.debug(f"Loop counter:{self.counter}  "
+                      f"Report Counter:{self.report_counter}")
+
+        if self.counter % 200 == 0:
+            try:
+                LOG.info(f"Saving {len(self.reports)} to DB.")
+                tic = time.perf_counter()
+                self.session.bulk_save_objects(self.reports)
+                self.session.commit()
+                toc = time.perf_counter()
+                LOG.warning(f"Time to save = {toc - tic:0.4f}")
+                self.reports = []
+            except ValueError as ex:
+                self.session.rollback()
+                LOG.error(f"Failed for report {self.reports}")
+                LOG.exception(ex)
+                for r in self.reports:
+                    if '\x00' in r.raw_report:
+                        LOG.error(f"Null char in {r}")
+                self.reports = []
+            except Exception as ex:
+                self.session.rollback()
+                LOG.error(f"Failed for report {self.reports}")
+                LOG.exception(ex)
+                # Just drop all the reports
+                self.reports = []
             # LOG.debug(f"Station {repr(station)}")
-            LOG.debug(f"Report({station.callsign}):  {repr(report)}")
+            # LOG.debug(f"Report({station.callsign}[{station.id}]):  {repr(report)}")
 
     def stop(self):
         LOG.info(__class__.__name__+" Stop")
@@ -152,7 +219,11 @@ class MQTTThread(threads.MyThread):
     def loop(self):
         if self.client:
             LOG.info("Waiting on mqtt packets....")
-            self.client.loop_forever(timeout=1)
+            try:
+                self.client.loop_forever(timeout=1)
+                self.client.disconnect()
+            except TimeoutError:
+                self.setup()
         return True
 
 
