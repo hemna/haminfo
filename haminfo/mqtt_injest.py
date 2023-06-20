@@ -8,8 +8,7 @@ import time
 
 from oslo_config import cfg
 from oslo_log import log as logging
-import pyroscope
-import sqlalchemy
+#import pyroscope
 
 import paho.mqtt.client as mqtt
 import haminfo
@@ -23,20 +22,20 @@ LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
 
 
-pyroscope.configure(
-  application_name    = "haminfo_mqtt", # replace this with some name for your application
-  server_address      = "http://192.168.1.22:4040", # replace this with the address of your pyroscope server
-  # auth_token          = "{YOUR_API_KEY}", # optional, if authentication is enabled, specify the API key
-  sample_rate         = 100, # default is 100
-  detect_subprocesses = False, # detect subprocesses started by the main process; default is False
-  oncpu               = True, # report cpu time only; default is True
-  native              = False, # profile native extensions; default is False
-  gil_only            = True, # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
+# pyroscope.configure(
+#   application_name    = "haminfo_mqtt", # replace this with some name for your application
+#   server_address      = "http://192.168.1.22:4040", # replace this with the address of your pyroscope server
+#   # auth_token          = "{YOUR_API_KEY}", # optional, if authentication is enabled, specify the API key
+#   sample_rate         = 100, # default is 100
+#   detect_subprocesses = False, # detect subprocesses started by the main process; default is False
+#   oncpu               = True, # report cpu time only; default is True
+#   native              = False, # profile native extensions; default is False
+#   gil_only            = True, # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
   #log_level           = "info", # default is info, possible values: trace, debug, info, warn, error and critical
-  tags           = {
-    "region":   '{os.getenv("REGION")}',
-  }
-)
+#   tags           = {
+#     "region":   '{os.getenv("REGION")}',
+#   }
+# )
 
 
 grp = cfg.OptGroup('mqtt')

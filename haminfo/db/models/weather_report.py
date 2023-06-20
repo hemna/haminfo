@@ -3,7 +3,6 @@ from datetime import datetime
 import time
 from typing import List
 
-from cachetools import cached, LFUCache
 from oslo_log import log as logging
 import sqlalchemy as sa
 from geoalchemy2 import Geography

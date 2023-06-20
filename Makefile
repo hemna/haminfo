@@ -44,7 +44,11 @@ help:	# Help for the Makefile
 
 dev: venv  ## Create the virtualenv with all the requirements installed
 
-clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
+clean: clean-build clean-pyc clean-test clean-dev ## remove all build, test, coverage and Python artifacts
+
+clean-dev:
+	rm -rf $(VENVDIR)
+	rm Makefile.venv
 
 clean-build: ## remove build artifacts
 	rm -fr build/
