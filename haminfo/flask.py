@@ -10,6 +10,7 @@ from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from cachetools import cached, TTLCache
 from sentry_sdk.integrations.flask import FlaskIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
@@ -58,6 +59,7 @@ web_opts = [
 CONF.register_opts(web_opts, group="web")
 
 API_KEY_HEADER = "X-Api-Key"
+ttl_cache = TTLCache(maxsize=10, ttl=600)
 
 
 # TODO(waboring) add real users and user management
@@ -199,7 +201,6 @@ class HaminfoFlask(flask_classful.FlaskView):
             db.log_wx_request(session, params, results)
         return json.dumps(results)
 
-
     def stats(self):
         stats = {}
         return json.dumps(stats)
@@ -273,8 +274,10 @@ class HaminfoFlask(flask_classful.FlaskView):
         return json.dumps(entries)
 
     @require_appkey
-    @trace.timeit
+    @cached(cache=ttl_cache)
     def wx_stations(self):
+        global ttl_cache
+        LOG.debug("wx_stations:: ttl_cache={ttl_cache}")
         session = self._get_db_session()
         entries = []
         with session() as session:
@@ -302,12 +305,11 @@ class HaminfoFlask(flask_classful.FlaskView):
             LOG.error("Failed to find json in wx_report because {}".format(ex))
 
         if not wx_station_id:
-            LOG.warning(f"No wx_station_id in request")
+            LOG.warning("No wx_station_id in request")
             return {}
 
         # We need a single station id.
         session = self._get_db_session()
-        entries = []
         with session() as session:
             report = db.get_wx_station_report(
                 session,

@@ -138,6 +138,7 @@ def log_request(session, params, results):
     session.commit()
     invalidate_requests_cache(session)
 
+
 def log_wx_request(session, params, results):
     """Log a nearest request to the DB."""
     r = WXRequest.from_json(params)
@@ -190,6 +191,7 @@ def find_wx_stations(session):
     )
     return query
 
+
 def find_wx_station_by_callsign(session, callsign):
     """Find data for the stations."""
     query = session.query(
@@ -201,6 +203,7 @@ def find_wx_station_by_callsign(session, callsign):
     )
     return query
 
+
 def get_wx_station_report(session, wx_station_id):
     """Find the latest wx report for a station."""
     query = session.query(
@@ -208,7 +211,7 @@ def get_wx_station_report(session, wx_station_id):
     ).options(
         caching_query.FromCache('default')
     ).filter(
-        WeatherReport.weather_station_id==wx_station_id
+        WeatherReport.weather_station_id == wx_station_id
     ).order_by(
         WeatherReport.time.desc()
     ).first()
@@ -367,6 +370,7 @@ def find_wxnearest_to(session, lat, lon, limit=1):
 
     return query
 
+
 def find_wxrequests(session, number=None):
     if number:
         query = session.query(
@@ -389,6 +393,7 @@ def find_wxrequests(session, number=None):
         )
 
     return query
+
 
 def invalidate_wxrequests_cache(session):
     """This nukes the cached queries for requests."""

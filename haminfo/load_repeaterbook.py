@@ -34,6 +34,7 @@ def custom_startswith(string, incomplete):
 click_completion.core.startswith = custom_startswith
 click_completion.init()
 
+
 @sleep_and_retry
 @limits(calls=1, period=60)
 def fetch_repeaters(sp, url, session, fetch_only=False):
@@ -50,7 +51,7 @@ def fetch_repeaters(sp, url, session, fetch_only=False):
     repeater_json = {}
     try:
         repeater_json = json.loads(data)
-    except Exception as ex:
+    except Exception:
         # LOG.exception(ex)
         LOG.error(data)
     # repeater_json = resp.json()

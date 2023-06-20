@@ -30,6 +30,9 @@ mapbox
 geojson
 pylibmc
 rich
+# For sqlalchemy
 dogpile.cache
 ratelimit
 paho-mqtt
+# Generic caching
+cachetools

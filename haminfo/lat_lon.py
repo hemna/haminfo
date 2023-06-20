@@ -490,7 +490,7 @@ class LatLon:
         using the Haversine formula. The default radius corresponds to the FAI sphere
         with units in km.
         """
-        warnings.warn(
+        warnings.warn(  # noqa
             "Deprecated in v0.70. Use distance(other, ellipse = 'sphere')"
             "instead",
             DeprecationWarning,

@@ -27,7 +27,6 @@ def timeit(func):
     return timeit_wrapper
 
 
-
 def trace(*dec_args, **dec_kwargs):
     """Trace calls to the decorated function.
 

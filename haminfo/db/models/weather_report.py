@@ -17,6 +17,7 @@ from haminfo import utils
 
 LOG = logging.getLogger(utils.DOMAIN)
 
+
 class WeatherStation(ModelBase):
     __tablename__ = 'weather_station'
 
@@ -53,12 +54,14 @@ class WeatherStation(ModelBase):
     @staticmethod
     def from_json(station_json):
         if not station_json.get('latitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no latitude!   {station_json}")
-            #LOG.warning(f"Station {station_json}")
+            LOG.warning(f"Station {station_json['from_call']} has no latitude!"
+                        f" {station_json}")
+            # LOG.warning(f"Station {station_json}")
             return None
         if not station_json.get('longitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no longitude!  {station_json}")
-            #LOG.warning(f"Station {station_json}")
+            LOG.warning(f"Station {station_json['from_call']} has no longitude!"
+                        f" {station_json}")
+            # LOG.warning(f"Station {station_json}")
             return None
 
         station = WeatherStation(
@@ -76,7 +79,7 @@ class WeatherStation(ModelBase):
         return station
 
     def to_dict(self):
-        return  {
+        return {
             "id": self.id,
             "callsign": self.callsign,
             "latitude": self.latitude,
@@ -189,7 +192,7 @@ class WeatherReport(ModelBase):
             rain_24h = station_json["weather"].get(
                 "rain_24h", rain_24h
             )
-            rain__since_midnight = station_json["weather"].get(
+            rain_since_midnight = station_json["weather"].get(
                 "rain_since_midnight", rain_since_midnight
             )
 
@@ -229,6 +232,3 @@ class WeatherReport(ModelBase):
 
         else:
             return True
-
-
-

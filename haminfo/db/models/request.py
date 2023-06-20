@@ -72,6 +72,7 @@ class WXRequest(ModelBase):
             # LOG.debug("KEY {}".format(key))
             dict_[key] = getattr(self, key)
         return dict_
+
     @staticmethod
     def from_json(r_json):
         r = WXRequest(
