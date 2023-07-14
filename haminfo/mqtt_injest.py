@@ -121,8 +121,9 @@ class MQTTThread(threads.MyThread):
                 # Get the country code
                 coordinates = f"{station.latitude:0.6f}, {station.longitude:0.6f}"
                 location = self.nominate.geocode(coordinates)
-                if location:
-                    station.country_code = location.raw["address"]["country_code"]
+                address = location.raw.get("address")
+                if location and address:
+                    station.country_code = address["country_code"]
                 try:
                     self.session.add(station)
                     self.session.commit()
