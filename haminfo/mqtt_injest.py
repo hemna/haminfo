@@ -161,6 +161,7 @@ class MQTTThread(threads.MyThread):
         if self.counter % 25 == 0:
             LOG.debug(f"Loop counter:{self.counter}  "
                       f"Report Counter:{self.report_counter}")
+            LOG.debug(report)
 
         if self.counter % 200 == 0:
             try:
