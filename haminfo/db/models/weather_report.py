@@ -160,10 +160,10 @@ class WeatherReport(ModelBase):
 
         report_time = str(datetime.fromtimestamp(ts_str))
         temperature = station_json.get("temperature", 0)
-        wind_speed = station_json.get("speed", 0.00)
+        wind_speed = station_json.get("wind_speed", 0.00)
+        wind_direction = station_json.get("wind_direction", 0)
         humidity = station_json.get("humidity", 0)
         pressure = station_json.get("pressure", 0)
-        wind_direction = station_json.get("course", 0)
         wind_gust = station_json.get("wind_gust", 0.00)
         rain_1h = station_json.get("rain_1h", 0.00)
         rain_24h = station_json.get("rain_24h", 0.00)
