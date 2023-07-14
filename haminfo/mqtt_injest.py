@@ -6,6 +6,7 @@ import signal
 import sys
 import time
 
+from geopy.geocoders import Nominatim
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -72,6 +73,7 @@ class MQTTThread(threads.MyThread):
         super().__init__("MQTTThread")
         self.setup()
         self.session = session
+        self.nominate = Nominatim(user_agent="haminfo")
 
     def setup(self):
         LOG.info("Creating MQTT Client")
@@ -116,6 +118,11 @@ class MQTTThread(threads.MyThread):
             LOG.info(f"Didn't find station {aprs_data['from_call']}")
             station = WeatherStation.from_json(aprs_data)
             if station:
+                # Get the country code
+                coordinates = f"{station.latitude:0.6f}, {station.longitude:0.6f}"
+                location = self.nominate.geocode(coordinates)
+                if location:
+                    station.country_code = location.raw["address"]["country_code"]
                 try:
                     self.session.add(station)
                     self.session.commit()

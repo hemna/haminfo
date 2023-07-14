@@ -31,6 +31,7 @@ class WeatherStation(ModelBase):
     comment = sa.Column(sa.String)
     symbol = sa.Column(sa.CHAR)
     symbol_table = sa.Column(sa.CHAR)
+    country_code = sa.Column(sa.String)
     reports: Mapped[List["WeatherReport"]] = relationship(
         order_by="desc(WeatherReport.time)",
         back_populates="weather_station", cascade="all, delete")

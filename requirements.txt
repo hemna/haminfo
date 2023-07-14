@@ -36,3 +36,4 @@ ratelimit
 paho-mqtt
 # Generic caching
 cachetools
+geopy
