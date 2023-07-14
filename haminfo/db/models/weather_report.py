@@ -169,32 +169,32 @@ class WeatherReport(ModelBase):
         rain_24h = station_json.get("rain_24h", 0.00)
         rain_since_midnight = station_json.get("rain_since_midnight", 0.00)
         raw_report = station_json.get("raw").replace('\x00', '')
-        if "weather" in station_json:
-            temperature = station_json["weather"].get("temperature", temperature)
-            wind_speed = station_json["weather"].get(
-                "wind_speed", wind_speed
-            )
-            humidity = station_json["weather"].get(
-                "humidity", humidity
-            )
-            pressure = station_json["weather"].get(
-                "pressure", pressure
-            )
-            wind_direction = station_json["weather"].get(
-                "wind_direction", wind_direction
-            )
-            wind_gust = station_json["weather"].get(
-                "wind_gust", wind_gust
-            )
-            rain_1h = station_json["weather"].get(
-                "rain_1h", rain_1h
-            )
-            rain_24h = station_json["weather"].get(
-                "rain_24h", rain_24h
-            )
-            rain_since_midnight = station_json["weather"].get(
-                "rain_since_midnight", rain_since_midnight
-            )
+        #if "weather" in station_json:
+        #    temperature = station_json["weather"].get("temperature", temperature)
+        #    wind_speed = station_json["weather"].get(
+        #        "wind_speed", wind_speed
+        #    )
+        #    humidity = station_json["weather"].get(
+        #        "humidity", humidity
+        #    )
+        #    pressure = station_json["weather"].get(
+        #        "pressure", pressure
+        #    )
+        #    wind_direction = station_json["weather"].get(
+        #        "wind_direction", wind_direction
+        #    )
+        #    wind_gust = station_json["weather"].get(
+        #        "wind_gust", wind_gust
+        #    )
+        #    rain_1h = station_json["weather"].get(
+        #        "rain_1h", rain_1h
+        #    )
+        #    rain_24h = station_json["weather"].get(
+        #        "rain_24h", rain_24h
+        #    )
+        #    rain_since_midnight = station_json["weather"].get(
+        #        "rain_since_midnight", rain_since_midnight
+        #    )
 
         return WeatherReport(
             time=report_time,
