@@ -125,7 +125,7 @@ class MQTTThread(threads.MyThread):
                     language="en",
                     addressdetails=True,
                 )
-                if location:
+                if location and hasattr(location, "raw"):
                     address = location.raw.get("address")
                     if address:
                         station.country_code = address["country_code"]
