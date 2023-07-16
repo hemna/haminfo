@@ -20,14 +20,17 @@ class KeepAliveThread(MyThread):
     def __init__(self):
         tracemalloc.start()
         super().__init__("KeepAlive")
-        max_timeout = {"hours": 0.0, "minutes": 2, "seconds": 0}
-        self.max_delta = datetime.timedelta(**max_timeout)
-        self.data = {'update_at': str(datetime.datetime.now())}
+        self.data = {"threads": {}}
         self._dump_keepalive()
         self.report_counter = 0
 
+
     def _dump_keepalive(self):
         try:
+            max_timeout = {"hours": 0.0, "minutes": 2, "seconds": 0}
+            self.max_delta = datetime.timedelta(**max_timeout)
+            self.data['update_at'] = str(datetime.datetime.now())
+            LOG.debug(self.data)
             fp = open(CONF.mqtt.keepalive_file, "w+")
             json.dump(self.data, fp)
             fp.close()
@@ -37,8 +40,6 @@ class KeepAliveThread(MyThread):
     def loop(self):
         if self.cntr % 60 == 0:
             thread_list = MyThreadList()
-
-            current, peak = tracemalloc.get_traced_memory()
             keepalive = (
                 "{} - {}"
             ).format(
@@ -50,24 +51,25 @@ class KeepAliveThread(MyThread):
             for thread in thread_list.threads_list:
                 thread_name = thread.__class__.__name__
                 alive = thread.is_alive()
+                self.data["threads"][thread_name] = alive
                 if thread_name == 'MQTTThread':
-                    LOG.info(f"{thread_name}.report_counter ="
+                    LOG.info(f"{thread_name}.report_counter ==>"
                              f"{thread.report_counter}=={self.report_counter}")
                     if thread.report_counter <= self.report_counter:
                         # the thread counter hasn't changed
                         alive = False
+                        self.data["threads"][thread_name] = False
                     else:
                         self.report_counter = thread.report_counter
 
-                self.data[thread_name] = alive
                 thread_out.append(f"{thread.__class__.__name__}:{alive}")
                 if not alive:
                     LOG.error(f"Thread {thread}")
-            LOG.info(",".join(thread_out))
+            LOG.info("  ".join(thread_out))
 
         self.cntr += 1
-        # every 5 minutes
-        if self.cntr % 300 == 0:
+        # every 1 minutes
+        if self.cntr % 60 == 0:
             # update the keepalive file
             self._dump_keepalive()
         time.sleep(1)

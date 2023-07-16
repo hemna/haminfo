@@ -53,7 +53,7 @@ def main(config_file, log_level):
 
     LOG.info(f'Haminfo MQTT Started version: {haminfo.__version__} ')
     # Dump out the config options read from config file
-    CONF.log_opt_values(LOG, logging.DEBUG)
+    # CONF.log_opt_values(LOG, logging.DEBUG)
 
     now = datetime.datetime.now()
 
@@ -81,6 +81,15 @@ def main(config_file, log_level):
     except Exception:
         LOG.error(f"Failed to read/parse the keepalive file {CONF.mqtt.keepalive_file}")
         return -1
+
+    if "threads" in keepalive_data:
+        for thread in keepalive_data["threads"]:
+            if not keepalive_data["threads"][thread]:
+                LOG.error(f"Thread {thread} is not running")
+                return -1
+
+    return 0
+
 
 
 if __name__ == "__main__":

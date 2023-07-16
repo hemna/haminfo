@@ -120,18 +120,25 @@ class MQTTThread(threads.MyThread):
             if station:
                 # Get the country code
                 coordinates = f"{station.latitude:0.6f}, {station.longitude:0.6f}"
-                location = self.nominate.geocode(coordinates)
-                address = location.raw.get("address")
-                if location and address:
-                    station.country_code = address["country_code"]
+                location = self.nominate.geocode(
+                    coordinates,
+                    language="en",
+                    addressdetails=True,
+                )
+                if location:
+                    address = location.raw.get("address")
+                    if address:
+                        station.country_code = address["country_code"]
+                    else:
+                        LOG.error(f"Failed to find address for {coordinates}")
                 try:
                     self.session.add(station)
                     self.session.commit()
                 except Exception:
                     self.session.rollback()
-                    LOG.warning("Failed getting/creating station for "
-                                f"report {aprs_data}")
-                    LOG.warning(station)
+                    LOG.error("Failed getting/creating station for "
+                              f"report {aprs_data}")
+                    LOG.error(station)
                     return
             else:
                 # Failed to get station from json
@@ -169,10 +176,9 @@ class MQTTThread(threads.MyThread):
         if self.counter % 25 == 0:
             LOG.debug(f"Loop counter:{self.counter}  "
                       f"Report Counter:{self.report_counter}")
-            LOG.debug(aprs_data)
-            LOG.debug(report)
 
         if self.counter % 200 == 0:
+            LOG.debug(report)
             try:
                 LOG.info(f"Saving {len(self.reports)} to DB.")
                 tic = time.perf_counter()

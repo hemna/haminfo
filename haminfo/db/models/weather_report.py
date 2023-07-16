@@ -55,13 +55,9 @@ class WeatherStation(ModelBase):
     @staticmethod
     def from_json(station_json):
         if not station_json.get('latitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no latitude!"
-                        f" {station_json}")
             # LOG.warning(f"Station {station_json}")
             return None
         if not station_json.get('longitude', None):
-            LOG.warning(f"Station {station_json['from_call']} has no longitude!"
-                        f" {station_json}")
             # LOG.warning(f"Station {station_json}")
             return None
 
