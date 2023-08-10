@@ -4,20 +4,23 @@ haminfo
 
 
 .. image:: https://img.shields.io/pypi/v/haminfo.svg
-        :target: https://pypi.python.org/pypi/haminfo
+    :target: https://pypi.python.org/pypi/haminfo
 
 .. image:: https://img.shields.io/travis/hemna/haminfo.svg
-        :target: https://travis-ci.com/hemna/haminfo
+    :target: https://travis-ci.com/hemna/haminfo
 
 .. image:: https://readthedocs.org/projects/haminfo/badge/?version=latest
-        :target: https://haminfo.readthedocs.io/en/latest/?version=latest
-        :alt: Documentation Status
+    :target: https://haminfo.readthedocs.io/en/latest/?version=latest
+    :alt: Documentation Status
 
 
 .. image:: https://pyup.io/repos/github/hemna/haminfo/shield.svg
-     :target: https://pyup.io/repos/github/hemna/haminfo/
-     :alt: Updates
+    :target: https://pyup.io/repos/github/hemna/haminfo/
+    :alt: Updates
 
+.. image:: https://github-readme-stats.vercel.app/api?username=hemna
+    :target: https://github.com/hemna/haminfo
+    :alt: Hemna's GitHub stats
 
 
 Ham Info API
