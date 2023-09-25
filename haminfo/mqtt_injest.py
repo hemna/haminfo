@@ -142,6 +142,7 @@ class MQTTThread(threads.MyThread):
                     return
             else:
                 # Failed to get station from json
+                LOG.warning("Failed to get station from json.")
                 return
 
         try:
