@@ -184,11 +184,9 @@ def find_stations_by_ids(session, repeater_ids):
 
 def find_wx_stations(session):
     """Get all wx stations."""
-    query = session.query(
+    query = (session.query(
         WeatherStation
-    ).options(
-        caching_query.FromCache('default')
-    )
+    ))
     return query
 
 
