@@ -93,10 +93,10 @@ class MQTTThread(threads.MyThread):
         else:
             LOG.info("Not using username/password to auth with MQTT")
 
-    def on_disconnect(self, client, userdata, rc):
-        LOG.info("client disconnected ok")
+    def on_disconnect(self, client, userdata, flags, rc, properties):
+        LOG.info(f"client disconnected {flags}, {rc}, {properties}")
 
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, rc, properties):
         LOG.info(
             f"Connected to mqtt://{CONF.mqtt.host_ip}:{CONF.mqtt.host_port}"
             f"/{CONF.mqtt.topic} ({rc})"
@@ -221,8 +221,8 @@ class MQTTThread(threads.MyThread):
             LOG.info("Waiting on mqtt packets....")
             try:
                 self.client.loop_forever(timeout=1)
-                self.client.disconnect()
             except TimeoutError:
+                self.client.disconnect()
                 self.setup()
         return True
 
