@@ -33,7 +33,7 @@ rich
 # For sqlalchemy
 dogpile.cache
 ratelimit
-paho-mqtt
+paho-mqtt>=2.0.0
 # Generic caching
 cachetools
 geopy
