@@ -164,7 +164,6 @@ class HaminfoFlask(flask_classful.FlaskView):
                 session, params['lat'], params['lon'],
                 limit=params.get('count', 1),
             )
-            LOG.info(f"Found {len(query)} stations")
             LOG.info(f"Query {query}")
 
             for st, distance, az in query:
