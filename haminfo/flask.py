@@ -159,10 +159,11 @@ class HaminfoFlask(flask_classful.FlaskView):
 
         results = []
         session = self._get_db_session()
+        max_count = params.get('count', 1)
         with session() as session:
             query = db.find_wxnearest_to(
                 session, params['lat'], params['lon'],
-                limit=params.get('count', 1),
+                limit=15
             )
             LOG.info(f"Query {query}")
 
@@ -195,6 +196,8 @@ class HaminfoFlask(flask_classful.FlaskView):
                 dict_["degrees"] = int(degrees)
                 dict_["direction"] = cardinal
                 results.append(dict_)
+                if len(results) >= max_count:
+                    break
 
             LOG.debug(f"Returning {results}")
             # Need a new wx_request table for wxnow service
