@@ -155,8 +155,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             LOG.error("Failed to find json in request becase {}".format(ex))
             return
 
-        LOG.debug("Lat '{}'  Lon '{}'".format(
-            params.get('lat'), params.get('lon')))
+        LOG.debug(f"wxnearest: {params}")
 
         results = []
         session = self._get_db_session()
@@ -165,6 +164,8 @@ class HaminfoFlask(flask_classful.FlaskView):
                 session, params['lat'], params['lon'],
                 limit=params.get('count', 1),
             )
+            LOG.info(f"Found {len(query)} stations")
+            LOG.info(f"Query {query}")
 
             for st, distance, az in query:
                 LOG.warning(f"Station {st}")
