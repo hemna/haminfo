@@ -181,7 +181,7 @@ class HaminfoFlask(flask_classful.FlaskView):
 
                 if not wx_report:
                     LOG.error(f"Can't find a WX report for station {st.id}:{st.callsign}")
-                    break
+                    continue
 
                 dict_["report"] = wx_report.to_dict()
                 distance_units = "meters"
