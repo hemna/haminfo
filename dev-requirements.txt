@@ -180,7 +180,7 @@ toml==0.10.2
     #   tox
 tox==3.23.0
     # via -r dev-requirements.in
-tqdm==4.60.0
+tqdm==4.66.3
     # via twine
 twine==3.4.1
     # via -r dev-requirements.in
