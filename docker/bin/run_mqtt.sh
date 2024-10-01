@@ -14,5 +14,5 @@ if [ ! -e "$APP_CONFIG" ]; then
     $HOME/.local/bin/oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
-    $HOME/.local/bin/haminfo_mqtt --loglevel DEBUG
+    $HOME/.local/bin/haminfo wx-mqtt-injest --loglevel DEBUG
 fi
