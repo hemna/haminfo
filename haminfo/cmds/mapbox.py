@@ -1,64 +1,19 @@
 import click
-import click_completion
-import logging as python_logging
-import os
-import urllib3
-import sys
-
 from oslo_config import cfg
-from oslo_log import log as logging
-from mapbox import Datasets
 from rich.console import Console
-from geojson import Feature, Point
+import secrets
+import time
 
 import haminfo
-from haminfo import utils
-from haminfo import log
-from haminfo.db import db
+from haminfo.main import cli
+from haminfo import cli_helper
 
 
-CONF = cfg.CONF
-LOG = logging.getLogger(utils.DOMAIN)
-logging.register_options(CONF)
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-def custom_startswith(string, incomplete):
-    """A custom completion match that supports case insensitive matching."""
-    if os.environ.get('_CLICK_COMPLETION_COMMAND_CASE_INSENSITIVE_COMPLETE'):
-        string = string.lower()
-        incomplete = incomplete.lower()
-    return string.startswith(incomplete)
-
-
-click_completion.core.startswith = custom_startswith
-click_completion.init()
-
-
-@click.command()
+@cli.command()
+@cli_helper.add_options(cli_helper.common_options)
 @click.option('--disable-spinner', is_flag=True, default=False,
               help='Disable all terminal spinning wait animations.')
-@click.option(
-    "-c",
-    "--config-file",
-    "config_file",
-    show_default=True,
-    default=utils.DEFAULT_CONFIG_FILE,
-    help="The aprsd config file to use for options.",
-)
-@click.option(
-    "--log-level",
-    "log_level",
-    default="INFO",
-    show_default=True,
-    type=click.Choice(
-        ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
-        case_sensitive=False,
-    ),
-    show_choices=True,
-    help="The log level to use for aprsd.log",
-)
 @click.option(
     "--force",
     "force",
@@ -78,24 +33,12 @@ click_completion.init()
     default=False,
     help="List all the existing items in mapbox dataset"
 )
-@click.version_option()
-def main(disable_spinner, config_file, log_level, force, id, show):
-    global LOG, CONF
-
+@click.pass_context
+@cli_helper.process_standard_options
+def mapbox(ctx, disable_spinner, force, id, show):
+    """Update some DB records?"""
     console = Console()
 
-    conf_file = config_file
-    if config_file != utils.DEFAULT_CONFIG_FILE:
-        config_file = sys.argv[1:]
-    else:
-        config_file = ["--config-file", config_file]
-
-    CONF(config_file, project='haminfo', version=haminfo.__version__)
-    python_logging.captureWarnings(True)
-    log.setup_logging()
-
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
-    LOG.info("using config file {}".format(conf_file))
 
     ds = Datasets()
     console.print(ds.baseuri)
@@ -135,9 +78,4 @@ def main(disable_spinner, config_file, log_level, force, id, show):
                     result = ds.update_feature(id, str(req.id), marker)
                     if result.status_code == 200:
                         console.print(result.json())
-
                     count -= 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())  # pragma: no cover

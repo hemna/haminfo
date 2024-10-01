@@ -425,3 +425,12 @@ def invalidate_wxrequests_cache(session):
 def get_num_repeaters_in_db(session):
     rows = session.query(Station).count()
     return rows
+
+
+def clean_weather_reports(session):
+    """Clean up old weather reports."""
+    LOG.info("Cleaned up weather reports")
+    session.query(WeatherReport).filter(
+        WeatherReport.time < func.now() - func.interval('14 days')
+    ).delete()
+    session.commit()

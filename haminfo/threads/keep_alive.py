@@ -51,16 +51,17 @@ class KeepAliveThread(MyThread):
             for thread in thread_list.threads_list:
                 thread_name = thread.__class__.__name__
                 alive = thread.is_alive()
-                self.data["threads"][thread_name] = alive
                 if thread_name == 'MQTTThread':
                     LOG.info(f"{thread_name}.report_counter ==>"
                              f"{thread.report_counter}=={self.report_counter}")
-                    if thread.report_counter <= self.report_counter:
-                        # the thread counter hasn't changed
+                    if thread.client._connection_closed():
                         alive = False
-                        self.data["threads"][thread_name] = False
-                    else:
-                        self.report_counter = thread.report_counter
+                    # if thread.report_counter <= self.report_counter:
+                    #     # the thread counter hasn't changed
+                    #     alive = False
+                    # else:
+                    #     self.report_counter = thread.report_counter
+                self.data["threads"][thread_name] = alive
 
                 thread_out.append(f"{thread.__class__.__name__}:{alive}")
                 if not alive:

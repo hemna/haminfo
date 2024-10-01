@@ -37,3 +37,4 @@ paho-mqtt>=2.0.0
 # Generic caching
 cachetools
 geopy
+loguru

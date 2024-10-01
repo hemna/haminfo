@@ -3,54 +3,33 @@ import datetime
 import json
 import logging as python_logging
 import os
+import signal
 import sys
+import time
 
+from geopy.geocoders import Nominatim
 from oslo_config import cfg
 from oslo_log import log as logging
+import paho.mqtt.client as mqtt
 
 import haminfo
-from haminfo import utils, log
-from haminfo import mqtt_injest  # noqa: needed for config
+from haminfo.main import cli
+from haminfo import cli_helper
+from haminfo import utils, threads, log
+from haminfo.db import db
+from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 
 
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
-logging.register_options(CONF)
 
 
-@click.command()
-@click.option(
-    "-c",
-    "--config-file",
-    "config_file",
-    show_default=True,
-    default=utils.DEFAULT_CONFIG_FILE,
-    help="The aprsd config file to use for options.",
-)
-@click.option(
-    "--loglevel",
-    "log_level",
-    default="INFO",
-    show_default=True,
-    type=click.Choice(
-        ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
-        case_sensitive=False,
-    ),
-    show_choices=True,
-    help="The log level to use for aprsd.log",
-)
-@click.version_option()
-def main(config_file, log_level):
-    if config_file != utils.DEFAULT_CONFIG_FILE:
-        config_file = sys.argv[1:]
-    else:
-        config_file = ["--config-file", config_file]
-
-    CONF(config_file, project='haminfo', version=haminfo.__version__)
-
-    python_logging.captureWarnings(True)
-    log.setup_logging()
-
+@cli.command()
+@cli_helper.add_options(cli_helper.common_options)
+@click.pass_context
+@cli_helper.process_standard_options
+def mqtt_healthcheck(ctx):
+    """MQTT healthcheck."""
     LOG.info(f'Haminfo MQTT Started version: {haminfo.__version__} ')
     # Dump out the config options read from config file
     # CONF.log_opt_values(LOG, logging.DEBUG)
@@ -89,6 +68,3 @@ def main(config_file, log_level):
                 sys.exit(-1)
 
     return 0
-
-if __name__ == "__main__":
-    sys.exit(main())  # pragma: no cover
