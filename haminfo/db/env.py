@@ -15,6 +15,7 @@ from haminfo import utils, log
 from haminfo.db import db  # noqa
 from haminfo.db.models.modelbase import ModelBase
 import haminfo.db.models.__all_models
+from haminfo import cli_helper
 
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
@@ -46,7 +47,7 @@ target_metadata = ModelBase.metadata
 # config_file = context.get_x_argument(as_dictionary=True).get('config_file')
 # if not config_file:
 print(sys.argv)
-config_file = ["--config-file", utils.DEFAULT_CONFIG_FILE]
+config_file = ["--config-file", cli_helper.DEFAULT_CONFIG_FILE]
 CONF(config_file, project='haminfo', version=haminfo.__version__)
 log.setup_logging()
 python_logging.captureWarnings(True)
