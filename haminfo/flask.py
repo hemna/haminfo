@@ -16,7 +16,7 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
-from haminfo import utils, log, trace
+from haminfo import utils, log, trace, cli_helper
 from haminfo.db import db
 
 
@@ -366,7 +366,7 @@ class HaminfoFlask(flask_classful.FlaskView):
     "--config-file",
     "config_file",
     show_default=True,
-    default=utils.DEFAULT_CONFIG_FILE,
+    default=cli_helper.DEFAULT_CONFIG_FILE,
     help="The aprsd config file to use for options.",
 )
 @click.option(
