@@ -54,7 +54,7 @@ flake8==3.9.1
     #   flake8-polyfill
 identify==2.2.4
     # via pre-commit
-idna==2.10
+idna==3.7
     # via requests
 imagesize==1.2.0
     # via sphinx
