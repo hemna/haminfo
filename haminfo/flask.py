@@ -18,6 +18,7 @@ import sentry_sdk
 import haminfo
 from haminfo import utils, log, trace, cli_helper
 from haminfo.db import db
+from haminfo.conf import log as log_conf
 
 
 auth = HTTPBasicAuth()
@@ -362,48 +363,18 @@ class HaminfoFlask(flask_classful.FlaskView):
 
 
 @click.command()
-@click.option(
-    "-c",
-    "--config-file",
-    "config_file",
-    show_default=True,
-    default=cli_helper.DEFAULT_CONFIG_FILE,
-    help="The aprsd config file to use for options.",
-)
-@click.option(
-    "--loglevel",
-    "log_level",
-    default="DEBUG",
-    show_default=True,
-    type=click.Choice(
-        ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
-        case_sensitive=False,
-    ),
-    show_choices=True,
-    help="The log level to use for aprsd.log",
-)
-@click.version_option()
-def main(config_file, log_level):
-    if config_file != cli_helper.DEFAULT_CONFIG_FILE:
-        config_file = sys.argv[1:]
-    else:
-        config_file = ["--config-file", config_file]
-
-    flask_app = create_app(config_file=config_file, log_level=log_level)
+@cli_helper.add_options(cli_helper.common_options)
+@click.pass_context
+@cli_helper.process_standard_options
+def main(ctx):
+    flask_app = create_app(ctx)
     flask_app.run(
         host=CONF.web.host_ip,
         port=CONF.web.host_port
     )
 
 
-def create_app(config_file=None, log_level=None):
-    if not config_file:
-        conf_file = cli_helper.DEFAULT_CONFIG_FILE
-        config_file = ["--config-file", conf_file]
-    if not log_level:
-        log_level = "DEBUG"
-
-    CONF(config_file, project='haminfo', version=haminfo.__version__)
+def create_app(ctx):
     python_logging.captureWarnings(True)
     version = haminfo.__version__
     if CONF.web.sentry_enable:
@@ -417,11 +388,11 @@ def create_app(config_file=None, log_level=None):
                           SqlalchemyIntegration()],
             release=f"haminfo@{version}",
         )
-    log.setup_logging(app)
     session = db.setup_session()
-    CONF.log_opt_values(LOG, log.LOG_LEVELS[log_level])
+    log_level = ctx.obj["loglevel"]
+    CONF.log_opt_values(LOG, log_conf.LOG_LEVELS[log_level])
     LOG.info("haminfo_api version: {}".format(haminfo.__version__))
-    LOG.info("using config file {}".format(config_file))
+    LOG.info("using config file {}".format(CONF.config_file))
     LOG.info("Number of repeaters in DB {}".format(
         db.get_num_repeaters_in_db(session)))
 

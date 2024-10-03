@@ -5,7 +5,8 @@ flask
 flask-classful
 flask-httpauth
 flask-socketio
-werkzeug==3.0.3 # fixes a problem
+#werkzeug==3.0.3 # fixes a problem
+werkzeug # fixes a problem
 opencage
 pluggy
 pbr
