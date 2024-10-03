@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from hashlib import md5
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -431,6 +432,12 @@ def clean_weather_reports(session):
     """Clean up old weather reports."""
     LOG.info("Cleaned up weather reports")
     session.query(WeatherReport).filter(
-        WeatherReport.time < func.now() - func.interval('14 days')
+        WeatherReport.time < func.now() - timedelta(days=14)
     ).delete()
     session.commit()
+
+
+def clean_empty_wx_stations(session):
+    """Delete all wx stations that have no reports."""
+    LOG.info("Cleaned up weather Stations")
+    
