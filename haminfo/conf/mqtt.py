@@ -1,7 +1,4 @@
-import logging
-
 from oslo_config import cfg
-
 
 
 mqtt_group = cfg.OptGroup(

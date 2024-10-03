@@ -1,23 +1,16 @@
 import click
 import datetime
 import json
-import logging as python_logging
 import os
-import signal
 import sys
-import time
 
-from geopy.geocoders import Nominatim
 from oslo_config import cfg
 from oslo_log import log as logging
-import paho.mqtt.client as mqtt
 
 import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
-from haminfo import utils, threads, log
-from haminfo.db import db
-from haminfo.db.models.weather_report import WeatherStation, WeatherReport
+from haminfo import utils
 
 
 CONF = cfg.CONF

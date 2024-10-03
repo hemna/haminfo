@@ -1,13 +1,10 @@
 import click
-from oslo_config import cfg
 from rich.console import Console
 import secrets
 import time
 
-import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
-
 
 
 @cli.command()
@@ -30,5 +27,5 @@ def generate_token(ctx, disable_spinner):
             apikey = secrets.token_urlsafe()
 
     console.print(f"Generated API Key: [bold green]{apikey}[/]")
-    console.print("Add api_key to \[web] section of config file")
+    console.print("Add api_key to \[web] section of config file")  # noqa
     console.print(f"[bold green]api_key = {apikey}[/]")

@@ -239,6 +239,7 @@ class HaminfoFlask(flask_classful.FlaskView):
 
     def stations(self):
         """Find stations by their callsigns."""
+        params = {}
         try:
             params = request.get_json()
         except Exception as ex:
@@ -383,7 +384,7 @@ class HaminfoFlask(flask_classful.FlaskView):
 )
 @click.version_option()
 def main(config_file, log_level):
-    if config_file != utils.DEFAULT_CONFIG_FILE:
+    if config_file != cli_helper.DEFAULT_CONFIG_FILE:
         config_file = sys.argv[1:]
     else:
         config_file = ["--config-file", config_file]
@@ -397,7 +398,7 @@ def main(config_file, log_level):
 
 def create_app(config_file=None, log_level=None):
     if not config_file:
-        conf_file = utils.DEFAULT_CONFIG_FILE
+        conf_file = cli_helper.DEFAULT_CONFIG_FILE
         config_file = ["--config-file", conf_file]
     if not log_level:
         log_level = "DEBUG"
@@ -418,7 +419,7 @@ def create_app(config_file=None, log_level=None):
         )
     log.setup_logging(app)
     session = db.setup_session()
-    CONF.log_opt_values(LOG, utils.LOG_LEVELS[log_level])
+    CONF.log_opt_values(LOG, log.LOG_LEVELS[log_level])
     LOG.info("haminfo_api version: {}".format(haminfo.__version__))
     LOG.info("using config file {}".format(config_file))
     LOG.info("Number of repeaters in DB {}".format(

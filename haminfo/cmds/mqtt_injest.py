@@ -1,9 +1,7 @@
 import click
 import datetime
 import json
-import logging as python_logging
 import signal
-import sys
 import time
 
 from geopy.geocoders import Nominatim
@@ -14,7 +12,7 @@ import paho.mqtt.client as mqtt
 import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
-from haminfo import utils, threads, log
+from haminfo import utils, threads
 from haminfo.db import db
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 
@@ -33,7 +31,6 @@ def signal_handler(sig, frame):
             ),
         )
         time.sleep(1.5)
-
 
 
 # Class to read from the mqtt queue and dump the packets in to the DB.

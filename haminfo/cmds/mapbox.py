@@ -1,13 +1,12 @@
 import click
-from oslo_config import cfg
 from rich.console import Console
-import secrets
-import time
+from mapbox import Datasets
+from geojson import Point, Feature
+import sys
 
-import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
-
+from haminfo.db import db
 
 
 @cli.command()
@@ -38,8 +37,6 @@ from haminfo import cli_helper
 def mapbox(ctx, disable_spinner, force, id, show):
     """Update some DB records?"""
     console = Console()
-
-
     ds = Datasets()
     console.print(ds.baseuri)
     if show:

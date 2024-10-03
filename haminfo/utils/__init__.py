@@ -2,10 +2,16 @@
 
 import errno
 import functools
+import json
 import os
 import re
 import sys
 import traceback
+
+import colorsys
+from pygments import highlight
+from pygments.lexers import JsonLexer
+from pygments.formatters import TerminalFormatter
 
 import update_checker
 
@@ -13,6 +19,9 @@ if sys.version_info.major == 3 and sys.version_info.minor >= 3:
     from collections.abc import MutableMapping
 else:
     from collections.abc import MutableMapping
+
+import haminfo
+
 
 DOMAIN = "haminfo"
 # create from
@@ -66,6 +75,7 @@ FREQ_BAND_PLAN = {
               "low": 241000.0, "high": 250000.0},
 }
 
+
 def bool_from_str(bool_str):
     if bool_str == "No":
         return False
@@ -99,6 +109,7 @@ def frequency_band_mhz(freq):
         if (freq > FREQ_BAND_PLAN[band]["low"] and
                 freq < FREQ_BAND_PLAN[band]["high"]):
             return band
+
 
 def prettify_json(data, autoindent=False):
 
@@ -143,6 +154,7 @@ def pick_color(percent, clip, saturation, start, end):
     h = int(round(c))
     s = int(saturation)
     return hsl_to_rgb((h, 50, s))
+
 
 def alert_percent_color(percent, start=0, end=120):
     """Return rgb color based on % value.
@@ -230,35 +242,11 @@ def end_substr(original, substr):
     return idx
 
 
-def rgb_from_name(name):
-    """Create an rgb tuple from a string."""
-    hash = 0
-    for char in name:
-        hash = ord(char) + ((hash << 5) - hash)
-    red = hash & 255
-    green = (hash >> 8) & 255
-    blue = (hash >> 16) & 255
-    return red, green, blue
-
-
 def human_size(bytes, units=None):
     """Returns a human readable string representation of bytes"""
     if not units:
         units = [" bytes", "KB", "MB", "GB", "TB", "PB", "EB"]
     return str(bytes) + units[0] if bytes < 1024 else human_size(bytes >> 10, units[1:])
-
-
-def strfdelta(tdelta, fmt="{hours:{width}}:{minutes:{width}}:{seconds:{width}}"):
-    d = {
-        "days": tdelta.days,
-        "width": "02",
-    }
-    if tdelta.days > 0:
-        fmt = "{days} days " + fmt
-
-    d["hours"], rem = divmod(tdelta.seconds, 3600)
-    d["minutes"], d["seconds"] = divmod(rem, 60)
-    return fmt.format(**d)
 
 
 def _check_version():

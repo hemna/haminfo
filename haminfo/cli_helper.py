@@ -8,6 +8,7 @@ from oslo_config import cfg
 
 import haminfo
 from haminfo.log import log
+from haminfo import trace
 
 
 CONF = cfg.CONF

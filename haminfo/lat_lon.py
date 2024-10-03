@@ -261,7 +261,7 @@ class Longitude(GeoCoord):
         super().__init__(degree, minute, second)
         # Make sure that longitudes are reported in the range -180 to 180
         decimal_degree = self.range180()
-        self.degree, self.minute, self.decimal_minute,\
+        self.degree, self.minute, self.decimal_minute, \
             self.second = self._calc_degreeminutes(decimal_degree)
         self._update()
 

@@ -24,7 +24,6 @@ class KeepAliveThread(MyThread):
         self._dump_keepalive()
         self.report_counter = 0
 
-
     def _dump_keepalive(self):
         try:
             max_timeout = {"hours": 0.0, "minutes": 2, "seconds": 0}

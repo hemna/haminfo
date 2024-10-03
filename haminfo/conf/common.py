@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from oslo_config import cfg
 
 
@@ -10,7 +8,6 @@ haminfo_opts = [
         help="Enable code tracing",
     ),
 ]
-
 
 
 def register_opts(config):

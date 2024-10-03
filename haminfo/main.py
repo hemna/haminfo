@@ -3,7 +3,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 
-import haminfo
 from haminfo import utils, cli_helper
 
 CONF = cfg.CONF
@@ -20,7 +19,7 @@ def cli(ctx):
 
 
 def load_commands():
-    from .cmds import (
+    from .cmds import (  # noqa
         generate_token,
         mapbox,
         fetch_repeaterbook,

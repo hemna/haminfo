@@ -1,14 +1,11 @@
 import click
 import json
-from oslo_config import cfg
 from oslo_log import log as logging
 import requests
 from rich.console import Console
 import secrets
-import time
 from ratelimit import limits, sleep_and_retry
 
-import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
 from haminfo import utils
@@ -27,7 +24,9 @@ USER_AGENTS.append("Edge/16.16299")
 USER_AGENTS.append("OPR/45.0.2552.898")
 USER_AGENTS.append("Firefox/53.0")
 USER_AGENTS.append(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3')
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/58.0.3029.110 Safari/537.3')
 USER_AGENTS.append("HamClient/1.0")
 
 
@@ -103,8 +102,6 @@ def fetch_repeaters(sp, url, session, fetch_only=False):
 def fetch_NA_country_repeaters_by_state(sp, session, country,       # noqa:N802
                                         state=None, state_names=None,
                                         fetch_only=False):
-
-
     count = 0
     if state:
         msg = "Fetching {}, {}".format(country, state)
@@ -349,5 +346,3 @@ def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
 
     if session:
         session.close()
-
-

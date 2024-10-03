@@ -166,7 +166,7 @@ class WeatherReport(ModelBase):
         rain_24h = station_json.get("rain_24h", 0.00)
         rain_since_midnight = station_json.get("rain_since_midnight", 0.00)
         raw_report = station_json.get("raw").replace('\x00', '')
-        #if "weather" in station_json:
+        # if "weather" in station_json:
         #    temperature = station_json["weather"].get("temperature", temperature)
         #    wind_speed = station_json["weather"].get(
         #        "wind_speed", wind_speed
