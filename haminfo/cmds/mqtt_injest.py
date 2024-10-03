@@ -89,7 +89,7 @@ class MQTTThread(threads.MyThread):
             )
         except Exception as ex:
             LOG.error(f"Failed to find station {aprs_data}")
-            LOG.exception(ex)
+            # LOG.exception(ex)
             return
 
         if not station:
