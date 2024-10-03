@@ -82,13 +82,14 @@ class MQTTThread(threads.MyThread):
         self.counter += 1
         aprs_data = json.loads(msg.payload.decode('utf-8').replace('\x00', ''))
         # We got a message, lets build the DB model object and insert it.
+        station = None
         try:
             station = WeatherStation.find_station_by_callsign(
                 self.session,
                 aprs_data["from_call"]
             )
         except Exception as ex:
-            LOG.error(f"Failed to find station {aprs_data}")
+            LOG.error(f"Failed to find station {aprs_data['from_call']}")
             # LOG.exception(ex)
             return
 
