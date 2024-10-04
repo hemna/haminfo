@@ -4,6 +4,7 @@ import json
 import signal
 import time
 
+from cachetools import cached, TTLCache
 from geopy.geocoders import Nominatim
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -31,6 +32,21 @@ def signal_handler(sig, frame):
             ),
         )
         time.sleep(1.5)
+
+@cached(cache=TTLCache(maxsize=640*1024, ttl=300))
+def get_location(coordinates):
+    nom = Nominatim(user_agent="haminfo")
+    location = None
+    try:
+        location = nom.geocode(
+            coordinates,
+            language="en",
+            addressdetails=True,
+        )
+    except Exception as ex:
+        LOG.error(f"Failed to get location for {coordinates}")
+        location = None
+    return location
 
 
 # Class to read from the mqtt queue and dump the packets in to the DB.
@@ -99,11 +115,7 @@ class MQTTThread(threads.MyThread):
             if station:
                 # Get the country code
                 coordinates = f"{station.latitude:0.6f}, {station.longitude:0.6f}"
-                location = self.nominate.geocode(
-                    coordinates,
-                    language="en",
-                    addressdetails=True,
-                )
+                location = get_location(coordinates)
                 if location and hasattr(location, "raw"):
                     address = location.raw.get("address")
                     if address:
@@ -116,8 +128,7 @@ class MQTTThread(threads.MyThread):
                 except Exception:
                     self.session.rollback()
                     LOG.error("Failed getting/creating station for "
-                              f"report {aprs_data}")
-                    LOG.error(station)
+                              f"report {aprs_data['from_call']}")
                     return
             else:
                 # Failed to get station from json
