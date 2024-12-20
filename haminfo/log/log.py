@@ -57,9 +57,9 @@ def setup_logging(loglevel=None, quiet=False):
     logging.root.handlers = [InterceptHandler()]
     logging.root.setLevel(log_level)
 
-    imap_list = [
-        "imapclient.imaplib", "imaplib", "imapclient",
-        "imapclient.util",
+    dogpile_list = [
+        "dogpile",
+        "dogpile.lock"
     ]
     aprslib_list = [
         "aprslib",
@@ -78,7 +78,7 @@ def setup_logging(loglevel=None, quiet=False):
     ]
 
     # We don't really want to see the aprslib parsing debug output.
-    disable_list = imap_list + aprslib_list + webserver_list
+    disable_list = dogpile_list + aprslib_list + webserver_list
 
     # remove every other logger's handlers
     # and propagate to root logger
@@ -114,17 +114,6 @@ def setup_logging(loglevel=None, quiet=False):
                 "level": log_level,
             },
         )
-
-    # if CONF.admin.web_enabled:
-    #     qh = QueueHandler(logging_queue)
-    #     handlers.append(
-    #         {
-    #             "sink": qh, "serialize": False,
-    #             "format": CONF.logging.logformat,
-    #             "level": log_level,
-    #             "colorize": False,
-    #         },
-    #     )
 
     # configure loguru
     logger.configure(handlers=handlers)
