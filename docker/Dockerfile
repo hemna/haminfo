@@ -25,15 +25,14 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-RUN uv venv
-RUN uv pip install -U pip wheel
-
 # Stage 2
 FROM prepare AS install
 ARG CACHEBUST
 
 USER $CONTAINER_USER
 WORKDIR /app
+RUN uv venv
+RUN uv pip install -U pip wheel
 RUN mkdir /config
 
 RUN git clone -b $APP_BRANCH $APP_GIT; \
