@@ -6,6 +6,7 @@ from rich.console import Console
 import secrets
 from ratelimit import limits, sleep_and_retry
 
+import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
 from haminfo import utils
@@ -15,32 +16,22 @@ from haminfo.db.models.station import Station
 
 LOG = logging.getLogger(utils.DOMAIN)
 
-USER_AGENTS = []
-USER_AGENTS.append("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-USER_AGENTS.append("AppleWebKit/537.36 (KHTML, like Gecko)")
-USER_AGENTS.append("Chrome/58.0.3029.110")
-USER_AGENTS.append("Safari/537.3")
-USER_AGENTS.append("Edge/16.16299")
-USER_AGENTS.append("OPR/45.0.2552.898")
-USER_AGENTS.append("Firefox/53.0")
-USER_AGENTS.append(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/58.0.3029.110 Safari/537.3')
-USER_AGENTS.append("HamClient/1.0")
-
-
 @sleep_and_retry
 @limits(calls=1, period=120)
 def fetch_repeaters(sp, url, session, fetch_only=False):
+    console = Console()
 
-    headers = {
-        'User-Agent': secrets.choice(USER_AGENTS),
-    }
-    LOG.debug(f"Fetching '{url}' headers {headers}")
-    resp = requests.get(url, headers=headers)
-    if resp.status_code != 200:
-        print("Failed to fetch repeaters {}".format(resp.status_code))
+    try:
+        headers = {
+            'User-Agent': f"haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo)",
+        }
+        LOG.debug(f"Fetching '{url}' headers {headers}")
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            console.print("Failed to fetch repeaters {}".format(resp.status_code))
+            return
+    except Exception as ex:
+        console.print("Failed to fetch repeaters {}".format(ex))
         return
 
     # Filter out unwanted characters
@@ -329,7 +320,7 @@ def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
     count = 0
     with console.status("Load and insert repeaters from USA") as sp:
         try:
-            # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
+            count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
             # count += fetch_USA_repeaters_by_state(sp, session)
             # count += fetch_Canada_repeaters(sp, session)
             # count += fetch_EU_repeaters(sp, session)
@@ -337,7 +328,7 @@ def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
             # count += fetch_south_america_repeaters(sp, session)
             # count += fetch_africa_repeaters(sp, session)
             # count += fetch_caribbean_repeaters(sp, session)
-            count = fetch_all_countries(sp, session, fetch_only)
+            #count = fetch_all_countries(sp, session, fetch_only)
 
         except Exception as ex:
             LOG.error("Failed to fetch state because {}".format(ex))

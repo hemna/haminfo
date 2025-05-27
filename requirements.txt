@@ -39,3 +39,4 @@ paho-mqtt>=2.0.0
 cachetools
 geopy
 loguru
+mcp
