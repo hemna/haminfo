@@ -16,7 +16,7 @@ SRC_DIR="/home/haminfo/.local/lib/python3.9/site-packages/haminfo/db"
 DB_CONFIG="/config/alembic.ini"
 if [ ! -e "$APP_CONFIG" ]; then
     echo "'$APP_CONFIG' File does not exist. Creating."
-    oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
+    uv run oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
     cd $SRC_DIR

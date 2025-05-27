@@ -3,4 +3,5 @@
 # update the database from repeaterbook
 set -x
 
-time $HOME/.local/bin/haminfo fetch-repeaterbook
+source /app/.venv/bin/activate
+time uv run haminfo fetch-repeaterbook
