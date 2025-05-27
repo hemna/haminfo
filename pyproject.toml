@@ -130,7 +130,7 @@ haminfo_api = "haminfo.flask:main"
     "haminfo" = "haminfo.opts:list_opts"
 
 [project.entry-points."oslo.config.opts.defaults"]
-    "haminfo" = "haminfo.opts:set_external_lib_defaults"
+    "haminfo" = "haminfo.opts:set_external_library_defaults"
 
 # If you are using a different build backend, you will need to change this.
 [tool.setuptools]
