@@ -1,5 +1,7 @@
 #!/bin/bash
 # Official docker image build script.
+#
+CURDIR=`pwd`
 
 
 usage() {
@@ -8,13 +10,14 @@ usage: $0 options
 
 OPTIONS:
    -t      The tag/version (${TAG}) (default = master)
-   -d      Use Dockerfile-dev for a git clone build
+   -r      Destroy and rebuild the buildx environment
 EOF
 }
 
 
 ALL_PLATFORMS=0
 DEV=0
+REBUILD_BUILDX=0
 TAG="latest"
 BRANCH="master"
 
@@ -30,8 +33,8 @@ do
         a)
            ALL_PLATFORMS=1
            ;;
-        d)
-           DEV=1
+        r)
+           REBUILD_BUILDX=1
            ;;
         ?)
            usage
@@ -46,19 +49,34 @@ if [ $ALL_PLATFORMS -eq 1 ]
 then
     PLATFORMS="linux/arm/v7,linux/arm/v6,linux/arm64,linux/amd64"
 else
-    PLATFORMS="linux/amd64"
+    PLATFORMS="linux/arm/v7"
+fi
+
+if [ $REBUILD_BUILDX -eq 1 ]
+then
+    echo "Destroying old multiarch build container"
+    docker buildx rm multiarch
+    docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    echo "Creating new buildx container"
+    docker buildx create --name multiarch --driver docker-container --use \
+        --config ./buildkit.toml --use \
+        --driver-opt image=moby/buildkit:master
+    docker buildx inspect --bootstrap
 fi
 
 echo "Build with tag=${TAG} BRANCH=${BRANCH} dev?=${DEV} platforms?=${PLATFORMS}"
 
+echo "Build -DEV- with tag=${TAG} BRANCH=${BRANCH} platforms?=${PLATFORMS}"
+#cd ../..
+# Use this script to locally build the docker image
+    #-f ./haminfo/docker/Dockerfile \
+export BUILDKIT_PROGRESS=plain
+docker buildx build --platform $PLATFORMS \
+    -t hemna6969/haminfo:$TAG \
+    -f ./Dockerfile \
+    --build-arg branch=$BRANCH \
+    --no-cache-filter \
+    --progress=plain \
+    --load .
 
-echo "Destroying old multiarch build container"
-docker buildx rm multiarch
-echo "Creating new buildx container"
-docker buildx create --name multiarch --platform linux/arm/v7,linux/arm/v6,linux/arm64,linux/amd64 --config ./buildkit.toml --use --driver-opt image=moby/buildkit:master
-
-    echo "Build -DEV- with tag=${TAG} BRANCH=${BRANCH} platforms?=${PLATFORMS}"
-    # Use this script to locally build the docker image
-    docker buildx build --platform $PLATFORMS \
-        -t hemna6969/haminfo:$TAG \
-        -f Dockerfile --build-arg branch=$BRANCH --no-cache .
+#cd $CURDIR
