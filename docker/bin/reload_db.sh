@@ -4,4 +4,5 @@
 set -x
 
 source /app/.venv/bin/activate
-time uv run haminfo fetch-repeaterbook
+APP_CONFIG="/config/haminfo.conf"
+time uv run haminfo fetch-repeaterbook -c $APP_CONFIG

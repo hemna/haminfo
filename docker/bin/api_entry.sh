@@ -21,10 +21,10 @@ else
         True|true|yes)
             echo "Initializing Database"
             time haminfo_load -i --force
-            uv run haminfo_api
+            uv run haminfo_api -c $APP_CONFIG
             ;;
         *)
-            uv run haminfo_api --loglevel DEBUG
+            uv run haminfo_api -c $APP_CONFIG --loglevel DEBUG
             ;;
     esac
 fi

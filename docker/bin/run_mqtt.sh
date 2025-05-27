@@ -16,5 +16,5 @@ if [ ! -e "$APP_CONFIG" ]; then
     uv run oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask > $APP_CONFIG
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
-    uv run haminfo wx-mqtt-injest --loglevel DEBUG
+    uv run haminfo wx-mqtt-injest --loglevel DEBUG -c $APP_CONFIG
 fi
