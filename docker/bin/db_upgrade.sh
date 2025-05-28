@@ -20,5 +20,5 @@ if [ ! -e "$APP_CONFIG" ]; then
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
     cd $SRC_DIR
-    uv run alembic --config $DB_CONFIG upgrade head
+    uv run haminfo schema-upgrade -c $APP_CONFIG
 fi
