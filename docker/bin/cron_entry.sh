@@ -4,7 +4,7 @@
 # Start the run once job.
 echo "Docker container has been started"
 
-declare -p | grep -Ev 'BASHOPTS|BASH_VERSINFO|EUID|PPID|SHELLOPTS|UID' > /home/haminfo/container.env
+declare -p | grep -Ev 'BASHOPTS|BASH_VERSINFO|EUID|PPID|SHELLOPTS|UID' > /app/container.env
 
 touch /app/haminfo.log
 # Setup a cron schedule
