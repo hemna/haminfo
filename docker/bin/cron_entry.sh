@@ -9,9 +9,10 @@ declare -p | grep -Ev 'BASHOPTS|BASH_VERSINFO|EUID|PPID|SHELLOPTS|UID' > /app/co
 touch /app/haminfo.log
 # Setup a cron schedule
 # To run the DB reload/update at 7am
+# crontab calculator: https://crontab.guru/
 echo "SHELL=/bin/bash
 BASH_ENV=/app/container.env
-* 7 * * * /app/reload_db.sh >> /app/haminfo.log 2>&1
+1 1 1 * * /app/reload_db.sh >> /app/haminfo.log 2>&1
 # This extra line makes it a valid cron" > scheduler.txt
 
 crontab scheduler.txt
