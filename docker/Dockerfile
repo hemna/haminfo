@@ -12,7 +12,7 @@ ENV VIRTUAL_ENV=$HOME/.venv
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
 
-RUN apt install git
+RUN apt update && apt install -y git sudo cron
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
     # Allow statements and log messages to immediately appear
