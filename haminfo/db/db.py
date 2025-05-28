@@ -94,7 +94,7 @@ def _create_cache_regions():
     return regions
 
 
-def _setup_connection():
+def get_engine():
     # engine = create_engine('sqlite:///:memory:', echo=True)
     engine = create_engine(CONF.database.connection,
                            echo=CONF.database.debug, )
@@ -104,7 +104,7 @@ def _setup_connection():
 def setup_session():
     global cache
     regions = _create_cache_regions()
-    engine = _setup_connection()
+    engine = get_engine()
     session = scoped_session(sessionmaker(bind=engine))
     cache = caching_query.ORMCache(regions)
     cache.listen_on_session(session)
@@ -440,4 +440,4 @@ def clean_weather_reports(session):
 def clean_empty_wx_stations(session):
     """Delete all wx stations that have no reports."""
     LOG.info("Cleaned up weather Stations")
-    
+

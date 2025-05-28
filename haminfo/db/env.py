@@ -16,10 +16,12 @@ from haminfo.db import db  # noqa
 from haminfo.db.models.modelbase import ModelBase
 import haminfo.db.models.__all_models
 from haminfo import cli_helper
+from haminfo.log import log as haminfo_log
+from haminfo.conf import log as haminfo_log_conf
 
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
-logging.register_options(CONF)
+#logging.register_options(CONF)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -47,11 +49,15 @@ target_metadata = ModelBase.metadata
 # config_file = context.get_x_argument(as_dictionary=True).get('config_file')
 # if not config_file:
 print(sys.argv)
-config_file = ["--config-file", cli_helper.DEFAULT_CONFIG_FILE]
+if "-c" in sys.argv:
+    config_file = ["--config-file", sys.argv[sys.argv.index("-c") + 1]]
+else:
+    config_file = ["--config-file", cli_helper.DEFAULT_CONFIG_FILE]
+
 CONF(config_file, project='haminfo', version=haminfo.__version__)
-log.setup_logging()
+haminfo_log.setup_logging()
 python_logging.captureWarnings(True)
-CONF.log_opt_values(LOG, utils.LOG_LEVELS["DEBUG"])
+CONF.log_opt_values(LOG, haminfo_log_conf.LOG_LEVELS["DEBUG"])
 
 
 def get_url():
@@ -127,3 +133,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
