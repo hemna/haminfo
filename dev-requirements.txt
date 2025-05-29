@@ -190,7 +190,7 @@ typing-extensions==3.10.0.0
     # via mypy
 urllib3==1.26.19
     # via requests
-virtualenv==20.4.4
+virtualenv==20.26.6
     # via
     #   pre-commit
     #   tox
