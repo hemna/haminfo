@@ -16,14 +16,15 @@ from haminfo.db.models.station import Station
 
 LOG = logging.getLogger(utils.DOMAIN)
 
+# only alloe 1 request every 10 minutes
 @sleep_and_retry
-@limits(calls=1, period=120)
+@limits(calls=1, period=600)
 def fetch_repeaters(sp, url, session, fetch_only=False):
     console = Console()
 
     try:
         headers = {
-            'User-Agent': f"haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo)",
+            'User-Agent': f"haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo; waboring@hemna.com)",
         }
         LOG.debug(f"Fetching '{url}' headers {headers}")
         resp = requests.get(url, headers=headers)
@@ -318,7 +319,7 @@ def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
         session = None
 
     count = 0
-    with console.status("Load and insert repeaters from USA") as sp:
+    with console.status("Load and insert repeaters from repeaterbook") as sp:
         try:
             # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
             # count += fetch_USA_repeaters_by_state(sp, session)
