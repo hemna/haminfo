@@ -5,4 +5,4 @@ set -x
 
 source /app/.venv/bin/activate
 APP_CONFIG="/config/haminfo.conf"
-time uv run haminfo rb fetch-all-repeaters -c $APP_CONFIG --log-level DEBUG
+time uv run haminfo rb fetch-all-repeaters -c $APP_CONFIG --loglevel DEBUG
