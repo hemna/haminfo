@@ -5,4 +5,4 @@ set -x
 
 source /app/.venv/bin/activate
 APP_CONFIG="/config/haminfo.conf"
-time uv run haminfo clean-wx-reports -c $APP_CONFIG
+time uv run haminfo db clean-wx-reports -c $APP_CONFIG

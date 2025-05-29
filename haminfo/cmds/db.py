@@ -11,9 +11,16 @@ from haminfo.db import db, migrate
 
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
-@cli.command()
+@cli.group(help='Database type subcommands', context_settings=CONTEXT_SETTINGS)
+@click.pass_context
+def db(ctx):
+    pass
+
+
+@db.command()
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options
@@ -26,7 +33,7 @@ def schema_init(ctx):
     db.init_db_schema(engine)
 
 
-@cli.command()
+@db.command()
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options
@@ -40,7 +47,7 @@ def schema_upgrade(ctx):
     migrate.db_sync()
 
 
-@cli.command()
+@db.command()
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options
@@ -55,7 +62,7 @@ def schema_version(ctx):
     LOG.info(f"Database Schema version: {version}")
 
 
-@cli.command()
+@db.command()
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options

@@ -5,6 +5,9 @@ import requests
 from rich.console import Console
 import secrets
 from ratelimit import limits, sleep_and_retry
+from ratelimit.exception import RateLimitException
+from functools import wraps
+import time
 
 import haminfo
 from haminfo.main import cli
@@ -13,24 +16,62 @@ from haminfo import utils
 from haminfo.db import db
 from haminfo.db.models.station import Station
 
-
 LOG = logging.getLogger(utils.DOMAIN)
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@cli.group(help='RepeaterBook type subcommands', context_settings=CONTEXT_SETTINGS)
+@click.pass_context
+def rb(ctx):
+    pass
+
+
+def sleep_and_retry(func):
+    '''
+    Return a wrapped function that rescues rate limit exceptions, sleeping the
+    current thread until rate limit resets.
+
+    :param function func: The function to decorate.
+    :return: Decorated function.
+    :rtype: function
+    '''
+    @wraps(func)
+    def wrapper(*args, **kargs):
+        '''
+        Call the rate limited function. If the function raises a rate limit
+        exception sleep for the remaing time period and retry the function.
+
+        :param args: non-keyword variable length argument list to the decorated function.
+        :param kargs: keyworded variable length argument list to the decorated function.
+        '''
+        while True:
+            try:
+                return func(*args, **kargs)
+            except RateLimitException as exception:
+                LOG.debug(f"Rate limit waiting for {exception.period_remaining}")
+                time.sleep(30)
+                # time.sleep(exception.period_remaining)
+    return wrapper
+
 
 # only alloe 1 request every 10 minutes
 @sleep_and_retry
 @limits(calls=1, period=600)
-def fetch_repeaters(sp, url, session, fetch_only=False):
+def fetch_repeaters(url, session, fetch_only=False):
     console = Console()
 
     try:
         headers = {
             'User-Agent': f"haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo; waboring@hemna.com)",
         }
-        LOG.debug(f"Fetching '{url}' headers {headers}")
+        msg = f"Fetching '{url}'"
+        LOG.debug(msg)
         resp = requests.get(url, headers=headers)
         if resp.status_code != 200:
             console.print("Failed to fetch repeaters {}".format(resp.status_code))
             return
+        else:
+            LOG.debug(f"URL responded with {resp.status_code}")
     except Exception as ex:
         console.print("Failed to fetch repeaters {}".format(ex))
         return
@@ -49,20 +90,13 @@ def fetch_repeaters(sp, url, session, fetch_only=False):
 
     count = 0
     if "count" in repeater_json and repeater_json["count"] > 0:
-        sp.update("Found {} repeaters to load".format(
-            repeater_json["count"]
-        ))
+        LOG.info(f"Found {repeater_json['count']} repeaters to load")
         countdown = repeater_json["count"]
         for repeater in repeater_json["results"]:
             if 'Frequency' in repeater:
                 # If we don't have a frequency, it's useless.
-                sp.text = "({}) {} {} : {}".format(
-                    countdown,
-                    repeater.get('Callsign', None),
-                    repeater['Frequency'],
-                    repeater['Country']
-                )
-                LOG.debug("{}".format(sp.text))
+                msg_text = f"({countdown}) {repeater.get('Callsign', None)} {repeater['Frequency']} : {repeater['Country']}"
+                LOG.info(msg_text)
 
                 if not fetch_only:
                     station = Station.find_station_by_ids(
@@ -91,65 +125,61 @@ def fetch_repeaters(sp, url, session, fetch_only=False):
     return count
 
 
-def fetch_NA_country_repeaters_by_state(sp, session, country,       # noqa:N802
+def fetch_NA_country_repeaters_by_state(session, country,       # noqa:N802
                                         state=None, state_names=None,
                                         fetch_only=False):
-    count = 0
+    count = 1
+    inserted = 0
     if state:
-        msg = "Fetching {}, {}".format(country, state)
-        sp.update(msg)
+        msg = f"Fetching {country}, {state}"
         LOG.info(msg)
         try:
             url = ("https://www.repeaterbook.com/api/export.php?"
                    "country={}&state={}").format(
                 requests.utils.quote(country),
                 requests.utils.quote(state))
-            count = fetch_repeaters(sp, url, session, fetch_only)
+            inserted = fetch_repeaters(url, session, fetch_only)
         except Exception as ex:
-            LOG.error("Failed fetching state '{}'  '{}'".format(state, ex))
+            LOG.error(f"Failed fetching state '{state}'  '{ex}'")
             raise ex
     elif state_names:
         # Fetch by state name
         for state in state_names:
-            msg = "Fetching {}, {}".format(country, state)
-            sp.update(msg)
+            msg = f"Fetching {country}, {state} - ({count} of {len(state_names)})"
             LOG.info(msg)
             try:
                 url = ("https://www.repeaterbook.com/api/export.php?"
                        "country={}&state={}").format(
                     requests.utils.quote(country),
                     requests.utils.quote(state))
-                count += fetch_repeaters(sp, url, session, fetch_only)
+                inserted += fetch_repeaters(url, session, fetch_only)
+                count += 1
             except Exception as ex:
                 # Log the exception and continue
-                LOG.error("Failed to fetch '{}' because {}".format(state, ex))
-                LOG.error(ex)
+                LOG.error(f"Failed to fetch '{state}' because {ex}")
     else:
         # Just fetch by country
-        msg = "Fetching {}".format(country)
-        sp.update(msg)
+        msg = f"Fetching {country}"
         LOG.info(msg)
         try:
             url = ("https://www.repeaterbook.com/api/export.php?"
                    "country={}").format(
                 requests.utils.quote(country))
-            count = fetch_repeaters(sp, url, session, fetch_only)
+            inserted = fetch_repeaters( url, session, fetch_only)
         except Exception as ex:
-            LOG.error("Failed fetching Country '{}'  '{}'".format(country, ex))
+            LOG.error(f"Failed fetching Country '{country}'  '{ex}'")
             raise ex
-    return count
+    return inserted
 
 
-def fetch_EU_country_repeaters(sp, session, country, fetch_only=False):   # noqa: N802
+def fetch_EU_country_repeaters(session, country, fetch_only=False):   # noqa: N802+
     # Just fetch by country
-    msg = "Fetching {}".format(country)
-    sp.update(msg)
-    LOG.info(msg)
+    LOG.info(f"Fetching {country}")
     try:
         url = ("https://www.repeaterbook.com/api/exportROW.php?"
                "country={}").format(
             requests.utils.quote(country))
-        count = fetch_repeaters(sp, url, session, fetch_only)
+        count = fetch_repeaters(url, session, fetch_only)
     except Exception as ex:
         LOG.error("Failed fetching Country '{}'".format(country))
         LOG.exception(ex)
@@ -157,7 +187,7 @@ def fetch_EU_country_repeaters(sp, session, country, fetch_only=False):   # noqa
     return count
 
 
-def fetch_USA_repeaters_by_state(sp, session, state=None, fetch_only=False):  # noqa: N802
+def fetch_USA_repeaters_by_state(session, state=None, fetch_only=False):  # noqa: N802
     """Only fetch United States repeaters."""
     country = "United States"
     state_names = ["Alaska", "Alabama", "Arkansas", "American Samoa",
@@ -173,13 +203,13 @@ def fetch_USA_repeaters_by_state(sp, session, state=None, fetch_only=False):  # 
                    "South Carolina", "South Dakota", "Tennessee", "Texas",
                    "Utah", "Virginia", "Virgin Islands", "Vermont",
                    "Washington", "Wisconsin", "West Virginia", "Wyoming"]
-    LOG.info("Fetching repeaters for '{}'".format(country))
-    return fetch_NA_country_repeaters_by_state(sp, session, country, state,
+    LOG.info(f"Fetching repeaters for '{country}' {len(state_names)}")
+    return fetch_NA_country_repeaters_by_state(session, country, state,
                                                state_names,
                                                fetch_only=fetch_only)
 
 
-def fetch_Canada_repeaters(sp, session, fetch_only=False):  # noqa: N802
+def fetch_Canada_repeaters(session, fetch_only=False):  # noqa: N802
     country = "Canada"
     state_names = ["Alberta", "British Columbia", "Manitoba", "New Brunswick",
                    "Newfoundland and Labrador", "Nova Scotia", "Nunavut",
@@ -187,31 +217,31 @@ def fetch_Canada_repeaters(sp, session, fetch_only=False):  # noqa: N802
                    "Quebec", "Saskatchewan", "Yukon"]
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
-        sp, session, country, state=None, state_names=state_names,
+        session, country, state=None, state_names=state_names,
         fetch_only=fetch_only)
 
 
-def fetch_south_america_repeaters(sp, session, fetch_only=False):
+def fetch_south_america_repeaters(session, fetch_only=False):
     countries = ["Argentina", "Bolivia", "Brazil", "Caribbean Netherlands",
                  "Chile", "Columbia", "Curacao", "Ecuador", "Panama",
                  "Paraguay", "Peru", "Uruguay", "Venezuela"]
 
     count = 0
     for country in countries:
-        count += fetch_EU_country_repeaters(sp, session, country,
+        count += fetch_EU_country_repeaters(session, country,
                                             fetch_only=fetch_only)
 
     return count
 
 
-def fetch_Mexico_repeaters(sp, session, fetch_only=False):  # noqa: N802
+def fetch_Mexico_repeaters(session, fetch_only=False):  # noqa: N802
     country = "Mexico"
     LOG.info("Fetching repeaters for {}".format(country))
     return fetch_NA_country_repeaters_by_state(
-        sp, session, country, state=None, fetch_only=fetch_only)
+        session, country, state=None, fetch_only=fetch_only)
 
 
-def fetch_EU_repeaters(sp, session, fetch_only=False):    # noqa: N802
+def fetch_EU_repeaters(session, fetch_only=False):    # noqa: N802
     eu_countries = ["Ablania", "Andorra", "Austria", "Belarus",
                     "Belgium", "Bosnia and Herzegovina",
                     "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
@@ -226,13 +256,13 @@ def fetch_EU_repeaters(sp, session, fetch_only=False):    # noqa: N802
                     "Ukraine", "United Kingdom"]
     count = 0
     for country in eu_countries:
-        count += fetch_EU_country_repeaters(sp, session, country,
+        count += fetch_EU_country_repeaters(session, country,
                                             fetch_only=fetch_only)
 
     return count
 
 
-def fetch_asian_repeaters(sp, session, fetch_only=False):
+def fetch_asian_repeaters(session, fetch_only=False):
     countries = ["Australia", "Azerbaijan", "China", "India", "Indonesia",
                  "Israel", "Japan", "Jordan", "Kuwait", "Malaysia", "Nepal",
                  "New Zealand", "Oman", "Philippines", "Singapore",
@@ -241,24 +271,24 @@ def fetch_asian_repeaters(sp, session, fetch_only=False):
 
     count = 0
     for country in countries:
-        count += fetch_EU_country_repeaters(sp, session, country,
+        count += fetch_EU_country_repeaters(session, country,
                                             fetch_only=fetch_only)
 
     return count
 
 
-def fetch_africa_repeaters(sp, session, fetch_only=False):
+def fetch_africa_repeaters(session, fetch_only=False):
     countries = ["Morocco", "Namibia", "South Africa"]
 
     count = 0
     for country in countries:
-        count += fetch_EU_country_repeaters(sp, session, country,
+        count += fetch_EU_country_repeaters(session, country,
                                             fetch_only=fetch_only)
 
     return count
 
 
-def fetch_caribbean_repeaters(sp, session, fetch_only=False):
+def fetch_caribbean_repeaters(session, fetch_only=False):
     countries = ["Bahamas", "Barbados", "Costa Rica", "Cayman Islands",
                  "Dominican Republic", "El Salvador", "Grenada",
                  "Guatemala", "Haiti", "Honduras", "Jamaica", "Nicaragua",
@@ -267,28 +297,61 @@ def fetch_caribbean_repeaters(sp, session, fetch_only=False):
 
     count = 0
     for country in countries:
-        count += fetch_EU_country_repeaters(sp, session, country,
+        count += fetch_EU_country_repeaters(session, country,
                                             fetch_only=fetch_only)
 
     return count
 
 
-def fetch_all_countries(sp, session, fetch_only=False):
+def fetch_all_countries(session, fetch_only=False):
     count = 0
-    count += fetch_USA_repeaters_by_state(sp, session, fetch_only=fetch_only)
-    count += fetch_Canada_repeaters(sp, session, fetch_only=fetch_only)
-    count += fetch_EU_repeaters(sp, session, fetch_only=fetch_only)
-    count += fetch_asian_repeaters(sp, session, fetch_only=fetch_only)
-    count += fetch_south_america_repeaters(sp, session, fetch_only=fetch_only)
-    count += fetch_africa_repeaters(sp, session, fetch_only=fetch_only)
-    count += fetch_caribbean_repeaters(sp, session, fetch_only=fetch_only)
+    count += fetch_USA_repeaters_by_state(session, fetch_only=fetch_only)
+    count += fetch_Canada_repeaters(session, fetch_only=fetch_only)
+    count += fetch_EU_repeaters(session, fetch_only=fetch_only)
+    count += fetch_asian_repeaters(session, fetch_only=fetch_only)
+    count += fetch_south_america_repeaters(session, fetch_only=fetch_only)
+    count += fetch_africa_repeaters(session, fetch_only=fetch_only)
+    count += fetch_caribbean_repeaters(session, fetch_only=fetch_only)
     return count
 
 
-@cli.command()
+
+@rb.command()
 @cli_helper.add_options(cli_helper.common_options)
-@click.option('--disable-spinner', is_flag=True, default=False,
-              help='Disable all terminal spinning wait animations.')
+@click.option(
+    "--fetch-only",
+    "fetch_only",
+    show_default=True,
+    is_flag=True,
+    default=False,
+    help="Only fetch repeaters from repeaterbook",
+)
+@click.pass_context
+@cli_helper.process_standard_options
+def fetch_usa_repeaters(ctx, fetch_only):
+    """Fetch the stations from the haminfo API."""
+    console = Console()
+    console.print("Fetching USA repeaters from repeaterbook")
+
+    if not fetch_only:
+        db_session = db.setup_session()
+        session = db_session()
+    else:
+        session = None
+
+    count = 0
+    try:
+        count = fetch_USA_repeaters_by_state(session, fetch_only=fetch_only)
+    except Exception as ex:
+        LOG.error(f"Failed to fetch USA repeaters because {ex}")
+    LOG.info(f"Loaded {count} repeaters to the DB.")
+
+    if session:
+        session.close()
+
+
+@rb.command()
+@cli_helper.add_options(cli_helper.common_options)
 @click.option(
     "--force",
     "force",
@@ -307,7 +370,7 @@ def fetch_all_countries(sp, session, fetch_only=False):
 )
 @click.pass_context
 @cli_helper.process_standard_options
-def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
+def fetch_all_repeaters(ctx, force, fetch_only):
     """Fetch the stations from the haminfo API."""
     console = Console()
     console.print("Fetching stations from the haminfo API")
@@ -319,20 +382,19 @@ def fetch_repeaterbook(ctx, disable_spinner, force, fetch_only):
         session = None
 
     count = 0
-    with console.status("Load and insert repeaters from repeaterbook") as sp:
-        try:
-            # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
-            # count += fetch_USA_repeaters_by_state(sp, session)
-            # count += fetch_Canada_repeaters(sp, session)
-            # count += fetch_EU_repeaters(sp, session)
-            # count += fetch_asian_repeaters(sp, session)
-            # count += fetch_south_america_repeaters(sp, session)
-            # count += fetch_africa_repeaters(sp, session)
-            # count += fetch_caribbean_repeaters(sp, session)
-            count = fetch_all_countries(sp, session, fetch_only)
+    try:
+        # count += fetch_USA_repeaters_by_state(sp, session, "Virginia")
+        # count += fetch_USA_repeaters_by_state(sp, session)
+        # count += fetch_Canada_repeaters(sp, session)
+        # count += fetch_EU_repeaters(sp, session)
+        # count += fetch_asian_repeaters(sp, session)
+        # count += fetch_south_america_repeaters(sp, session)
+        # count += fetch_africa_repeaters(sp, session)
+        # count += fetch_caribbean_repeaters(sp, session)
+        count = fetch_all_countries(session, fetch_only)
 
-        except Exception as ex:
-            LOG.error("Failed to fetch state because {}".format(ex))
+    except Exception as ex:
+        LOG.error("Failed to fetch state because {}".format(ex))
 
     LOG.info("Loaded {} repeaters to the DB.".format(count))
 

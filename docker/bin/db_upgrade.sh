@@ -20,5 +20,5 @@ if [ ! -e "$APP_CONFIG" ]; then
     echo "Must configure Database Connection.  Edit $APP_CONFIG"
 else
     cd $SRC_DIR
-    uv run haminfo schema-upgrade -c $APP_CONFIG
+    uv run haminfo db schema-upgrade -c $APP_CONFIG
 fi
