@@ -1,5 +1,6 @@
 #FROM python:3.11-slim AS prepare
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
+#FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
+FROM ghcr.io/astral-sh/uv:python3.13-trixie AS prepare
 
 # Dockerfile for building a container during aprsd development.
 ARG BRANCH
@@ -8,11 +9,11 @@ ARG GID
 
 ENV APP_GIT=https://github.com/hemna/haminfo.git
 ENV APP_BRANCH=${BRANCH:-master}
-ENV VIRTUAL_ENV=$HOME/.venv
+ENV VIRTUAL_ENV=/root/.venv
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
 
-RUN apt update && apt install -y git sudo cron
+RUN apt update && apt install -y git sudo cron libmemcached-dev build-essential
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
     # Allow statements and log messages to immediately appear
@@ -29,7 +30,6 @@ ENV LANG=C.UTF-8
 FROM prepare AS install
 ARG CACHEBUST
 
-USER $CONTAINER_USER
 WORKDIR /app
 RUN uv venv
 RUN uv pip install -U pip wheel
@@ -48,7 +48,7 @@ RUN uv run oslo-config-generator --namespace haminfo --namespace haminfo.db --na
 FROM install AS final
 
 # override this to run another configuration
-ENV CONF default
+ENV CONF=default
 VOLUME ["/config"]
 EXPOSE 8081/tcp
 EXPOSE 8081/udp
