@@ -85,7 +85,7 @@ classifiers = [
 ]
 dependencies = [
     "alembic>=1.16.1",
-    "aprsd>=4.2.4",
+    "aprsd@git+https://github.com/craigerl/aprsd@master",
     "blinker>=1.9.0",
     "cachetools>=6.0.0",
     "click>=7.0",
