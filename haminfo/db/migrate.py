@@ -21,6 +21,7 @@ import os
 from alembic import command as alembic_api
 from alembic import config as alembic_config
 from alembic import migration as alembic_migration
+from alembic.script import ScriptDirectory
 from oslo_config import cfg
 #from oslo_db import options
 from oslo_log import log as logging
@@ -73,6 +74,18 @@ def db_version():
         return m_context.get_current_revision()
 
 
+def db_latest_version():
+    """Get the latest available migration version from the versions directory."""
+    config = _find_alembic_conf()
+    script = ScriptDirectory.from_config(config)
+    heads = script.get_heads()
+    if heads:
+        # If there are multiple heads, return the first one (or join them)
+        # In most cases there should be only one head
+        return heads[0] if len(heads) == 1 else ', '.join(heads)
+    return None
+
+
 def db_sync(version=None, engine=None):
     """Migrate the database to `version` or the most recent version.
 
@@ -115,3 +128,42 @@ def db_sync(version=None, engine=None):
     LOG.info('Applying migration(s)')
     _upgrade_alembic(engine, config, version)
     LOG.info('Migration(s) applied')
+
+
+def db_revision(message, autogenerate=True, engine=None):
+    """Create a new Alembic migration revision.
+
+    This function creates a new migration file by comparing the current
+    database schema with the SQLAlchemy models defined in the codebase.
+
+    :param message: A descriptive message for the migration
+    :param autogenerate: If True, automatically detect model changes (default: True)
+    :param engine: Optional database engine (will be created if not provided)
+    """
+    if engine is None:
+        engine = db.get_engine()
+
+    config = _find_alembic_conf()
+
+    # Set the database URL in the config
+    engine_url = get_url().replace('%', '%%')
+    LOG.info(f"Setting DB URL {engine_url}")
+    config.set_main_option('sqlalchemy.url', engine_url)
+
+    # Import models to ensure they're registered with ModelBase.metadata
+    # This is necessary for autogenerate to detect them
+    import haminfo.db.models.__all_models  # noqa
+
+    LOG.info(f"Creating new migration revision: {message}")
+    LOG.info(f"Autogenerate: {autogenerate}")
+
+    # Use the engine's connection for autogenerate comparison
+    with engine.connect() as connection:
+        config.attributes['connection'] = connection
+        alembic_api.revision(
+            config,
+            message=message,
+            autogenerate=autogenerate,
+        )
+
+    LOG.info('Migration revision created successfully')

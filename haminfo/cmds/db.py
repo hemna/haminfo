@@ -54,13 +54,36 @@ def schema_upgrade(ctx):
 @cli_helper.process_standard_options
 @click.version_option()
 def schema_version(ctx):
-    """Upgrade the database schema"""
+    """Get the current database schema version and compare with latest available"""
     LOG.info("haminfo_load version: {}".format(haminfo.__version__))
 
-    #config = migrate._find_alembic_conf()
-    #env.run_migrations_online(config)
-    version = migrate.db_version()
-    LOG.info(f"Database Schema version: {version}")
+    current_version = migrate.db_version()
+    latest_version = migrate.db_latest_version()
+
+    if current_version:
+        click.echo(f"Current Database Schema version: {current_version}")
+        LOG.info(f"Current Database Schema version: {current_version}")
+    else:
+        click.echo("Current Database Schema version: None (no migrations applied)")
+        LOG.info("Current Database Schema version: None (no migrations applied)")
+
+    if latest_version:
+        click.echo(f"Latest available migration version: {latest_version}")
+        LOG.info(f"Latest available migration version: {latest_version}")
+
+        # Compare versions
+        if current_version == latest_version:
+            click.echo("✓ Database is up to date (at latest version)")
+            LOG.info("Database is up to date")
+        elif current_version is None:
+            click.echo("⚠ Database is not initialized (no migrations applied)")
+            LOG.warning("Database is not initialized")
+        else:
+            click.echo("⚠ Database is behind (needs upgrade)")
+            LOG.warning(f"Database version {current_version} is behind latest {latest_version}")
+    else:
+        click.echo("No migration files found in versions directory")
+        LOG.warning("No migration files found")
 
 
 @db.command()
@@ -75,3 +98,28 @@ def clean_wx_reports(ctx):
     db_session = haminfo_db.setup_session()
     session = db_session()
     haminfo_db.clean_weather_reports(session)
+
+
+@db.command()
+@cli_helper.add_options(cli_helper.common_options)
+@click.pass_context
+@cli_helper.process_standard_options
+@click.argument('message', required=True)
+@click.option('--no-autogenerate', is_flag=True, default=False,
+              help='Create an empty migration without autogenerate')
+@click.version_option()
+def schema_revision(ctx, message, no_autogenerate):
+    """Create a new database schema migration revision
+
+    Creates a new Alembic migration file by comparing the current database
+    schema with the SQLAlchemy models. The MESSAGE argument provides a
+    descriptive name for the migration.
+
+    Example:
+        haminfo db schema-revision "add aprs_packet table"
+    """
+    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info(f"Creating migration revision: {message}")
+
+    autogenerate = not no_autogenerate
+    migrate.db_revision(message, autogenerate=autogenerate)

@@ -82,15 +82,28 @@ def md5_key_mangler(key):
 def _create_cache_regions():
     regions = {}
 
-    regions["default"] = make_region(
-        # the "dbm" backend needs
-        # string-encoded keys
-        key_mangler=md5_key_mangler
-    ).configure(
-        "dogpile.cache.pylibmc",
-        expiration_time=CONF.memcached.expire_time,
-        arguments={"url": [CONF.memcached.url]},
-    )
+    # Check if memcached URL is configured
+    memcached_url = CONF.memcached.url
+    if memcached_url:
+        # Use memcached backend if URL is configured
+        regions["default"] = make_region(
+            # the "dbm" backend needs
+            # string-encoded keys
+            key_mangler=md5_key_mangler
+        ).configure(
+            "dogpile.cache.pylibmc",
+            expiration_time=CONF.memcached.expire_time,
+            arguments={"url": [memcached_url]},
+        )
+    else:
+        # Fallback to memory backend if memcached is not configured
+        LOG.warning("memcached.url not configured, using memory cache backend")
+        regions["default"] = make_region(
+            key_mangler=md5_key_mangler
+        ).configure(
+            "dogpile.cache.memory",
+            expiration_time=CONF.memcached.expire_time,
+        )
     return regions
 
 

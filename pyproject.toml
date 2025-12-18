@@ -20,7 +20,7 @@ description = "Ham radio information DB."
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
 requires-python = ">=3.10"
 
-dynamic = ["version", "dependencies", "optional-dependencies"]
+dynamic = ["version"]
 
 # This is an optional longer description of your project that represents
 # the body of text which users will see when they visit PyPI.
@@ -83,6 +83,49 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
 ]
+dependencies = [
+    "alembic>=1.16.1",
+    "aprsd>=4.2.4",
+    "blinker>=1.9.0",
+    "cachetools>=6.0.0",
+    "click>=7.0",
+    "click-completion>=0.5.2",
+    "dogpile-cache>=1.4.0",
+    "fastmcp>=2.14.0",
+    "flask>=1.1.4",
+    "flask-classful>=0.16.0",
+    "flask-httpauth>=4.8.0",
+    "flask-socketio>=5.5.1",
+    "geoalchemy2>=0.17.1",
+    "geojson>=3.2.0",
+    "geopy>=2.4.1",
+    "loguru>=0.7.3",
+    "mapbox>=0.18.1",
+    "mcp>=1.9.2",
+    "opencage>=3.2.0",
+    "oslo-config>=9.8.0",
+    "oslo-log>=7.1.0",
+    "paho-mqtt>=2.0.0",
+    "pbr>=6.1.1",
+    "pluggy>=0.13.1",
+    "psycopg2>=2.9.0",
+    "pygments>=2.19.1",
+    "pylibmc>=1.6.3",
+    "pytz>=2025.2",
+    "pyyaml>=6.0.2",
+    "ratelimit>=2.2.1",
+    "requests>=2.32.3",
+    "rich>=14.0.0",
+    "sentry-sdk>=2.29.1",
+    "sqlalchemy>=2.0.41",
+    "sqlalchemy-schema>=0.1.1",
+    "tabulate>=0.9.0",
+    "thesmuggler>=1.0.1",
+    "typing-extensions>=4.15.0",
+    "update-checker>=0.18.0",
+    "werkzeug>=1.0.1",
+    "yaspin>=3.1.0",
+]
 
 # This field lists other packages that your project depends on to run.
 # Any package you put here will be installed by pip when your project is
@@ -90,9 +133,9 @@ classifiers = [
 #
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
-[tool.setuptools.dynamic]
-dependencies = {file = ["./requirements.txt"]}
-optional-dependencies.dev = {file = ["./requirements_dev.txt"]}
+# [tool.setuptools.dynamic]
+# dependencies = {file = ["./requirements.txt"]}
+# optional-dependencies.dev = {file = ["./requirements_dev.txt"]}
 
 # List additional groups of dependencies here (e.g. development
 # dependencies). Users will be able to install these using the "extras"
@@ -104,6 +147,9 @@ optional-dependencies.dev = {file = ["./requirements_dev.txt"]}
 # referred to as "extras". For a more extensive definition see:
 # https://packaging.python.org/en/latest/specifications/dependency-specifiers/#extras
 # [project.optional-dependencies]
+# mcp = [
+#     "fastmcp>=2.14.0",
+# ]
 
 # List URLs that are relevant to your project
 #
@@ -179,3 +225,11 @@ ignore = [
 [tool.ruff.format]
 indent-style = "space"
 quote-style = "single"
+
+# Dependency overrides to resolve conflicts
+# aprsd pins typing-extensions==4.14.1, but fastmcp requires >=4.15.0
+# This override allows typing-extensions>=4.15.0 to satisfy both requirements
+[tool.uv]
+override-dependencies = [
+    "typing-extensions>=4.15.0",
+]

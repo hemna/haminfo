@@ -94,16 +94,17 @@ def setup_logging(loglevel=None, quiet=False):
     #         logging.getLogger(name).handlers = []
     #         logging.getLogger(name).propagate = True
     #         logging.getLogger(name).setLevel(logging.ERROR)
-
-    handlers = [
-        {
-            "sink": sys.stdout,
-            "serialize": False,
-            "format": CONF.logging.logformat,
-            "colorize": True,
-            "level": log_level,
-        },
-    ]
+    handlers = []
+    if CONF.logging.enable_console_stdout:
+        handlers = [
+            {
+                "sink": sys.stdout,
+                "serialize": False,
+                "format": CONF.logging.logformat,
+                "colorize": True,
+                "level": log_level,
+            },
+        ]
     if CONF.logging.logfile:
         handlers.append(
             {

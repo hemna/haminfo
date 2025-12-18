@@ -49,6 +49,11 @@ logging_opts = [
         choices=LOG_LEVELS.keys(),
         help="Log level for logging of events.",
     ),
+    cfg.BoolOpt(
+        "enable_console_stdout",
+        default=True,
+        help="Enable console stdout logging.",
+    ),
 ]
 
 

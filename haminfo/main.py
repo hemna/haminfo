@@ -25,7 +25,8 @@ def load_commands():
         fetch_repeaterbook,
         mqtt_injest,
         mqtt_healthcheck,
-        db
+        db,
+        mcp,
     )
 
 

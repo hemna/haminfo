@@ -8,3 +8,4 @@ from haminfo.db.models.request import Request  # noqa
 from haminfo.db.models.request import WXRequest  # noqa
 from haminfo.db.models.weather_report import WeatherStation  # noqa
 from haminfo.db.models.weather_report import WeatherReport  # noqa
+from haminfo.db.models.aprs_packet import APRSPacket  # noqa
