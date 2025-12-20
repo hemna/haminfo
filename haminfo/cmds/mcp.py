@@ -45,6 +45,15 @@ def get_weather_reports_schema() -> str:
     return schema[0] if schema else ""
 
 
+@mcp.resource("schema://aprs_packet")
+def get_aprs_packet_schema() -> str:
+    """Get the aprs_packet table schema"""
+    conn = db.setup_session()
+    schema = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='aprs_packet'").fetchone()
+    LOG.error(f"Schema(APRS Packet): {schema}")
+    return schema[0] if schema else ""
+
+
 @mcp.tool()
 def query_data(sql: str) -> str:
     """Execute SQL queries safely"""
@@ -86,6 +95,17 @@ def query_weather_reports(query: str = "SELECT * FROM weather_reports LIMIT 10")
     try:
         result = conn.execute(query).fetchall()
         LOG.error(f"Result(Weather Reports): {result}")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def query_aprs_packets(query: str = "SELECT * FROM aprs_packet LIMIT 10") -> str:
+    """Query the aprs_packet table"""
+    conn = db.setup_session()
+    try:
+        result = conn.execute(query).fetchall()
+        LOG.error(f"Result(APRS Packets): {result}")
         return json.dumps(result, indent=2)
     except Exception as e:
         return f"Error: {str(e)}"
