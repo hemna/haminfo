@@ -28,6 +28,12 @@ jobs:
     - name: Get Branch Name
       id: branch-name
       uses: tj-actions/branch-names@v8
+    - name: Sanitize branch name for Docker tag
+      id: sanitize
+      run: |
+        # Replace / with - to make valid Docker tag
+        SANITIZED_BRANCH=$(echo "${{ steps.branch-name.outputs.current_branch }}" | sed 's/\//-/g')
+        echo "branch=${SANITIZED_BRANCH}" >> $GITHUB_OUTPUT
     - name: Setup QEMU
       uses: docker/setup-qemu-action@v3
     - name: Setup Docker Buildx
@@ -45,5 +51,5 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: |
-          hemna6969/haminfo:${{ steps.branch-name.outputs.current_branch }}
+          hemna6969/haminfo:${{ steps.sanitize.outputs.branch }}
           hemna6969/haminfo:latest
