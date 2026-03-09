@@ -34,9 +34,11 @@ jobs:
       uses: tj-actions/branch-names@v8
     - name: Sanitize branch name for Docker tag
       id: sanitize
+      env:
+        BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
       run: |
         # Replace / with - to make valid Docker tag
-        SANITIZED_BRANCH=$(echo "${{ steps.branch-name.outputs.current_branch }}" | sed 's/\//-/g')
+        SANITIZED_BRANCH=$(echo "${BRANCH_NAME}" | sed 's/\//-/g')
         echo "branch=${SANITIZED_BRANCH}" >> $GITHUB_OUTPUT
     - name: Setup QEMU
       uses: docker/setup-qemu-action@v3

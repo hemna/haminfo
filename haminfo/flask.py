@@ -81,6 +81,7 @@ class ValidationError(Exception):
     """Raised when request input validation fails."""
 
     def __init__(self, message: str, field: str = ''):
+        self.message = message
         self.field = field
         super().__init__(message)
 
@@ -217,8 +218,8 @@ class HaminfoFlask(flask_classful.FlaskView):
             lat, lon = validate_lat_lon(params.get('lat'), params.get('lon'))
             count = validate_count(params.get('count'), default=1)
         except ValidationError as ex:
-            LOG.debug(f'Validation error in nearest: {ex}')
-            return jsonify({'error': str(ex), 'field': ex.field}), 400
+            LOG.debug(f'Validation error in nearest: {ex.message}')
+            return jsonify({'error': ex.message, 'field': ex.field}), 400
 
         LOG.debug(f"Lat '{lat}'  Lon '{lon}'")
 
@@ -277,8 +278,8 @@ class HaminfoFlask(flask_classful.FlaskView):
             lat, lon = validate_lat_lon(params.get('lat'), params.get('lon'))
             max_count = validate_count(params.get('count'), default=1)
         except ValidationError as ex:
-            LOG.debug(f'Validation error in wxnearest: {ex}')
-            return jsonify({'error': str(ex), 'field': ex.field}), 400
+            LOG.debug(f'Validation error in wxnearest: {ex.message}')
+            return jsonify({'error': ex.message, 'field': ex.field}), 400
 
         LOG.debug(f'wxnearest: lat={lat}, lon={lon}, count={max_count}')
 
