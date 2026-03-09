@@ -7,9 +7,7 @@ they instantiate model objects directly and test their methods.
 
 from __future__ import annotations
 
-import time
 from datetime import datetime
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -546,6 +544,7 @@ class TestAPRSPacketFromJson:
         assert packet.packet_type == 'weather'
 
     def test_message_packet_type_detection(self):
+        """Message packets are detected by type but fields not stored (lean schema)."""
         data = {
             'from_call': 'N0MSG',
             'to_call': 'APRS',
@@ -555,9 +554,11 @@ class TestAPRSPacketFromJson:
         }
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'message'
-        assert packet.message_text == 'Hello World'
+        # message_text not stored in lean schema, raw packet preserved
+        assert 'message' in packet.raw
 
     def test_status_packet_type_detection(self):
+        """Status packets are detected by type but fields not stored (lean schema)."""
         data = {
             'from_call': 'N0STS',
             'to_call': 'APRS',
@@ -567,9 +568,10 @@ class TestAPRSPacketFromJson:
         }
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'status'
-        assert packet.status == 'Operating portable'
+        # status field not stored in lean schema
 
     def test_telemetry_packet_type_detection(self):
+        """Telemetry packets are detected by type but fields not stored (lean schema)."""
         data = {
             'from_call': 'N0TEL',
             'to_call': 'APRS',
@@ -581,9 +583,10 @@ class TestAPRSPacketFromJson:
         }
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'telemetry'
-        assert packet.telemetry_sequence == 42
+        # telemetry fields not stored in lean schema
 
     def test_object_packet_type_detection(self):
+        """Object packets are detected by type but fields not stored (lean schema)."""
         data = {
             'from_call': 'N0OBJ',
             'to_call': 'APRS',
@@ -595,9 +598,12 @@ class TestAPRSPacketFromJson:
         }
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'object'
-        assert packet.object_name == 'HAMFEST'
+        # object_name not stored but position data is preserved
+        assert packet.latitude == 35.0
+        assert packet.longitude == -120.0
 
     def test_query_packet_type_detection(self):
+        """Query packets are detected by type but fields not stored (lean schema)."""
         data = {
             'from_call': 'N0QRY',
             'to_call': 'APRS',
@@ -607,6 +613,7 @@ class TestAPRSPacketFromJson:
         }
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'query'
+        # query fields not stored in lean schema
 
     def test_unknown_packet_type_fallback(self):
         data = {
@@ -697,97 +704,52 @@ class TestAPRSPacketFromJson:
         packet = APRSPacket.from_json(sample_aprs_packet)
         assert packet.received_at is not None
 
-    def test_weather_fields_populated(self):
+    def test_weather_packet_type_detected(self):
+        """Weather packets detected by type, fields not stored (lean schema)."""
         data = {
             'from_call': 'WX4FULL',
             'to_call': 'APRS',
             'raw': 'WX4FULL>APRS:wx',
             'timestamp': 1704844800,
-            'packet_type': 'weather',
             'temperature': 72.0,
             'humidity': 50,
             'pressure': 1013.2,
-            'wind_direction': 180,
-            'wind_speed': 10.0,
-            'wind_gust': 25.0,
-            'rain_1h': 0.1,
-            'rain_24h': 0.5,
-            'rain_since_midnight': 0.3,
-            'solar_radiation': 500.0,
-            'uv_index': 7,
-            'luminosity': 100.0,
-            'snow': 0.0,
+            'latitude': 35.0,
+            'longitude': -120.0,
         }
         packet = APRSPacket.from_json(data)
-        assert packet.temperature == 72.0
-        assert packet.humidity == 50
-        assert packet.pressure == 1013.2
-        assert packet.wind_direction == 180
-        assert packet.wind_speed == 10.0
-        assert packet.wind_gust == 25.0
-        assert packet.rain_1h == 0.1
-        assert packet.rain_24h == 0.5
-        assert packet.rain_since_midnight == 0.3
-        assert packet.solar_radiation == 500.0
-        assert packet.uv_index == 7
-        assert packet.luminosity == 100.0
-        assert packet.snow == 0.0
+        # Type detection still works
+        assert packet.packet_type == 'weather'
+        # Position data preserved for weather packets
+        assert packet.latitude == 35.0
+        assert packet.longitude == -120.0
+        # Weather fields not stored in lean schema - raw preserved
+        assert packet.raw is not None
 
-    def test_message_fields(self):
-        data = {
-            'from_call': 'N0MSG',
-            'to_call': 'APRS',
-            'raw': 'N0MSG>APRS:msg',
-            'timestamp': 1704844800,
-            'packet_type': 'message',
-            'message_text': 'Hello\x00World',
-            'message_id': '123',
-            'message_ack': '456',
-            'message_reject': True,
-        }
-        packet = APRSPacket.from_json(data)
-        assert packet.message_text == 'HelloWorld'
-        assert packet.message_id == '123'
-        assert packet.message_ack == '456'
-        assert packet.message_reject is True
-
-    def test_object_fields(self):
-        data = {
-            'from_call': 'N0OBJ',
-            'to_call': 'APRS',
-            'raw': 'N0OBJ>APRS:obj',
-            'timestamp': 1704844800,
-            'object_name': 'TEST\x00OBJ',
-            'object_killed': True,
-        }
-        packet = APRSPacket.from_json(data)
-        assert packet.object_name == 'TESTOBJ'
-        assert packet.object_killed is True
-
-    def test_metadata_fields(self):
+    def test_position_metadata_fields(self):
+        """Position-related metadata fields are preserved in lean schema."""
         data = {
             'from_call': 'N0META',
             'to_call': 'APRS',
             'raw': 'N0META>APRS:meta',
             'timestamp': 1704844800,
-            'format': 'mic-e',
-            'source': 'aprs-is',
-            'compressed': True,
-            'mic_e': True,
-            'maidenhead': 'FM19',
+            'latitude': 35.0,
+            'longitude': -120.0,
             'altitude': 150.0,
             'course': 270,
             'speed': 55.0,
+            'symbol': '-',
+            'symbol_table': '/',
+            'comment': 'Test comment',
         }
         packet = APRSPacket.from_json(data)
-        assert packet.format == 'mic-e'
-        assert packet.source == 'aprs-is'
-        assert packet.compressed is True
-        assert packet.mic_e is True
-        assert packet.maidenhead == 'FM19'
+        # Position fields preserved
         assert packet.altitude == 150.0
         assert packet.course == 270
         assert packet.speed == 55.0
+        assert packet.symbol == '-'
+        assert packet.symbol_table == '/'
+        assert packet.comment == 'Test comment'
 
 
 class TestAPRSPacketToDict:
