@@ -1,6 +1,6 @@
-FROM python:3.9-slim as haminfo
+FROM ghcr.io/astral-sh/uv:python3.13-trixie AS haminfo
 
-# Dockerfile for building a container during aprsd development.
+# Dockerfile for building a container during haminfo development.
 ARG BRANCH
 ARG UID
 ARG GID
@@ -8,18 +8,18 @@ ARG GID
 ENV CONTAINER_USER=haminfo
 ENV APP_NAME=haminfo
 ENV HOME=/home/haminfo
-ENV APP_GIT=http://github.com/hemna/haminfo.git
+ENV APP_GIT=https://github.com/hemna/haminfo.git
 ENV APP_BRANCH=${BRANCH:-master}
-ENV VIRTUAL_ENV=$HOME/.venv3
+ENV VIRTUAL_ENV=$HOME/.venv
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
 
 ENV INSTALL=$HOME/install
-RUN apt update
-RUN apt install -y git build-essential
-RUN apt install -y libffi-dev python3-dev libssl-dev libpq-dev cron sudo
-RUN apt install -y libmemcached-dev zlib1g-dev
-RUN apt install -y bash bash-completion zsh
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential libffi-dev python3-dev libssl-dev libpq-dev \
+    cron sudo libmemcached-dev zlib1g-dev bash bash-completion \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --gid 1001 $CONTAINER_USER
 RUN useradd -m -u $UID -g $CONTAINER_USER $CONTAINER_USER
@@ -28,8 +28,10 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 USER $CONTAINER_USER
-RUN pip3 install wheel
-#RUN python3 -m venv $VIRTUAL_ENV
+WORKDIR $HOME
+RUN uv venv $VIRTUAL_ENV
+# Upgrade pip and virtualenv to patched versions (CVE fixes)
+RUN uv pip install -U "pip>=26.0" "virtualenv>=20.36.1" "filelock>=3.20.3" wheel
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN echo "export PATH=\$PATH:\$HOME/.local/bin" >> $HOME/.bashrc
 
@@ -40,24 +42,24 @@ RUN echo "haminfo  ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/haminfo
 RUN usermod -aG sudo haminfo
 
 USER $CONTAINER_USER
-WORKDIR $HOME
 RUN mkdir $INSTALL
 RUN git clone -b $APP_BRANCH $APP_GIT $INSTALL/haminfo
 USER root
-RUN cd $INSTALL/haminfo && pip3 install .
+RUN cd $INSTALL/haminfo && uv pip install .
 
-user $CONTAINER_USER
+USER $CONTAINER_USER
 RUN mkdir -p $HOME/.config/haminfo
-RUN oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
+RUN uv run oslo-config-generator --namespace haminfo --namespace haminfo.db --namespace haminfo.flask --namespace oslo.log > /config/haminfo.conf
 
 # override this to run another configuration
-ENV CONF default
+ENV CONF=default
 USER $CONTAINER_USER
 VOLUME ["/config"]
 EXPOSE 8081/tcp
 EXPOSE 8081/udp
 
-ADD bin/api_entry.sh $HOME/
-ADD bin/reload_db.sh $HOME/
-ADD bin/cron_entry.sh $HOME/
+COPY bin/api_entry.sh $HOME/
+COPY bin/reload_db.sh $HOME/
+COPY bin/cron_entry.sh $HOME/
+COPY bin/run_mqtt.sh $HOME/
 ENTRYPOINT ["/home/haminfo/api_entry.sh"]

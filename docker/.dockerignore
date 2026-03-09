@@ -1,0 +1,45 @@
+# Exclude files that should not be sent to the Docker build context
+.git
+.github
+.gitignore
+.idea
+.cursor
+.envrc
+.venv
+.tox
+.pytest_cache
+.mypy_cache
+__pycache__
+
+# Data and config files (should not be baked into the image)
+data/
+*.conf
+*.json
+*.sql
+
+# Development files
+*.md
+*.log
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+
+# Local scripts and test data
+scripts/
+dashboards/
+test_geo.py
+ass.py
+log.py
+utils.py
+va.json
+usa.json
+clean.sql
+
+# Docker compose files (not needed inside the image)
+docker-compose.yml
+docker/docker-compose.yml
+docker/.env.example
+docker/build.sh
+docker/buildkit.toml

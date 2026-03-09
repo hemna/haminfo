@@ -41,7 +41,7 @@ services:
     labels:
       deunhealth.restart.on.unhealthy: "true"
     healthcheck:
-        test: ["CMD", "/home/haminfo/.local/bin/haminfo_mqtt_healthcheck"]
+        test: ["CMD", "uv", "run", "haminfo", "mqtt-healthcheck"]
         interval: 5m
         timeout: 15s
 

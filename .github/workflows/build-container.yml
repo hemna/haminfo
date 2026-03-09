@@ -4,15 +4,26 @@ on:
   push:
     branches:
       - 'release-*'
+      - 'master'
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   test:
     name: Test - unit & Integration
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
 
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-      - run: python -m tox
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv pip install --system -e ".[test]"
+      - name: Run tests
+        run: python -m pytest tests/ -v
