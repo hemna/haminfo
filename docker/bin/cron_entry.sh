@@ -18,5 +18,5 @@ BASH_ENV=/app/container.env
 # This extra line makes it a valid cron" > scheduler.txt
 
 crontab scheduler.txt
-echo "Sarting Cron and tailing /app/haminfo.log"
+echo "Starting Cron and tailing /app/haminfo.log"
 sudo cron -L15 && tail -f /app/haminfo.log

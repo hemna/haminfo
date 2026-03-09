@@ -1,13 +1,23 @@
+"""Database operations for haminfo.
+
+Provides functions for querying and managing ham radio repeater,
+weather station, and APRS data in the PostGIS database.
+"""
+
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from hashlib import md5
+from typing import Any, Optional
+
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from dogpile.cache.region import make_region
 import sqlalchemy
 from sqlalchemy import create_engine, func
-from sqlalchemy.orm import scoped_session
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import scoped_session, sessionmaker, Session, Query
 
 from haminfo.db import caching_query
 from haminfo.db.models.station import Station
@@ -23,217 +33,221 @@ CONF = cfg.CONF
 grp = cfg.OptGroup('database')
 cfg.CONF.register_group(grp)
 database_opts = [
-    cfg.StrOpt('connection',
-               help='The SQLAlchemy connection string to use to connect to '
-                    'the database.',
-               secret=True),
-    cfg.BoolOpt('debug',
-                default=False,
-                help='Enable SQL query debugging'),
+    cfg.StrOpt(
+        'connection',
+        help='The SQLAlchemy connection string to use to connect to the database.',
+        secret=True,
+    ),
+    cfg.BoolOpt('debug', default=False, help='Enable SQL query debugging'),
 ]
 
-CONF.register_opts(database_opts, group="database")
+CONF.register_opts(database_opts, group='database')
 
 memcached_opts = [
-    cfg.StrOpt('url',
-               help='The memcached connection string to use.',
-               secret=True),
-    cfg.IntOpt('expire_time',
-               help='The time the cache data is valid for. Default is 5 minutes',
-               default=300,
-               secret=True),
+    cfg.StrOpt('url', help='The memcached connection string to use.', secret=True),
+    cfg.IntOpt(
+        'expire_time',
+        help='The time the cache data is valid for. Default is 5 minutes',
+        default=300,
+        secret=True,
+    ),
 ]
-CONF.register_opts(memcached_opts, group="memcached")
+CONF.register_opts(memcached_opts, group='memcached')
 
 # Mapping of human filter string to db column name
-STATION_FEATURES = {
-    "ares": "ares",
-    "races": "races",
-    "skywarn": "skywarn",
-    "allstar": "allstar_node",
-    "echolink": "echolink_node",
-    "irlp": "irlp_node",
-    "wires": "wires_node",
-    "fm": "fm_analog",
-    "dmr": "dmr",
-    "dstar": "dstar",
+STATION_FEATURES: dict[str, str] = {
+    'ares': 'ares',
+    'races': 'races',
+    'skywarn': 'skywarn',
+    'allstar': 'allstar_node',
+    'echolink': 'echolink_node',
+    'irlp': 'irlp_node',
+    'wires': 'wires_node',
+    'fm': 'fm_analog',
+    'dmr': 'dmr',
+    'dstar': 'dstar',
 }
 
-# the global cache object
-cache = None
+# Global cache object
+cache: Optional[caching_query.ORMCache] = None
+# Global session factory (avoid recreating engine on every call)
+_session_factory: Optional[scoped_session] = None
 
 
-# Probably should nuke this now we are using alembic
-def init_db_schema(engine):
-    LOG.info("Dropping all tables")
+def init_db_schema(engine: Any) -> None:
+    """Initialize (recreate) all database tables.
+
+    Warning: This drops all existing data!
+    """
+    LOG.info('Dropping all tables')
     ModelBase.metadata.drop_all(engine)
-    LOG.info("Creating all tables")
+    LOG.info('Creating all tables')
     ModelBase.metadata.create_all(engine)
 
 
-def md5_key_mangler(key):
-    """Receive cache keys as long concatenated strings;
-    distill them into an md5 hash.
+def md5_key_mangler(key: str) -> str:
+    """Convert cache keys to md5 hashes for memcached compatibility."""
+    return md5(key.encode('ascii')).hexdigest()
 
+
+def _create_cache_regions() -> dict[str, Any]:
+    """Create dogpile cache regions.
+
+    Uses memcached if configured, otherwise falls back to in-memory cache.
     """
-    return md5(key.encode("ascii")).hexdigest()
-
-
-def _create_cache_regions():
     regions = {}
-
-    # Check if memcached URL is configured
     memcached_url = CONF.memcached.url
+
     if memcached_url:
-        # Use memcached backend if URL is configured
-        regions["default"] = make_region(
-            # the "dbm" backend needs
-            # string-encoded keys
-            key_mangler=md5_key_mangler
-        ).configure(
-            "dogpile.cache.pylibmc",
+        regions['default'] = make_region(key_mangler=md5_key_mangler).configure(
+            'dogpile.cache.pylibmc',
             expiration_time=CONF.memcached.expire_time,
-            arguments={"url": [memcached_url]},
+            arguments={'url': [memcached_url]},
         )
     else:
-        # Fallback to memory backend if memcached is not configured
-        LOG.warning("memcached.url not configured, using memory cache backend")
-        regions["default"] = make_region(
-            key_mangler=md5_key_mangler
-        ).configure(
-            "dogpile.cache.memory",
+        LOG.warning('memcached.url not configured, using memory cache backend')
+        regions['default'] = make_region(key_mangler=md5_key_mangler).configure(
+            'dogpile.cache.memory',
             expiration_time=CONF.memcached.expire_time,
         )
     return regions
 
 
-def get_engine():
-    # engine = create_engine('sqlite:///:memory:', echo=True)
-    engine = create_engine(CONF.database.connection,
-                           echo=CONF.database.debug, )
+def get_engine() -> Any:
+    """Create and return a SQLAlchemy engine."""
+    engine = create_engine(
+        CONF.database.connection,
+        echo=CONF.database.debug,
+    )
     return engine
 
 
-def setup_session():
-    global cache
+def setup_session() -> scoped_session:
+    """Set up and return a scoped database session factory.
+
+    Also initializes the cache system if not already done.
+    Returns the cached session factory on subsequent calls.
+    """
+    global cache, _session_factory
+    if _session_factory is not None:
+        return _session_factory
     regions = _create_cache_regions()
     engine = get_engine()
-    session = scoped_session(sessionmaker(bind=engine))
+    _session_factory = scoped_session(sessionmaker(bind=engine))
     cache = caching_query.ORMCache(regions)
-    cache.listen_on_session(session)
+    cache.listen_on_session(_session_factory)
+    return _session_factory
 
-    return session
 
-
-def delete_USA_state_repeaters(state, session):   # noqa: N802
-    stmt = sqlalchemy.delete(
-        Station
-    ).where(
-        Station.state == state
-    ).execution_options(synchronize_session="fetch")
+def delete_USA_state_repeaters(state: str, session: Session) -> None:  # noqa: N802
+    """Delete all repeaters for a given US state."""
+    stmt = (
+        sqlalchemy.delete(Station)
+        .where(Station.state == state)
+        .execution_options(synchronize_session='fetch')
+    )
     session.execute(stmt)
 
 
-def log_request(session, params, results):
-    """Log a nearest request to the DB."""
+def log_request(session: Session, params: dict, results: list[dict]) -> None:
+    """Log a nearest-repeater request to the database."""
     r = Request.from_json(params)
     LOG.info(r)
     stations = []
     station_ids = []
     for result in results:
-        stations.append(result["callsign"])
-        # Use our DB ID here, not repeater_id
-        station_ids.append(str(result["id"]))
+        stations.append(result['callsign'])
+        station_ids.append(str(result['id']))
 
-    LOG.info(f"Station_ids {station_ids}")
+    LOG.info(f'Station_ids {station_ids}')
     r.stations = ','.join(stations)
     r.repeater_ids = ','.join(station_ids)
-    session.add(r)
-    session.commit()
-    invalidate_requests_cache(session)
+    try:
+        session.add(r)
+        session.commit()
+        invalidate_requests_cache(session)
+    except SQLAlchemyError as ex:
+        session.rollback()
+        LOG.error(f'Failed to log request: {ex}')
 
 
-def log_wx_request(session, params, results):
-    """Log a nearest request to the DB."""
+def log_wx_request(session: Session, params: dict, results: list[dict]) -> None:
+    """Log a nearest-weather-station request to the database."""
     r = WXRequest.from_json(params)
     LOG.info(r)
     callsigns = []
     station_ids = []
     for result in results:
-        callsigns.append(result["callsign"])
-        # Use our DB ID here, not repeater_id
-        station_ids.append(str(result["id"]))
+        callsigns.append(result['callsign'])
+        station_ids.append(str(result['id']))
 
-    LOG.info(f"wx_station_ids {station_ids}")
+    LOG.info(f'wx_station_ids {station_ids}')
     r.station_callsigns = ','.join(callsigns)
     r.wx_station_ids = ','.join(station_ids)
-    session.add(r)
-    session.commit()
-    invalidate_wxrequests_cache(session)
+    try:
+        session.add(r)
+        session.commit()
+        invalidate_wxrequests_cache(session)
+    except SQLAlchemyError as ex:
+        session.rollback()
+        LOG.error(f'Failed to log wx request: {ex}')
 
 
-def find_stations_by_callsign(session, stations):
-    """Find data for the stations."""
-    query = session.query(
-        Station
-    ).options(
-        caching_query.FromCache('default')
-    ).filter(
-        Station.callsign.in_(tuple(stations))
+def find_stations_by_callsign(session: Session, stations: list[str]) -> Query:
+    """Find stations by callsign."""
+    query = (
+        session.query(Station)
+        .options(caching_query.FromCache('default'))
+        .filter(Station.callsign.in_(tuple(stations)))
     )
     return query
 
 
-def find_stations_by_ids(session, repeater_ids):
-    """Find data for the stations."""
-    query = session.query(
-        Station
-    ).options(
-        caching_query.FromCache('default')
-    ).filter(
-        Station.id.in_(tuple(repeater_ids))
+def find_stations_by_ids(session: Session, repeater_ids: list[int]) -> Query:
+    """Find stations by their database IDs."""
+    query = (
+        session.query(Station)
+        .options(caching_query.FromCache('default'))
+        .filter(Station.id.in_(tuple(repeater_ids)))
     )
     return query
 
 
-def find_wx_stations(session):
-    """Get all wx stations."""
-    query = (session.query(
-        WeatherStation
-    ))
+def find_wx_stations(session: Session) -> Query:
+    """Get all weather stations."""
+    query = session.query(WeatherStation)
     return query
 
 
-def find_wx_station_by_callsign(session, callsign):
-    """Find data for the stations."""
-    query = session.query(
-        WeatherStation
-    ).options(
-        caching_query.FromCache('default')
-    ).filter(
-        WeatherStation.callsign.in_(tuple(callsign))
+def find_wx_station_by_callsign(session: Session, callsign: str) -> Query:
+    """Find weather stations by callsign."""
+    query = (
+        session.query(WeatherStation)
+        .options(caching_query.FromCache('default'))
+        .filter(WeatherStation.callsign == callsign)
     )
     return query
 
 
-def get_wx_station_report(session, wx_station_id):
-    """Find the latest wx report for a station."""
-    query = session.query(
-        WeatherReport
-    ).options(
-        caching_query.FromCache('default')
-    ).filter(
-        WeatherReport.weather_station_id == wx_station_id
-    ).order_by(
-        WeatherReport.time.desc()
-    ).first()
+def get_wx_station_report(
+    session: Session,
+    wx_station_id: int,
+) -> Optional[WeatherReport]:
+    """Find the latest weather report for a station."""
+    query = (
+        session.query(WeatherReport)
+        .options(caching_query.FromCache('default'))
+        .filter(WeatherReport.weather_station_id == wx_station_id)
+        .order_by(WeatherReport.time.desc())
+        .first()
+    )
     return query
 
 
-def add_wx_report(session, report: WeatherReport):
-    stmt = sqlalchemy.insert(
-        WeatherReport
-    ).values(
+def add_wx_report(session: Session, report: WeatherReport) -> None:
+    """Insert a weather report into the database."""
+    raw_report = report.raw_report or ''
+    stmt = sqlalchemy.insert(WeatherReport).values(
         weather_station_id=report.weather_station_id,
         temperature=report.temperature,
         humidity=report.humidity,
@@ -245,212 +259,160 @@ def add_wx_report(session, report: WeatherReport):
         rain_24h=report.rain_24h,
         rain_since_midnight=report.rain_since_midnight,
         time=report.time,
-        raw_report=report.raw_report.rstrip('\x00')
+        raw_report=raw_report.rstrip('\x00'),
     )
     session.execute(stmt)
 
 
-def find_requests(session, number=None):
+def find_requests(session: Session, number: Optional[int] = None) -> Query:
+    """Find API request log entries, most recent first."""
+    query = (
+        session.query(Request)
+        .options(caching_query.FromCache('default'))
+        .order_by(Request.id.desc())
+    )
     if number:
-        query = session.query(
-            Request
-        ).options(
-            caching_query.FromCache('default')
-        ).order_by(
-            Request.id.desc()
-        ).limit(
-            number
-        )
-    else:
-        # Get them all.
-        query = session.query(
-            Request
-        ).options(
-            caching_query.FromCache('default')
-        ).order_by(
-            Request.id.desc()
-        )
-
+        query = query.limit(number)
     return query
 
 
-def invalidate_requests_cache(session):
-    """This nukes the cached queries for requests."""
+def invalidate_requests_cache(session: Session) -> None:
+    """Invalidate cached request queries."""
     global cache
+    if cache is None:
+        return
 
-    LOG.info("Invalidate requests cache")
-
-    cache.invalidate(
-        session.query(Request).order_by(
-            Request.id.desc()
-        ).limit(25),
-        {},
-        caching_query.FromCache("default")
-    )
-    cache.invalidate(
-        session.query(Request).order_by(
-            Request.id.desc()
-        ).limit(50),
-        {},
-        caching_query.FromCache("default")
-    )
-    cache.invalidate(
-        session.query(Request).order_by(
-            Request.id.desc()
-        ),
-        {},
-        caching_query.FromCache("default")
-    )
+    LOG.info('Invalidate requests cache')
+    # Invalidate all cached request queries regardless of page size
+    cache.cache_regions['default'].invalidate(hard=False)
 
 
-def find_nearest_to(session, lat, lon, freq_band="2m", limit=1, filters=None):
-    poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
+def find_nearest_to(
+    session: Session,
+    lat: float,
+    lon: float,
+    freq_band: str = '2m',
+    limit: int = 1,
+    filters: Optional[list[str]] = None,
+) -> Query:
+    """Find the nearest repeaters to a given lat/lon.
+
+    Args:
+        session: Database session.
+        lat: Latitude.
+        lon: Longitude.
+        freq_band: Frequency band to filter by (e.g. '2m', '70cm').
+        limit: Maximum number of results.
+        filters: Optional list of feature filters (e.g. 'ares', 'dmr').
+
+    Returns:
+        Query yielding (Station, distance_meters, bearing_radians) tuples.
+    """
+    poi = f'SRID=4326;POINT({lon} {lat})'
     poi_point = func.ST_Point(lon, lat)
-    LOG.info("Band: {}  Limit: {} Filters? {}".format(
-        freq_band, limit, filters))
+    LOG.info(f'Band: {freq_band}  Limit: {limit}  Filters: {filters}')
 
-    # query = session.query(
-    #    Station,
-    #    func.ST_Distance(Station.location, poi).label('distance'),
-    #    func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
-    #                    ).label('bearing')
-    # ).filter(
-    #    Station.freq_band == freq_band
-    # )
-    # SELECT station.id, station.callsign, station.landmark,
-    #        station.nearest_city, station.county,
-    #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') /
-    #                1609 as dist
-    # FROM station ORDER BY
-    #    station.location <-> 'SRID=4326;POINT(-78.84950 37.34433)'::geometry
-    # LIMIT 10;
     filter_parts = []
-    filter_parts.append(Station.freq_band == freq_band)
-    if filters:
-        # We need to add a where clause for filtering
-        filter_parts = []
-        for filter in filters:
-            # make sure it matches a column name
-            LOG.info("Add filter '{}".format(filter))
-            if filter in STATION_FEATURES:
-                filter_str = STATION_FEATURES[filter]
-                filter_parts.append(getattr(Station, filter_str) == True)  # noqa
+    if freq_band:
+        filter_parts.append(Station.freq_band == freq_band)
 
-    query = session.query(
-        Station,
-        func.ST_Distance(Station.location, poi).label('distance'),
-        func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
-                        ).label('bearing')
-    ).filter(
-        *filter_parts
-    ).order_by(
-        Station.location.distance_centroid(poi)
-    ).limit(limit)
+    if filters:
+        for f in filters:
+            LOG.info(f"Add filter '{f}'")
+            if f in STATION_FEATURES:
+                col_name = STATION_FEATURES[f]
+                filter_parts.append(getattr(Station, col_name) == True)  # noqa: E712
+
+    query = (
+        session.query(
+            Station,
+            func.ST_Distance(Station.location, poi).label('distance'),
+            func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)).label(
+                'bearing'
+            ),
+        )
+        .filter(*filter_parts)
+        .order_by(Station.location.distance_centroid(poi))
+        .limit(limit)
+    )
 
     return query
 
 
-def find_wxnearest_to(session, lat, lon, limit=1):
-    poi = 'SRID=4326;POINT({} {})'.format(lon, lat)
+def find_wxnearest_to(
+    session: Session,
+    lat: float,
+    lon: float,
+    limit: int = 1,
+) -> Query:
+    """Find the nearest weather stations to a given lat/lon.
+
+    Args:
+        session: Database session.
+        lat: Latitude.
+        lon: Longitude.
+        limit: Maximum number of results.
+
+    Returns:
+        Query yielding (WeatherStation, distance_meters, bearing_radians) tuples.
+    """
+    poi = f'SRID=4326;POINT({lon} {lat})'
     poi_point = func.ST_Point(lon, lat)
 
-    # query = session.query(
-    #    Station,
-    #    func.ST_Distance(Station.location, poi).label('distance'),
-    #    func.ST_Azimuth(poi_point, func.ST_Point(Station.long, Station.lat)
-    #                    ).label('bearing')
-    # ).filter(
-    #    Station.freq_band == freq_band
-    # )
-    # SELECT station.id, station.callsign, station.landmark,
-    #        station.nearest_city, station.county,
-    #    ST_Distance(station.location, 'SRID=4326;POINT(-78.84950 37.34433)') /
-    #                1609 as dist
-    # FROM station ORDER BY
-    #    station.location <-> 'SRID=4326;POINT(-78.84950 37.34433)'::geometry
-    # LIMIT 10;
-    query = session.query(
-        WeatherStation,
-        func.ST_Distance(WeatherStation.location, poi).label('distance'),
-        func.ST_Azimuth(
-            poi_point,
-            func.ST_Point(WeatherStation.longitude, WeatherStation.latitude)
-        ).label('bearing')
-    ).order_by(
-        WeatherStation.location.distance_centroid(poi)
-    ).limit(limit)
+    query = (
+        session.query(
+            WeatherStation,
+            func.ST_Distance(WeatherStation.location, poi).label('distance'),
+            func.ST_Azimuth(
+                poi_point,
+                func.ST_Point(WeatherStation.longitude, WeatherStation.latitude),
+            ).label('bearing'),
+        )
+        .order_by(WeatherStation.location.distance_centroid(poi))
+        .limit(limit)
+    )
 
     return query
 
 
-def find_wxrequests(session, number=None):
+def find_wxrequests(session: Session, number: Optional[int] = None) -> Query:
+    """Find weather request log entries, most recent first."""
+    query = (
+        session.query(WXRequest)
+        .options(caching_query.FromCache('default'))
+        .order_by(WXRequest.id.desc())
+    )
     if number:
-        query = session.query(
-            WXRequest
-        ).options(
-            caching_query.FromCache('default')
-        ).order_by(
-            WXRequest.id.desc()
-        ).limit(
-            number
-        )
-    else:
-        # Get them all.
-        query = session.query(
-            WXRequest
-        ).options(
-            caching_query.FromCache('default')
-        ).order_by(
-            WXRequest.id.desc()
-        )
-
+        query = query.limit(number)
     return query
 
 
-def invalidate_wxrequests_cache(session):
-    """This nukes the cached queries for requests."""
+def invalidate_wxrequests_cache(session: Session) -> None:
+    """Invalidate cached weather request queries."""
     global cache
+    if cache is None:
+        return
 
-    LOG.info("Invalidate requests cache")
-
-    cache.invalidate(
-        session.query(WXRequest).order_by(
-            WXRequest.id.desc()
-        ).limit(25),
-        {},
-        caching_query.FromCache("default")
-    )
-    cache.invalidate(
-        session.query(WXRequest).order_by(
-            WXRequest.id.desc()
-        ).limit(50),
-        {},
-        caching_query.FromCache("default")
-    )
-    cache.invalidate(
-        session.query(WXRequest).order_by(
-            WXRequest.id.desc()
-        ),
-        {},
-        caching_query.FromCache("default")
-    )
+    LOG.info('Invalidate wx requests cache')
+    # Invalidate all cached wx request queries regardless of page size
+    cache.cache_regions['default'].invalidate(hard=False)
 
 
-def get_num_repeaters_in_db(session):
+def get_num_repeaters_in_db(session: Any) -> int:
+    """Get the total number of repeaters in the database."""
     rows = session.query(Station).count()
     return rows
 
 
-def clean_weather_reports(session):
-    """Clean up old weather reports."""
-    LOG.info("Cleaned up weather reports")
+def clean_weather_reports(session: Session) -> None:
+    """Delete weather reports older than 14 days."""
+    LOG.info('Cleaning up old weather reports')
     session.query(WeatherReport).filter(
         WeatherReport.time < func.now() - timedelta(days=14)
     ).delete()
     session.commit()
 
 
-def clean_empty_wx_stations(session):
-    """Delete all wx stations that have no reports."""
-    LOG.info("Cleaned up weather Stations")
-
+def clean_empty_wx_stations(session: Session) -> None:
+    """Delete weather stations that have no reports."""
+    LOG.info('Cleaning up weather stations with no reports')
