@@ -129,19 +129,24 @@ class TestValidateTableName:
     """Tests for validate_table_name function."""
 
     def test_allowed_tables(self):
+        # Only actual table names are allowed (not plural forms)
         allowed = [
             'station',
-            'stations',
             'weather_station',
-            'weather_stations',
             'weather_report',
-            'weather_reports',
             'aprs_packet',
             'request',
             'wx_request',
         ]
         for table in allowed:
             assert validate_table_name(table) is True
+
+    def test_plural_tables_not_allowed(self):
+        # Plural forms don't correspond to actual tables
+        not_allowed = ['stations', 'weather_stations', 'weather_reports']
+        for table in not_allowed:
+            with pytest.raises(SQLValidationError, match='not in the allowed list'):
+                validate_table_name(table)
 
     def test_disallowed_table(self):
         with pytest.raises(SQLValidationError, match='not in the allowed list'):

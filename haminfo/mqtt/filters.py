@@ -182,7 +182,7 @@ class WeatherPacketFilter:
 
     def _create_report(
         self, aprs_data: dict, station: WeatherStation
-    ) -> Optional[WeatherPacket]:
+    ) -> Optional[bool]:
         """Create a weather report from packet data.
 
         Args:
@@ -190,7 +190,7 @@ class WeatherPacketFilter:
             station: The weather station this report belongs to.
 
         Returns:
-            The original packet if report was created, None otherwise.
+            True if report was created successfully, None otherwise.
         """
         try:
             report = WeatherReport.from_json(aprs_data, station.id)
@@ -210,11 +210,9 @@ class WeatherPacketFilter:
             else:
                 return None
         except ValueError as ex:
-            self.session.rollback()
             logger.error(f'Invalid weather report: {ex}')
             return None
         except Exception as ex:
-            self.session.rollback()
             logger.error(f'Failed to process weather report: {ex}')
             return None
 

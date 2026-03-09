@@ -85,7 +85,7 @@ classifiers = [
 ]
 dependencies = [
     "alembic>=1.16.1",
-    "aprsd@git+https://github.com/craigerl/aprsd@4.2.4",
+    "aprsd==4.2.4",
     "blinker>=1.9.0",
     "cachetools>=6.0.0",
     "click>=7.0",
@@ -124,7 +124,7 @@ dependencies = [
     "thesmuggler>=1.0.1",
     "typing-extensions>=4.15.0",
     "update-checker>=0.18.0",
-    "urllib3>=2.6.3",
+    "urllib3>=2.0.0",
     "werkzeug>=1.0.1",
     "yaspin>=3.1.0",
 ]

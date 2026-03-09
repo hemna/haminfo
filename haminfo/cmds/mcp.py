@@ -30,6 +30,43 @@ LOG = logging.getLogger(utils.DOMAIN)
 mcp = FastMCP('HamInfo')
 
 
+def _enforce_table_allowlist(sql: str) -> None:
+    """Validate that all table references in a query are in the allowlist.
+
+    Extracts table names from FROM and JOIN clauses and validates each one.
+
+    Args:
+        sql: The SQL query to check.
+
+    Raises:
+        SQLValidationError: If any referenced table is not allowed.
+    """
+    import re
+
+    upper = sql.upper()
+    # Extract table names from FROM and JOIN clauses
+    table_pattern = r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)'
+    tables = re.findall(table_pattern, sql, re.IGNORECASE)
+    for table in tables:
+        validate_table_name(table)
+
+
+def _normalize_limit(limit: int) -> int:
+    """Normalize a limit value to be within valid range.
+
+    Args:
+        limit: The requested limit.
+
+    Returns:
+        Clamped limit between 1 and MAX_RESULT_LIMIT.
+    """
+    try:
+        limit = int(limit)
+    except (ValueError, TypeError):
+        return 10
+    return max(1, min(limit, MAX_RESULT_LIMIT))
+
+
 def _get_session():
     """Get a database session, creating one if needed."""
     return db.setup_session()
@@ -60,6 +97,8 @@ def _execute_safe_query(sql: str) -> str:
     """
     try:
         validated_sql = validate_query(sql)
+        # Also enforce table allowlist on free-form queries
+        _enforce_table_allowlist(validated_sql)
     except SQLValidationError as e:
         return json.dumps({'error': str(e), 'type': 'validation_error'})
 
@@ -172,7 +211,7 @@ def query_stations(
     Returns:
         JSON string of matching stations.
     """
-    limit = min(limit, MAX_RESULT_LIMIT)
+    limit = _normalize_limit(limit)
     conditions = []
     params = {'limit': limit}
 
@@ -215,7 +254,7 @@ def query_weather_stations(
     Returns:
         JSON string of matching weather stations.
     """
-    limit = min(limit, MAX_RESULT_LIMIT)
+    limit = _normalize_limit(limit)
     conditions = []
     params = {'limit': limit}
 
@@ -253,7 +292,7 @@ def query_weather_reports(
     Returns:
         JSON string of matching weather reports, ordered by time descending.
     """
-    limit = min(limit, MAX_RESULT_LIMIT)
+    limit = _normalize_limit(limit)
     conditions = []
     params = {'limit': limit}
 
@@ -293,7 +332,7 @@ def query_aprs_packets(
     Returns:
         JSON string of matching APRS packets, ordered by timestamp descending.
     """
-    limit = min(limit, MAX_RESULT_LIMIT)
+    limit = _normalize_limit(limit)
     conditions = []
     params = {'limit': limit}
 

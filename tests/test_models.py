@@ -689,13 +689,11 @@ class TestAPRSPacketFromJson:
             'to_call': 'APRS',
             'raw': 'N0TS>APRS:ts',
         }
-        before = datetime.utcnow()
         packet = APRSPacket.from_json(data)
         # Should get a recent time (within last few seconds)
         assert packet.timestamp is not None
 
     def test_received_at_set(self, sample_aprs_packet):
-        before = datetime.utcnow()
         packet = APRSPacket.from_json(sample_aprs_packet)
         assert packet.received_at is not None
 

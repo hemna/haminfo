@@ -136,9 +136,9 @@ class APRSPacketProcessorThread(threads.MyThread):
             self.session.rollback()
             logger.error(f'Failed to save APRS packets: {ex}')
             logger.exception(ex)
-        finally:
-            # Clear the list regardless of success/failure
-            self.aprs_packets = []
+            return
+        # Only clear on success — failed batches will be retried
+        self.aprs_packets = []
 
     def _print_stats(self) -> None:
         """Print statistics about processed packets."""
@@ -289,8 +289,9 @@ class WeatherPacketProcessorThread(threads.MyThread):
             self.session.rollback()
             logger.error(f'Failed to save weather reports: {ex}')
             logger.exception(ex)
-        finally:
-            self.reports.clear()
+            return
+        # Only clear on success — failed batches will be retried
+        self.reports.clear()
 
     def _cleanup(self) -> None:
         """Save any remaining weather reports before stopping."""

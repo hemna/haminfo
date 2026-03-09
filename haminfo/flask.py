@@ -217,6 +217,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             lat, lon = validate_lat_lon(params.get('lat'), params.get('lon'))
             count = validate_count(params.get('count'), default=1)
         except ValidationError as ex:
+            LOG.debug(f'Validation error in nearest: {ex}')
             return jsonify({'error': str(ex), 'field': ex.field}), 400
 
         LOG.debug(f"Lat '{lat}'  Lon '{lon}'")
@@ -276,6 +277,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             lat, lon = validate_lat_lon(params.get('lat'), params.get('lon'))
             max_count = validate_count(params.get('count'), default=1)
         except ValidationError as ex:
+            LOG.debug(f'Validation error in wxnearest: {ex}')
             return jsonify({'error': str(ex), 'field': ex.field}), 400
 
         LOG.debug(f'wxnearest: lat={lat}, lon={lon}, count={max_count}')
@@ -287,7 +289,7 @@ class HaminfoFlask(flask_classful.FlaskView):
                 session,
                 lat,
                 lon,
-                limit=15,
+                limit=max_count,
             )
             LOG.info(f'Query {query}')
 
@@ -376,6 +378,23 @@ class HaminfoFlask(flask_classful.FlaskView):
 
         callsigns = params.get('callsigns', [])
         repeater_ids = params.get('repeater_ids', [])
+
+        # Validate that callsigns and repeater_ids are arrays, not scalars
+        if callsigns and not isinstance(callsigns, list):
+            return jsonify({'error': "'callsigns' must be an array of strings"}), 400
+        if repeater_ids and not isinstance(repeater_ids, list):
+            return jsonify(
+                {'error': "'repeater_ids' must be an array of integers"}
+            ), 400
+
+        # Coerce repeater_ids to integers
+        if repeater_ids:
+            try:
+                repeater_ids = [int(rid) for rid in repeater_ids]
+            except (ValueError, TypeError):
+                return jsonify(
+                    {'error': "'repeater_ids' must contain valid integers"}
+                ), 400
 
         if not callsigns and not repeater_ids:
             return jsonify(

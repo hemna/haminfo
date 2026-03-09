@@ -14,11 +14,8 @@ from typing import Optional
 ALLOWED_TABLES = frozenset(
     {
         'station',
-        'stations',
         'weather_station',
-        'weather_stations',
         'weather_report',
-        'weather_reports',
         'aprs_packet',
         'request',
         'wx_request',
@@ -176,7 +173,13 @@ def _contains_multiple_statements(sql: str) -> bool:
     in_single_quote = False
     in_double_quote = False
 
-    for i, char in enumerate(sql):
+    i = 0
+    while i < len(sql):
+        char = sql[i]
+        # Handle escape sequences inside quotes
+        if char == '\\' and (in_single_quote or in_double_quote):
+            i += 2  # Skip escaped character
+            continue
         if char == "'" and not in_double_quote:
             in_single_quote = not in_single_quote
         elif char == '"' and not in_single_quote:
@@ -186,6 +189,7 @@ def _contains_multiple_statements(sql: str) -> bool:
             remaining = sql[i + 1 :].strip()
             if remaining:
                 return True
+        i += 1
     return False
 
 
@@ -206,6 +210,6 @@ def _validate_subqueries(sql: str) -> None:
     for pattern in dangerous_patterns:
         if re.search(pattern, upper, re.IGNORECASE):
             raise SQLValidationError(
-                f'Potentially dangerous SQL pattern detected',
+                'Potentially dangerous SQL pattern detected',
                 sql,
             )

@@ -59,8 +59,9 @@ def wx_mqtt_ingest(ctx):
     db_session = db.setup_session()
     session = db_session()
 
-    # Create queue for packet processing
-    packet_queue = queue.Queue(maxsize=5000)
+    # Create separate queues for each processor (fan-out)
+    aprs_queue = queue.Queue(maxsize=5000)
+    weather_queue = queue.Queue(maxsize=5000)
 
     # Shared stats dictionary and lock for thread-safe access
     stats_lock = threading.Lock()
@@ -73,20 +74,20 @@ def wx_mqtt_ingest(ctx):
         'unique_callsigns': set(),
     }
 
-    # Create processor threads
+    # Create processor threads with their own queues
     aprs_processor = APRSPacketProcessorThread(
-        packet_queue,
+        aprs_queue,
         session,
         stats,
         stats_lock,
     )
     weather_processor = WeatherPacketProcessorThread(
-        packet_queue,
+        weather_queue,
         session,
         stats,
         stats_lock,
     )
-    mqtt_thread = MQTTThread(packet_queue, stats, stats_lock)
+    mqtt_thread = MQTTThread([aprs_queue, weather_queue], stats, stats_lock)
 
     # Start all threads
     keepalive = threads.KeepAliveThread()
@@ -112,6 +113,7 @@ def wx_mqtt_ingest(ctx):
     weather_processor.join(timeout=5)
 
     LOG.info('Waiting for keepalive thread to quit')
+    keepalive.stop()
     keepalive.join()
 
 

@@ -70,6 +70,8 @@ STATION_FEATURES: dict[str, str] = {
 
 # Global cache object
 cache: Optional[caching_query.ORMCache] = None
+# Global session factory (avoid recreating engine on every call)
+_session_factory: Optional[scoped_session] = None
 
 
 def init_db_schema(engine: Any) -> None:
@@ -124,14 +126,17 @@ def setup_session() -> scoped_session:
     """Set up and return a scoped database session factory.
 
     Also initializes the cache system if not already done.
+    Returns the cached session factory on subsequent calls.
     """
-    global cache
+    global cache, _session_factory
+    if _session_factory is not None:
+        return _session_factory
     regions = _create_cache_regions()
     engine = get_engine()
-    session = scoped_session(sessionmaker(bind=engine))
+    _session_factory = scoped_session(sessionmaker(bind=engine))
     cache = caching_query.ORMCache(regions)
-    cache.listen_on_session(session)
-    return session
+    cache.listen_on_session(_session_factory)
+    return _session_factory
 
 
 def delete_USA_state_repeaters(state: str, session: Session) -> None:  # noqa: N802
@@ -219,7 +224,7 @@ def find_wx_station_by_callsign(session: Session, callsign: str) -> Query:
     query = (
         session.query(WeatherStation)
         .options(caching_query.FromCache('default'))
-        .filter(WeatherStation.callsign.in_(tuple(callsign)))
+        .filter(WeatherStation.callsign == callsign)
     )
     return query
 
@@ -278,11 +283,8 @@ def invalidate_requests_cache(session: Session) -> None:
         return
 
     LOG.info('Invalidate requests cache')
-    for limit in (25, 50, None):
-        q = session.query(Request).order_by(Request.id.desc())
-        if limit:
-            q = q.limit(limit)
-        cache.invalidate(q, {}, caching_query.FromCache('default'))
+    # Invalidate all cached request queries regardless of page size
+    cache.cache_regions['default'].invalidate(hard=False)
 
 
 def find_nearest_to(
@@ -310,10 +312,11 @@ def find_nearest_to(
     poi_point = func.ST_Point(lon, lat)
     LOG.info(f'Band: {freq_band}  Limit: {limit}  Filters: {filters}')
 
-    filter_parts = [Station.freq_band == freq_band]
+    filter_parts = []
+    if freq_band:
+        filter_parts.append(Station.freq_band == freq_band)
 
     if filters:
-        filter_parts = []
         for f in filters:
             LOG.info(f"Add filter '{f}'")
             if f in STATION_FEATURES:
@@ -391,11 +394,8 @@ def invalidate_wxrequests_cache(session: Session) -> None:
         return
 
     LOG.info('Invalidate wx requests cache')
-    for limit in (25, 50, None):
-        q = session.query(WXRequest).order_by(WXRequest.id.desc())
-        if limit:
-            q = q.limit(limit)
-        cache.invalidate(q, {}, caching_query.FromCache('default'))
+    # Invalidate all cached wx request queries regardless of page size
+    cache.cache_regions['default'].invalidate(hard=False)
 
 
 def get_num_repeaters_in_db(session: Any) -> int:

@@ -51,15 +51,23 @@ class KeepAliveThread(MyThread):
                 thread_name = thread.__class__.__name__
                 alive = thread.is_alive()
                 if thread_name == 'MQTTThread':
+                    # Get report_counter from stats dict if available, otherwise from attribute
+                    report_counter = 0
+                    if hasattr(thread, 'stats') and hasattr(thread, 'stats_lock'):
+                        with thread.stats_lock:
+                            report_counter = thread.stats.get('report_counter', 0)
+                    elif hasattr(thread, 'report_counter'):
+                        report_counter = thread.report_counter
+
                     LOG.info(f"{thread_name}.report_counter ==>"
-                             f"{thread.report_counter}=={self.report_counter}")
-                    if thread.client._connection_closed():
+                             f"{report_counter}=={self.report_counter}")
+                    if hasattr(thread, 'client') and thread.client and thread.client._connection_closed():
                         alive = False
-                    # if thread.report_counter <= self.report_counter:
+                    # if report_counter <= self.report_counter:
                     #     # the thread counter hasn't changed
                     #     alive = False
                     # else:
-                    #     self.report_counter = thread.report_counter
+                    #     self.report_counter = report_counter
                 self.data["threads"][thread_name] = alive
 
                 thread_out.append(f"{thread.__class__.__name__}:{alive}")

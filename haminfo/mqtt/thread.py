@@ -40,12 +40,18 @@ class MQTTThread(threads.MyThread):
 
     def __init__(
         self,
-        packet_queue: queue.Queue,
+        packet_queues: list[queue.Queue] | queue.Queue,
         stats: dict,
         stats_lock: threading.Lock,
     ):
         super().__init__('MQTTThread')
-        self.packet_queue = packet_queue
+        # Support single queue (backward compat) or list of queues (fan-out)
+        if isinstance(packet_queues, queue.Queue):
+            self.packet_queues = [packet_queues]
+        else:
+            self.packet_queues = list(packet_queues)
+        # Keep backward-compat attribute for stats reporting
+        self.packet_queue = self.packet_queues[0]
         self.stats = stats
         self.stats_lock = stats_lock
 
@@ -293,10 +299,11 @@ class MQTTThread(threads.MyThread):
                 return
 
             if aprsd_packet:
-                try:
-                    self.packet_queue.put_nowait(aprsd_packet)
-                except queue.Full:
-                    logger.warning('Packet queue is full, dropping packet')
+                for pq in self.packet_queues:
+                    try:
+                        pq.put_nowait(aprsd_packet)
+                    except queue.Full:
+                        logger.warning('Packet queue is full, dropping packet')
 
             # Periodic stats
             current_time = time.time()
@@ -418,8 +425,8 @@ class MQTTThread(threads.MyThread):
             if self.client:
                 try:
                     self.client.loop_stop()
-                except Exception:
-                    pass
+                except Exception as stop_ex:
+                    logger.debug(f'Error stopping MQTT loop during recovery: {stop_ex}')
             self._reconnect()
 
         return True
