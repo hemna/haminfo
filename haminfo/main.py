@@ -8,7 +8,7 @@ from haminfo import utils, cli_helper
 CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
-CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.group(cls=cli_helper.AliasedGroup, context_settings=CONTEXT_SETTINGS)
@@ -23,7 +23,7 @@ def load_commands():
         generate_token,
         mapbox,
         fetch_repeaterbook,
-        mqtt_injest,
+        mqtt_ingest,
         mqtt_healthcheck,
         db,
         mcp,
@@ -32,5 +32,5 @@ def load_commands():
 
 def main():
     load_commands()
-    utils.load_entry_points("haminfo.extension")
-    cli(auto_envvar_prefix="HAMINFO")
+    utils.load_entry_points('haminfo.extension')
+    cli(auto_envvar_prefix='HAMINFO')
