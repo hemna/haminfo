@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
+import re
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session
 
 from haminfo.db.models.modelbase import ModelBase
 
@@ -18,10 +18,90 @@ def engine():
 
     Uses SQLite for speed; PostGIS-specific features are not
     tested here (those need integration tests).
+
+    Geography columns are rendered as TEXT and GeoAlchemy2's spatial
+    DDL operations (which call SpatiaLite functions) are disabled via
+    monkey-patching the dialect handlers.
     """
     engine = create_engine('sqlite:///:memory:', echo=False)
-    # Create all tables
-    ModelBase.metadata.create_all(engine)
+
+    # Intercept SQL to neutralize all GeoAlchemy2/PostGIS function calls
+    # that SQLite can't handle:
+    #   - geography(POINT,...) in DDL -> TEXT
+    #   - ST_GeogFromText(?) in INSERT -> ? (pass value through)
+    #   - AsBinary(col) in SELECT -> col (read raw value)
+    @event.listens_for(engine, 'before_cursor_execute', retval=True)
+    def _intercept_geography(conn, cursor, statement, parameters, context, executemany):
+        if 'geography(' in statement.lower():
+            statement = re.sub(
+                r'geography\([^)]*\)',
+                'TEXT',
+                statement,
+                flags=re.IGNORECASE,
+            )
+        if 'st_geogfromtext(' in statement.lower():
+            statement = re.sub(
+                r'ST_GeogFromText\(([^)]*)\)',
+                r'\1',
+                statement,
+                flags=re.IGNORECASE,
+            )
+        if 'asbinary(' in statement.lower():
+            statement = re.sub(
+                r'AsBinary\(([^)]*)\)',
+                r'\1',
+                statement,
+                flags=re.IGNORECASE,
+            )
+        return statement, parameters
+
+    # Monkey-patch GeoAlchemy2's SQLite dialect handlers to be no-ops
+    # so they don't try to call SpatiaLite functions like CreateSpatialIndex
+    import geoalchemy2.admin.dialects.sqlite as ga2_sqlite
+
+    orig_after_create = ga2_sqlite.after_create
+    orig_before_create = ga2_sqlite.before_create
+    orig_before_drop = ga2_sqlite.before_drop
+    orig_after_drop = ga2_sqlite.after_drop
+
+    ga2_sqlite.after_create = lambda *a, **kw: None
+    ga2_sqlite.before_create = lambda *a, **kw: None
+    ga2_sqlite.before_drop = lambda *a, **kw: None
+    ga2_sqlite.after_drop = lambda *a, **kw: None
+
+    # Also patch the select_dialect function to return a no-op handler for sqlite
+    import geoalchemy2.admin as ga2_admin
+
+    orig_select_dialect = ga2_admin.select_dialect
+
+    def _patched_select_dialect(dialect_name):
+        if dialect_name == 'sqlite':
+            # Return a module-like object with no-op methods
+            return type(
+                'NoOpDialect',
+                (),
+                {
+                    'before_create': staticmethod(lambda *a, **kw: None),
+                    'after_create': staticmethod(lambda *a, **kw: None),
+                    'before_drop': staticmethod(lambda *a, **kw: None),
+                    'after_drop': staticmethod(lambda *a, **kw: None),
+                    'reflect_geometry_column': staticmethod(lambda *a, **kw: None),
+                },
+            )()
+        return orig_select_dialect(dialect_name)
+
+    ga2_admin.select_dialect = _patched_select_dialect
+
+    try:
+        ModelBase.metadata.create_all(engine)
+    finally:
+        # Restore original functions
+        ga2_sqlite.after_create = orig_after_create
+        ga2_sqlite.before_create = orig_before_create
+        ga2_sqlite.before_drop = orig_before_drop
+        ga2_sqlite.after_drop = orig_after_drop
+        ga2_admin.select_dialect = orig_select_dialect
+
     yield engine
     engine.dispose()
 

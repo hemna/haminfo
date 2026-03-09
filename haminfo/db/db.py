@@ -20,6 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import scoped_session, sessionmaker, Session, Query
 
 from haminfo.db import caching_query
+from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.station import Station
 from haminfo.db.models.modelbase import ModelBase
 from haminfo.db.models.request import Request, WXRequest
@@ -416,3 +417,153 @@ def clean_weather_reports(session: Session) -> None:
 def clean_empty_wx_stations(session: Session) -> None:
     """Delete weather stations that have no reports."""
     LOG.info('Cleaning up weather stations with no reports')
+
+
+def find_latest_positions_by_callsigns(
+    session: Session,
+    callsigns: list[str],
+) -> list[APRSPacket]:
+    """Find the most recent position-bearing packet for each callsign.
+
+    Uses a subquery with group_by and max(timestamp) to find the latest
+    position packet per callsign. This is portable across database backends
+    (works with both PostgreSQL and SQLite for testing).
+
+    Args:
+        session: Database session.
+        callsigns: List of callsigns to query (will be uppercased).
+
+    Returns:
+        List of APRSPacket instances, one per found callsign,
+        each being the most recent packet with position data.
+    """
+    if not callsigns:
+        return []
+
+    # Normalize callsigns to uppercase
+    upper_callsigns = [cs.upper() for cs in callsigns]
+
+    # Subquery: find the max timestamp per callsign for packets with positions
+    latest_subq = (
+        session.query(
+            APRSPacket.from_call,
+            func.max(APRSPacket.timestamp).label('max_ts'),
+        )
+        .filter(
+            func.upper(APRSPacket.from_call).in_(upper_callsigns),
+            APRSPacket.latitude.isnot(None),
+            APRSPacket.longitude.isnot(None),
+        )
+        .group_by(APRSPacket.from_call)
+        .subquery()
+    )
+
+    # Main query: join back to get the full packet row
+    results = (
+        session.query(APRSPacket)
+        .options(caching_query.FromCache('default'))
+        .join(
+            latest_subq,
+            (APRSPacket.from_call == latest_subq.c.from_call)
+            & (APRSPacket.timestamp == latest_subq.c.max_ts),
+        )
+        .filter(
+            APRSPacket.latitude.isnot(None),
+            APRSPacket.longitude.isnot(None),
+        )
+        .all()
+    )
+
+    return results
+
+
+def find_latest_position_by_callsign(
+    session: Session,
+    callsign: str,
+) -> Optional[APRSPacket]:
+    """Find the most recent position-bearing packet for a single callsign.
+
+    Convenience wrapper around find_latest_positions_by_callsigns().
+
+    Args:
+        session: Database session.
+        callsign: Callsign to query (will be uppercased).
+
+    Returns:
+        The most recent APRSPacket with position data, or None if not found.
+    """
+    results = find_latest_positions_by_callsigns(session, [callsign])
+    return results[0] if results else None
+
+
+def clean_aprs_packets(session: Session, days: int = 30) -> int:
+    """Delete APRS packets older than the specified number of days.
+
+    Args:
+        session: Database session.
+        days: Number of days of data to retain (default 30).
+
+    Returns:
+        Number of packets deleted.
+    """
+    LOG.info(f'Cleaning up APRS packets older than {days} days')
+    count = (
+        session.query(APRSPacket)
+        .filter(APRSPacket.received_at < datetime.utcnow() - timedelta(days=days))
+        .delete()
+    )
+    session.commit()
+    LOG.info(f'Deleted {count} old APRS packets')
+    return count
+
+
+def get_aprs_packet_stats(session: Session) -> dict[str, Any]:
+    """Get statistics about APRS packets in the database.
+
+    Args:
+        session: SQLAlchemy database session.
+
+    Returns:
+        Dict with total count, counts per packet_type, unique callsign
+        count, and last-24-hour packet count.
+    """
+    total = session.query(APRSPacket).count()
+
+    # Count by packet type
+    type_counts = (
+        session.query(
+            APRSPacket.packet_type,
+            func.count(APRSPacket.id),
+        )
+        .group_by(APRSPacket.packet_type)
+        .all()
+    )
+    type_dict: dict[str, int] = {}
+    for ptype, cnt in type_counts:
+        key = ptype if ptype else 'unknown'
+        type_dict[key] = cnt
+
+    unique_callsigns = (
+        session.query(func.count(sqlalchemy.distinct(APRSPacket.from_call))).scalar()
+        or 0
+    )
+
+    last_24h = (
+        session.query(APRSPacket)
+        .filter(APRSPacket.received_at >= datetime.utcnow() - timedelta(hours=24))
+        .count()
+    )
+
+    return {
+        'total': total,
+        'position': type_dict.get('position', 0),
+        'weather': type_dict.get('weather', 0),
+        'message': type_dict.get('message', 0),
+        'other': sum(
+            v
+            for k, v in type_dict.items()
+            if k not in ('position', 'weather', 'message')
+        ),
+        'unique_callsigns': unique_callsigns,
+        'last_24h': last_24h,
+    }
