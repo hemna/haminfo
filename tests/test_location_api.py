@@ -342,3 +342,43 @@ class TestNativeLocationEndpoint:
         # ISO 8601 timestamp
         assert 'T' in entry['timestamp']
         assert entry['timestamp'].endswith('Z')
+
+    def test_exceeds_max_callsigns_returns_400(self, native_client):
+        """Requesting >20 callsigns returns 400 with INVALID_PARAM."""
+        calls = ','.join([f'CALL{i}' for i in range(21)])
+        resp = native_client.get(
+            f'/api/v1/location?callsign={calls}',
+            headers={'X-Api-Key': 'test-native-key'},
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 400
+        assert data['data'] is None
+        assert data['meta'] is None
+        assert data['error']['code'] == 'INVALID_PARAM'
+        assert 'Maximum 20' in data['error']['message']
+
+    def test_only_commas_returns_400(self, native_client):
+        """Callsign param with only commas returns 400 with INVALID_PARAM."""
+        resp = native_client.get(
+            '/api/v1/location?callsign=,,,',
+            headers={'X-Api-Key': 'test-native-key'},
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 400
+        assert data['data'] is None
+        assert data['meta'] is None
+        assert data['error']['code'] == 'INVALID_PARAM'
+
+    def test_empty_callsign_returns_400(self, native_client):
+        """Empty callsign param returns 400 with INVALID_PARAM."""
+        resp = native_client.get(
+            '/api/v1/location?callsign=',
+            headers={'X-Api-Key': 'test-native-key'},
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 400
+        assert data['data'] is None
+        assert data['error']['code'] == 'INVALID_PARAM'

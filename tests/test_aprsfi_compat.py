@@ -311,3 +311,36 @@ class TestAprsFiEndpoint:
 
         assert resp.status_code == 200
         assert data['result'] == 'ok'
+
+    def test_exceeds_max_callsigns_returns_fail(self, flask_client):
+        """Requesting >20 callsigns returns aprs.fi-style fail response."""
+        calls = ','.join([f'CALL{i}' for i in range(21)])
+        resp = flask_client.get(
+            f'/api/get?what=loc&apikey=test-api-key&format=json&name={calls}',
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data['result'] == 'fail'
+        assert 'Maximum 20' in data['description']
+
+    def test_only_commas_returns_fail(self, flask_client):
+        """Name param with only commas returns aprs.fi-style fail response."""
+        resp = flask_client.get(
+            '/api/get?what=loc&apikey=test-api-key&format=json&name=,,,',
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data['result'] == 'fail'
+        assert 'name' in data['description'].lower()
+
+    def test_empty_name_param_returns_fail(self, flask_client):
+        """Empty name param returns aprs.fi-style fail response."""
+        resp = flask_client.get(
+            '/api/get?what=loc&apikey=test-api-key&format=json&name=',
+        )
+        data = resp.get_json()
+
+        assert resp.status_code == 200
+        assert data['result'] == 'fail'

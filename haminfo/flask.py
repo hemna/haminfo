@@ -263,6 +263,10 @@ def aprs_packet_to_native_entry(packet: APRSPacket) -> dict[str, Any]:
     Returns:
         Dict with typed values matching the haminfo native location
         response schema.
+
+    Note:
+        Timestamps are assumed to be stored in UTC. The 'Z' suffix is
+        appended to indicate UTC per ISO 8601.
     """
     ts = packet.timestamp
     ts_iso = ts.isoformat() + 'Z' if isinstance(ts, datetime) else None
