@@ -1,6 +1,6 @@
 #FROM python:3.11-slim AS prepare
 #FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
-FROM ghcr.io/astral-sh/uv:python3.13-trixie AS prepare
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
 
 # Dockerfile for building a container during aprsd development.
 ARG BRANCH
@@ -39,7 +39,8 @@ RUN uv pip install -U "pip>=26.0" "virtualenv>=20.36.1" "filelock>=3.20.3" wheel
 RUN mkdir /config
 
 RUN git clone -b $APP_BRANCH $APP_GIT; \
-    uv pip install /app/haminfo;
+    echo "typing-extensions>=4.15.0" > /tmp/overrides.txt; \
+    uv pip install --override /tmp/overrides.txt /app/haminfo;
 
 RUN uv pip install oslo-config
 RUN mkdir -p /app/.config/haminfo
