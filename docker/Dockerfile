@@ -42,12 +42,16 @@ RUN mkdir /config
 
 # Clone the repo and checkout specific commit SHA if provided for reproducibility
 # This ensures the image contains the exact revision that triggered the build
+# For PR builds, github.sha is a merge commit that doesn't exist in the repo,
+# so we fetch unshallow and try the checkout, falling back to HEAD if it fails
 RUN git clone -b $APP_BRANCH $APP_GIT && \
+    cd /app/haminfo && \
     if [ -n "$APP_COMMIT_SHA" ]; then \
-        cd /app/haminfo && git checkout $APP_COMMIT_SHA; \
+        git fetch --unshallow 2>/dev/null || true; \
+        git checkout $APP_COMMIT_SHA 2>/dev/null || echo "SHA not found, using branch HEAD"; \
     fi && \
     echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
-    uv pip install --override /tmp/overrides.txt /app/haminfo
+    cd /app && uv pip install --override /tmp/overrides.txt /app/haminfo
 
 RUN uv pip install oslo-config
 RUN mkdir -p /app/.config/haminfo
