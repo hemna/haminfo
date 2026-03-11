@@ -44,7 +44,9 @@ RUN mkdir /config
 # This ensures the image contains the exact revision that triggered the build
 # For PR builds, github.sha is a merge commit that doesn't exist in the repo,
 # so we fetch unshallow and try the checkout, falling back to HEAD if it fails
-RUN git clone -b $APP_BRANCH $APP_GIT && \
+# Note: CACHEBUST is echoed to bust Docker layer cache when commit changes
+RUN echo "Cache bust: $CACHEBUST" && \
+    git clone -b $APP_BRANCH $APP_GIT && \
     cd /app/haminfo && \
     if [ -n "$APP_COMMIT_SHA" ]; then \
         git fetch --unshallow 2>/dev/null || true; \
