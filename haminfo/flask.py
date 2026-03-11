@@ -10,7 +10,7 @@ import click
 import json
 import logging as python_logging
 import time as time_mod
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, TYPE_CHECKING
 
@@ -226,10 +226,28 @@ def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
     aprsfi_type = type_map.get(packet.packet_type or '', 'l')
 
     # Convert timestamps to Unix epoch strings
+    # Timestamps are stored as naive UTC datetimes, so we need to explicitly
+    # mark them as UTC before converting to epoch to avoid local timezone issues
     ts = packet.timestamp
-    ts_epoch = str(int(ts.timestamp())) if isinstance(ts, datetime) else '0'
+    if isinstance(ts, datetime):
+        ts_utc = (
+            ts.replace(tzinfo=timezone.utc)
+            if ts.tzinfo is None
+            else ts.astimezone(timezone.utc)
+        )
+        ts_epoch = str(int(ts_utc.timestamp()))
+    else:
+        ts_epoch = '0'
     recv = packet.received_at
-    recv_epoch = str(int(recv.timestamp())) if isinstance(recv, datetime) else '0'
+    if isinstance(recv, datetime):
+        recv_utc = (
+            recv.replace(tzinfo=timezone.utc)
+            if recv.tzinfo is None
+            else recv.astimezone(timezone.utc)
+        )
+        recv_epoch = str(int(recv_utc.timestamp()))
+    else:
+        recv_epoch = '0'
 
     # Build symbol string (table char + symbol char)
     sym_table = (packet.symbol_table or '') if packet.symbol_table else ''
@@ -265,13 +283,29 @@ def aprs_packet_to_native_entry(packet: APRSPacket) -> dict[str, Any]:
         response schema.
 
     Note:
-        Timestamps are assumed to be stored in UTC. The 'Z' suffix is
-        appended to indicate UTC per ISO 8601.
+        Timestamps are assumed to be stored as naive UTC datetimes. We normalize
+        them to UTC-aware datetimes before formatting to ISO 8601 with 'Z' suffix.
     """
     ts = packet.timestamp
-    ts_iso = ts.isoformat() + 'Z' if isinstance(ts, datetime) else None
+    if isinstance(ts, datetime):
+        ts_utc = (
+            ts.replace(tzinfo=timezone.utc)
+            if ts.tzinfo is None
+            else ts.astimezone(timezone.utc)
+        )
+        ts_iso = ts_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        ts_iso = None
     recv = packet.received_at
-    recv_iso = recv.isoformat() + 'Z' if isinstance(recv, datetime) else None
+    if isinstance(recv, datetime):
+        recv_utc = (
+            recv.replace(tzinfo=timezone.utc)
+            if recv.tzinfo is None
+            else recv.astimezone(timezone.utc)
+        )
+        recv_iso = recv_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        recv_iso = None
 
     sym_table = (packet.symbol_table or '') if packet.symbol_table else ''
     sym_char = (packet.symbol or '') if packet.symbol else ''

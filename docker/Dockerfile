@@ -4,11 +4,13 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
 
 # Dockerfile for building a container during aprsd development.
 ARG BRANCH
+ARG COMMIT_SHA
 ARG UID
 ARG GID
 
 ENV APP_GIT=https://github.com/hemna/haminfo.git
 ENV APP_BRANCH=${BRANCH:-master}
+ENV APP_COMMIT_SHA=${COMMIT_SHA:-}
 ENV VIRTUAL_ENV=/root/.venv
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
@@ -38,9 +40,14 @@ RUN uv venv
 RUN uv pip install -U "pip>=26.0" "virtualenv>=20.36.1" "filelock>=3.20.3" wheel
 RUN mkdir /config
 
-RUN git clone -b $APP_BRANCH $APP_GIT; \
-    echo "typing-extensions>=4.15.0" > /tmp/overrides.txt; \
-    uv pip install --override /tmp/overrides.txt /app/haminfo;
+# Clone the repo and checkout specific commit SHA if provided for reproducibility
+# This ensures the image contains the exact revision that triggered the build
+RUN git clone -b $APP_BRANCH $APP_GIT && \
+    if [ -n "$APP_COMMIT_SHA" ]; then \
+        cd /app/haminfo && git checkout $APP_COMMIT_SHA; \
+    fi && \
+    echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
+    uv pip install --override /tmp/overrides.txt /app/haminfo
 
 RUN uv pip install oslo-config
 RUN mkdir -p /app/.config/haminfo

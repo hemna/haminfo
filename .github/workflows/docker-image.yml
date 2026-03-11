@@ -58,6 +58,7 @@ jobs:
         push: true
         build-args: |
           BRANCH=${{ steps.branch-name.outputs.current_branch }}
+          COMMIT_SHA=${{ github.sha }}
           CACHEBUST=${{ github.sha }}
         tags: |
           hemna6969/haminfo:${{ steps.sanitize.outputs.branch }}

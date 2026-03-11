@@ -414,9 +414,38 @@ def clean_weather_reports(session: Session) -> None:
     session.commit()
 
 
-def clean_empty_wx_stations(session: Session) -> None:
-    """Delete weather stations that have no reports."""
+def clean_empty_wx_stations(session: Session) -> int:
+    """Delete weather stations that have no reports.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        Number of stations deleted.
+    """
     LOG.info('Cleaning up weather stations with no reports')
+
+    # Find stations with no reports using a NOT EXISTS subquery
+    # This is more efficient than loading all stations and checking reports
+    from sqlalchemy import exists, select
+
+    # Subquery to check if a station has any reports
+    has_reports = (
+        select(WeatherReport.id)
+        .where(WeatherReport.weather_station_id == WeatherStation.id)
+        .exists()
+    )
+
+    # Delete stations that have no reports
+    deleted = (
+        session.query(WeatherStation)
+        .filter(~has_reports)
+        .delete(synchronize_session='fetch')
+    )
+    session.commit()
+
+    LOG.info(f'Deleted {deleted} empty weather stations')
+    return deleted
 
 
 def find_latest_positions_by_callsigns(
