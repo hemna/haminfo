@@ -312,14 +312,9 @@ class MQTTThread(threads.MyThread):
                 self.last_stats_time = current_time
                 self._update_stats_attributes()
 
-            if self.counter % 25 == 0:
+            # Update stats periodically for other threads to access
+            if self.counter % 100 == 0:
                 self._update_stats_attributes()
-                with self.stats_lock:
-                    pkt_count = self.stats.get('packet_counter', 0)
-                    rpt_count = self.stats.get('report_counter', 0)
-                logger.debug(
-                    f'Loop:{self.counter}  Reports:{rpt_count}  Packets:{pkt_count}'
-                )
         except Exception as ex:
             logger.error(f'Error processing MQTT message: {ex}')
             logger.exception(ex)
