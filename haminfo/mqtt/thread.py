@@ -289,7 +289,6 @@ class MQTTThread(threads.MyThread):
 
             raw_payload = msg.payload.decode('utf-8').replace('\x00', '')
             aprs_data_raw = json.loads(raw_payload)
-            logger.debug(f'Raw packet data: {aprs_data_raw}')
 
             try:
                 aprsd_packet = core.factory(aprs_data_raw)
