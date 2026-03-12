@@ -9,13 +9,14 @@ from __future__ import annotations
 import click
 import json
 import logging as python_logging
-import sys
+import time as time_mod
+from datetime import datetime, timezone
 from functools import wraps
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import flask
 import flask_classful
-from flask import abort, request, jsonify, Response
+from flask import request, jsonify, Response
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -26,9 +27,12 @@ from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 import sentry_sdk
 
 import haminfo
-from haminfo import utils, log, trace, cli_helper
+from haminfo import utils, trace, cli_helper
 from haminfo.db import db
 from haminfo.conf import log as log_conf
+
+if TYPE_CHECKING:
+    from haminfo.db.models.aprs_packet import APRSPacket
 
 
 auth = HTTPBasicAuth()
@@ -80,7 +84,14 @@ DEFAULT_COUNT = 10
 class ValidationError(Exception):
     """Raised when request input validation fails."""
 
-    def __init__(self, message: str, field: str = ''):
+    def __init__(self, message: str, field: str = '') -> None:
+        """Initialize a validation error.
+
+        Args:
+            message: Human-readable error description.
+            field: Name of the invalid field, or empty string if not
+                specific to one field.
+        """
         self.message = message
         self.field = field
         super().__init__(message)
@@ -105,11 +116,11 @@ def validate_lat_lon(lat: Any, lon: Any) -> tuple[float, float]:
     try:
         lat_f = float(lat)
         lon_f = float(lon)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as err:
         raise ValidationError(
             f"'lat' and 'lon' must be numeric values, got lat={lat!r}, lon={lon!r}",
             'lat/lon',
-        )
+        ) from err
 
     if not (LAT_MIN <= lat_f <= LAT_MAX):
         raise ValidationError(
@@ -143,11 +154,11 @@ def validate_count(count: Any, default: int = DEFAULT_COUNT) -> int:
 
     try:
         count_i = int(count)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as err:
         raise ValidationError(
             f"'count' must be an integer, got {count!r}",
             'count',
-        )
+        ) from err
 
     if not (COUNT_MIN <= count_i <= COUNT_MAX):
         raise ValidationError(
@@ -156,6 +167,164 @@ def validate_count(count: Any, default: int = DEFAULT_COUNT) -> int:
         )
 
     return count_i
+
+
+# Maximum callsigns per location query (matching aprs.fi limit)
+MAX_CALLSIGNS = 20
+
+
+def validate_callsigns(callsigns_str: Any) -> list[str]:
+    """Validate and parse a comma-separated callsign string.
+
+    Args:
+        callsigns_str: Comma-separated callsign string.
+
+    Returns:
+        List of uppercased, trimmed callsign strings.
+
+    Raises:
+        ValidationError: If input is empty, not a string, or exceeds
+            the maximum of 20 callsigns.
+    """
+    if not callsigns_str or not isinstance(callsigns_str, str):
+        raise ValidationError(
+            'Missing required parameter: callsign/name',
+            'callsign',
+        )
+
+    raw = [cs.strip().upper() for cs in callsigns_str.split(',') if cs.strip()]
+
+    if not raw:
+        raise ValidationError(
+            'At least one callsign is required',
+            'callsign',
+        )
+
+    if len(raw) > MAX_CALLSIGNS:
+        raise ValidationError(
+            f'Maximum {MAX_CALLSIGNS} callsigns per request, got {len(raw)}',
+            'callsign',
+        )
+
+    return raw
+
+
+def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
+    """Convert an APRSPacket model instance to aprs.fi-compatible dict.
+
+    All values in the returned dict are strings to match the aprs.fi API
+    convention.
+
+    Args:
+        packet: APRSPacket ORM instance.
+
+    Returns:
+        Dict matching the aprs.fi location entry JSON schema.
+    """
+    # Map packet_type to aprs.fi type codes
+    type_map = {'position': 'l', 'object': 'o', 'item': 'i'}
+    aprsfi_type = type_map.get(packet.packet_type or '', 'l')
+
+    # Convert timestamps to Unix epoch strings
+    # Timestamps are stored as naive UTC datetimes, so we need to explicitly
+    # mark them as UTC before converting to epoch to avoid local timezone issues
+    ts = packet.timestamp
+    if isinstance(ts, datetime):
+        ts_utc = (
+            ts.replace(tzinfo=timezone.utc)
+            if ts.tzinfo is None
+            else ts.astimezone(timezone.utc)
+        )
+        ts_epoch = str(int(ts_utc.timestamp()))
+    else:
+        ts_epoch = '0'
+    recv = packet.received_at
+    if isinstance(recv, datetime):
+        recv_utc = (
+            recv.replace(tzinfo=timezone.utc)
+            if recv.tzinfo is None
+            else recv.astimezone(timezone.utc)
+        )
+        recv_epoch = str(int(recv_utc.timestamp()))
+    else:
+        recv_epoch = '0'
+
+    # Build symbol string (table char + symbol char)
+    sym_table = (packet.symbol_table or '') if packet.symbol_table else ''
+    sym_char = (packet.symbol or '') if packet.symbol else ''
+    symbol = sym_table + sym_char
+
+    return {
+        'name': (packet.from_call or '').upper(),
+        'type': aprsfi_type,
+        'time': ts_epoch,
+        'lasttime': recv_epoch,
+        'lat': str(packet.latitude) if packet.latitude is not None else '0',
+        'lng': str(packet.longitude) if packet.longitude is not None else '0',
+        'altitude': str(int(packet.altitude)) if packet.altitude is not None else '0',
+        'course': str(packet.course) if packet.course is not None else '0',
+        'speed': str(packet.speed) if packet.speed is not None else '0',
+        'symbol': symbol,
+        'srccall': (packet.from_call or '').upper(),
+        'dstcall': (packet.to_call or '').upper(),
+        'comment': packet.comment or '',
+        'path': packet.path or '',
+    }
+
+
+def aprs_packet_to_native_entry(packet: APRSPacket) -> dict[str, Any]:
+    """Convert an APRSPacket model instance to haminfo native JSON dict.
+
+    Args:
+        packet: APRSPacket ORM instance.
+
+    Returns:
+        Dict with typed values matching the haminfo native location
+        response schema.
+
+    Note:
+        Timestamps are assumed to be stored as naive UTC datetimes. We normalize
+        them to UTC-aware datetimes before formatting to ISO 8601 with 'Z' suffix.
+    """
+    ts = packet.timestamp
+    if isinstance(ts, datetime):
+        ts_utc = (
+            ts.replace(tzinfo=timezone.utc)
+            if ts.tzinfo is None
+            else ts.astimezone(timezone.utc)
+        )
+        ts_iso = ts_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        ts_iso = None
+    recv = packet.received_at
+    if isinstance(recv, datetime):
+        recv_utc = (
+            recv.replace(tzinfo=timezone.utc)
+            if recv.tzinfo is None
+            else recv.astimezone(timezone.utc)
+        )
+        recv_iso = recv_utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    else:
+        recv_iso = None
+
+    sym_table = (packet.symbol_table or '') if packet.symbol_table else ''
+    sym_char = (packet.symbol or '') if packet.symbol else ''
+
+    return {
+        'callsign': (packet.from_call or '').upper(),
+        'latitude': float(packet.latitude) if packet.latitude is not None else None,
+        'longitude': float(packet.longitude) if packet.longitude is not None else None,
+        'altitude': float(packet.altitude) if packet.altitude is not None else None,
+        'course': int(packet.course) if packet.course is not None else None,
+        'speed': float(packet.speed) if packet.speed is not None else None,
+        'symbol': sym_table + sym_char,
+        'to_call': (packet.to_call or '').upper(),
+        'comment': packet.comment or '',
+        'path': packet.path or '',
+        'timestamp': ts_iso,
+        'received_at': recv_iso,
+        'packet_type': packet.packet_type or 'unknown',
+    }
 
 
 def require_appkey(view_function):
@@ -185,6 +354,28 @@ def require_appkey(view_function):
             return jsonify({'error': 'Unauthorized: Invalid API key'}), 401
 
     return decorated_function
+
+
+def _validate_apikey_param() -> str | None:
+    """Validate the ``apikey`` query parameter.
+
+    Returns:
+        Error description string if invalid, or ``None`` if valid.
+    """
+    if not CONF.web.api_key:
+        LOG.error(
+            'API key not configured in config file. Set [web] api_key in your config.'
+        )
+        return 'server misconfiguration'
+
+    apikey = request.args.get('apikey')
+    if not apikey:
+        return 'missing parameter: apikey'
+
+    if apikey != CONF.web.api_key:
+        return 'invalid apikey'
+
+    return None
 
 
 class HaminfoFlask(flask_classful.FlaskView):
@@ -329,7 +520,143 @@ class HaminfoFlask(flask_classful.FlaskView):
     def stats(self):
         """Return application statistics."""
         stats = {}
+        session = self._get_db_session()
+        with session() as session:
+            try:
+                aprs_stats = db.get_aprs_packet_stats(session)
+                stats['aprs_packets'] = aprs_stats
+            except Exception as ex:
+                LOG.error(f'Failed to get APRS packet stats: {ex}')
+                stats['aprs_packets'] = {'error': str(ex)}
         return jsonify(stats)
+
+    def aprsfi_location(self) -> Response:
+        """Handle GET /api/get - aprs.fi-compatible location query.
+
+        Returns location data in the exact aprs.fi JSON format so that
+        APRSD plugins (aprsd-locationdata-plugin, aprsd-location-plugin)
+        can use haminfo as their data source.
+
+        All errors return HTTP 200 with ``result: "fail"`` to match
+        the aprs.fi API convention.
+
+        Returns:
+            Flask JSON response with aprs.fi-compatible envelope.
+        """
+        start = time_mod.time()
+
+        # Helper for aprs.fi error responses (always HTTP 200)
+        def _fail(description: str) -> Response:
+            return jsonify(
+                {
+                    'command': 'get',
+                    'result': 'fail',
+                    'description': description,
+                }
+            )
+
+        # Validate apikey query parameter
+        auth_err = _validate_apikey_param()
+        if auth_err:
+            return _fail(auth_err)
+
+        # Validate 'what' parameter
+        what = request.args.get('what')
+        if not what:
+            return _fail('missing parameter: what')
+        if what != 'loc':
+            return _fail(f'unsupported what value: {what}')
+
+        # Validate 'format' parameter (optional, default json)
+        fmt = request.args.get('format', 'json')
+        if fmt != 'json':
+            return _fail(f'unsupported format: {fmt}')
+
+        # Validate 'name' parameter (callsigns)
+        name = request.args.get('name')
+        try:
+            callsigns = validate_callsigns(name)
+        except ValidationError as ex:
+            return _fail(f'invalid name parameter: {ex.message}')
+
+        # Query the database
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            results = db.find_latest_positions_by_callsigns(session, callsigns)
+            for pkt in results:
+                entries.append(aprs_packet_to_aprsfi_entry(pkt))
+
+        elapsed = (time_mod.time() - start) * 1000
+        LOG.info(
+            f'aprsfi_location: callsigns={callsigns} '
+            f'found={len(entries)} elapsed={elapsed:.1f}ms'
+        )
+
+        return jsonify(
+            {
+                'command': 'get',
+                'result': 'ok',
+                'what': 'loc',
+                'found': len(entries),
+                'entries': entries,
+            }
+        )
+
+    @require_appkey
+    def location(self) -> Response | tuple[Response, int]:
+        """Handle GET /api/v1/location - native haminfo location query.
+
+        Returns location data in the haminfo native JSON format with
+        typed values (floats, ints, ISO timestamps) and the standard
+        data/error/meta response structure.
+
+        Returns:
+            Flask JSON response with data/error/meta envelope, or a
+            tuple of (response, status_code) for error cases.
+        """
+        start = time_mod.time()
+
+        # Validate 'callsign' parameter
+        callsign_str = request.args.get('callsign')
+        try:
+            callsigns = validate_callsigns(callsign_str)
+        except ValidationError as ex:
+            return jsonify(
+                {
+                    'data': None,
+                    'meta': None,
+                    'error': {
+                        'code': 'INVALID_PARAM',
+                        'message': ex.message,
+                    },
+                }
+            ), 400
+
+        # Query the database
+        session = self._get_db_session()
+        entries = []
+        with session() as session:
+            results = db.find_latest_positions_by_callsigns(session, callsigns)
+            for pkt in results:
+                entries.append(aprs_packet_to_native_entry(pkt))
+
+        elapsed = (time_mod.time() - start) * 1000
+        LOG.info(
+            f'location: callsigns={callsigns} '
+            f'found={len(entries)} elapsed={elapsed:.1f}ms'
+        )
+
+        return jsonify(
+            {
+                'data': entries,
+                'meta': {
+                    'found': len(entries),
+                    'requested': callsigns,
+                },
+                'error': None,
+            }
+        )
 
     def requests(self):
         """Return recent API request history."""
@@ -553,6 +880,8 @@ def create_app(ctx):
     app.route('/wxnearest', methods=['POST'])(server.wxnearest)
     app.route('/wxrequests', methods=['POST'])(server.wxrequests)
     app.route('/test', methods=['GET'])(server.test)
+    app.route('/api/get', methods=['GET'])(server.aprsfi_location)
+    app.route('/api/v1/location', methods=['GET'])(server.location)
     LOG.debug(f'URL MAP: {app.url_map}')
     return app
 

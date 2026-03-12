@@ -95,13 +95,11 @@ class APRSPacketProcessorThread(threads.MyThread):
 
             self._save_packets_if_needed()
 
-            # Print stats periodically
+            # Print detailed stats periodically (every STATS_INTERVAL packets)
             with self.stats_lock:
                 counter = self.stats.get('packet_counter', 0)
             if counter % STATS_INTERVAL == 0:
                 self._print_stats()
-            if counter % 25 == 0:
-                logger.debug(f'Packet Counter: {counter}')
 
         except queue.Empty:
             self._save_packets_if_needed()

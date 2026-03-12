@@ -289,7 +289,6 @@ class MQTTThread(threads.MyThread):
 
             raw_payload = msg.payload.decode('utf-8').replace('\x00', '')
             aprs_data_raw = json.loads(raw_payload)
-            logger.debug(f'Raw packet data: {aprs_data_raw}')
 
             try:
                 aprsd_packet = core.factory(aprs_data_raw)
@@ -312,14 +311,9 @@ class MQTTThread(threads.MyThread):
                 self.last_stats_time = current_time
                 self._update_stats_attributes()
 
-            if self.counter % 25 == 0:
+            # Update stats periodically for other threads to access
+            if self.counter % 100 == 0:
                 self._update_stats_attributes()
-                with self.stats_lock:
-                    pkt_count = self.stats.get('packet_counter', 0)
-                    rpt_count = self.stats.get('report_counter', 0)
-                logger.debug(
-                    f'Loop:{self.counter}  Reports:{rpt_count}  Packets:{pkt_count}'
-                )
         except Exception as ex:
             logger.error(f'Error processing MQTT message: {ex}')
             logger.exception(ex)

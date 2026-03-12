@@ -33,7 +33,7 @@ def db(ctx):
 @click.version_option()
 def schema_init(ctx):
     """Initialize the database schema"""
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
 
     engine = haminfo_db._setup_connection()
     haminfo_db.init_db_schema(engine)
@@ -46,10 +46,10 @@ def schema_init(ctx):
 @click.version_option()
 def schema_upgrade(ctx):
     """Upgrade the database schema"""
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
 
-    #config = migrate._find_alembic_conf()
-    #env.run_migrations_online(config)
+    # config = migrate._find_alembic_conf()
+    # env.run_migrations_online(config)
     migrate.db_sync()
 
 
@@ -60,35 +60,37 @@ def schema_upgrade(ctx):
 @click.version_option()
 def schema_version(ctx):
     """Get the current database schema version and compare with latest available"""
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
 
     current_version = migrate.db_version()
     latest_version = migrate.db_latest_version()
 
     if current_version:
-        click.echo(f"Current Database Schema version: {current_version}")
-        LOG.info(f"Current Database Schema version: {current_version}")
+        click.echo(f'Current Database Schema version: {current_version}')
+        LOG.info(f'Current Database Schema version: {current_version}')
     else:
-        click.echo("Current Database Schema version: None (no migrations applied)")
-        LOG.info("Current Database Schema version: None (no migrations applied)")
+        click.echo('Current Database Schema version: None (no migrations applied)')
+        LOG.info('Current Database Schema version: None (no migrations applied)')
 
     if latest_version:
-        click.echo(f"Latest available migration version: {latest_version}")
-        LOG.info(f"Latest available migration version: {latest_version}")
+        click.echo(f'Latest available migration version: {latest_version}')
+        LOG.info(f'Latest available migration version: {latest_version}')
 
         # Compare versions
         if current_version == latest_version:
-            click.echo("✓ Database is up to date (at latest version)")
-            LOG.info("Database is up to date")
+            click.echo('✓ Database is up to date (at latest version)')
+            LOG.info('Database is up to date')
         elif current_version is None:
-            click.echo("⚠ Database is not initialized (no migrations applied)")
-            LOG.warning("Database is not initialized")
+            click.echo('⚠ Database is not initialized (no migrations applied)')
+            LOG.warning('Database is not initialized')
         else:
-            click.echo("⚠ Database is behind (needs upgrade)")
-            LOG.warning(f"Database version {current_version} is behind latest {latest_version}")
+            click.echo('⚠ Database is behind (needs upgrade)')
+            LOG.warning(
+                f'Database version {current_version} is behind latest {latest_version}'
+            )
     else:
-        click.echo("No migration files found in versions directory")
-        LOG.warning("No migration files found")
+        click.echo('No migration files found in versions directory')
+        LOG.warning('No migration files found')
 
 
 @db.command()
@@ -98,7 +100,7 @@ def schema_version(ctx):
 @click.version_option()
 def clean_wx_reports(ctx):
     """Clean out old weather reports"""
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
 
     db_session = haminfo_db.setup_session()
     session = db_session()
@@ -109,9 +111,45 @@ def clean_wx_reports(ctx):
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options
+@click.option(
+    '--days',
+    default=30,
+    type=int,
+    help='Number of days of data to retain (default: 30)',
+)
+@click.version_option()
+def clean_aprs_packets(ctx: click.Context, days: int) -> None:
+    """Clean out old APRS packets.
+
+    Deletes APRS packets with received_at older than the specified
+    number of days (default 30).
+
+    Args:
+        ctx: Click context (injected by @click.pass_context).
+        days: Number of days of data to retain.
+
+    Example:
+        haminfo db clean-aprs-packets --days 7
+    """
+    LOG.info('haminfo version: {}'.format(haminfo.__version__))
+
+    db_session = haminfo_db.setup_session()
+    session = db_session()
+    count = haminfo_db.clean_aprs_packets(session, days)
+    click.echo(f'Deleted {count} APRS packets older than {days} days')
+
+
+@db.command()
+@cli_helper.add_options(cli_helper.common_options)
+@click.pass_context
+@cli_helper.process_standard_options
 @click.argument('message', required=True)
-@click.option('--no-autogenerate', is_flag=True, default=False,
-              help='Create an empty migration without autogenerate')
+@click.option(
+    '--no-autogenerate',
+    is_flag=True,
+    default=False,
+    help='Create an empty migration without autogenerate',
+)
 @click.version_option()
 def schema_revision(ctx, message, no_autogenerate):
     """Create a new database schema migration revision
@@ -123,8 +161,8 @@ def schema_revision(ctx, message, no_autogenerate):
     Example:
         haminfo db schema-revision "add aprs_packet table"
     """
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
-    LOG.info(f"Creating migration revision: {message}")
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
+    LOG.info(f'Creating migration revision: {message}')
 
     autogenerate = not no_autogenerate
     migrate.db_revision(message, autogenerate=autogenerate)
@@ -135,25 +173,23 @@ def get_country_code(latitude, longitude, geolocator, max_retries=3):
     for attempt in range(max_retries):
         try:
             location = geolocator.reverse(
-                (latitude, longitude),
-                language="en",
-                addressdetails=True
+                (latitude, longitude), language='en', addressdetails=True
             )
-            if location and hasattr(location, "raw"):
-                address = location.raw.get("address")
-                if address and "country_code" in address:
-                    return address["country_code"].upper()
+            if location and hasattr(location, 'raw'):
+                address = location.raw.get('address')
+                if address and 'country_code' in address:
+                    return address['country_code'].upper()
             return None
         except (GeocoderTimedOut, GeocoderServiceError) as e:
             if attempt < max_retries - 1:
                 wait_time = (attempt + 1) * 2  # Exponential backoff: 2s, 4s, 6s
-                LOG.warning(f"Geocoding timeout/error, retrying in {wait_time}s...")
+                LOG.warning(f'Geocoding timeout/error, retrying in {wait_time}s...')
                 time.sleep(wait_time)
             else:
-                LOG.error(f"Failed after {max_retries} attempts: {e}")
+                LOG.error(f'Failed after {max_retries} attempts: {e}')
                 return None
         except Exception as e:
-            LOG.error(f"Unexpected error: {e}")
+            LOG.error(f'Unexpected error: {e}')
             return None
 
     return None
@@ -163,8 +199,16 @@ def get_country_code(latitude, longitude, geolocator, max_retries=3):
 @cli_helper.add_options(cli_helper.common_options)
 @click.pass_context
 @cli_helper.process_standard_options
-@click.option('--batch-size', default=10, help='Number of stations to process before committing (default: 10)')
-@click.option('--delay', default=1.1, help='Delay between geocoding requests in seconds (default: 1.1)')
+@click.option(
+    '--batch-size',
+    default=10,
+    help='Number of stations to process before committing (default: 10)',
+)
+@click.option(
+    '--delay',
+    default=1.1,
+    help='Delay between geocoding requests in seconds (default: 1.1)',
+)
 @click.version_option()
 def populate_country_codes(ctx, batch_size, delay):
     """Populate NULL country_code values in weather_station table using reverse geocoding.
@@ -181,61 +225,62 @@ def populate_country_codes(ctx, batch_size, delay):
     Example:
         haminfo db populate-country-codes
     """
-    LOG.info("haminfo_load version: {}".format(haminfo.__version__))
+    LOG.info('haminfo_load version: {}'.format(haminfo.__version__))
 
     db_session = haminfo_db.setup_session()
     session = db_session()
 
     # Get all stations with NULL country_code
-    stations = session.query(WeatherStation).filter(
-        WeatherStation.country_code.is_(None)
-    ).all()
+    stations = (
+        session.query(WeatherStation)
+        .filter(WeatherStation.country_code.is_(None))
+        .all()
+    )
 
     total = len(stations)
-    LOG.info(f"Found {total} weather stations with NULL country_code")
-    click.echo(f"Found {total} weather stations with NULL country_code")
+    LOG.info(f'Found {total} weather stations with NULL country_code')
+    click.echo(f'Found {total} weather stations with NULL country_code')
 
     if total == 0:
-        click.echo("No stations to update.")
+        click.echo('No stations to update.')
         return
 
     # Initialize geocoder
-    geolocator = Nominatim(user_agent="haminfo-country-code-updater")
+    geolocator = Nominatim(user_agent='haminfo-country-code-updater')
 
     updated = 0
     failed = 0
 
     for idx, station in enumerate(stations, 1):
-        click.echo(f"[{idx}/{total}] Processing {station.callsign} "
-              f"({station.latitude}, {station.longitude})...", nl=False)
-
-        country_code = get_country_code(
-            station.latitude,
-            station.longitude,
-            geolocator
+        click.echo(
+            f'[{idx}/{total}] Processing {station.callsign} '
+            f'({station.latitude}, {station.longitude})...',
+            nl=False,
         )
+
+        country_code = get_country_code(station.latitude, station.longitude, geolocator)
 
         if country_code:
             station.country_code = country_code
             session.add(station)
             updated += 1
-            click.echo(f" ✓ Set to {country_code}")
-            LOG.info(f"Updated {station.callsign} to {country_code}")
+            click.echo(f' ✓ Set to {country_code}')
+            LOG.info(f'Updated {station.callsign} to {country_code}')
         else:
             failed += 1
-            click.echo(" ✗ Failed to get country code")
-            LOG.warning(f"Failed to get country code for {station.callsign}")
+            click.echo(' ✗ Failed to get country code')
+            LOG.warning(f'Failed to get country code for {station.callsign}')
 
         # Commit every batch_size stations to avoid losing progress
         if idx % batch_size == 0:
             try:
                 session.commit()
-                click.echo(f"  Committed batch ({idx}/{total})")
-                LOG.info(f"Committed batch ({idx}/{total})")
+                click.echo(f'  Committed batch ({idx}/{total})')
+                LOG.info(f'Committed batch ({idx}/{total})')
             except Exception as e:
                 session.rollback()
-                click.echo(f"  Error committing batch: {e}")
-                LOG.error(f"Error committing batch: {e}")
+                click.echo(f'  Error committing batch: {e}')
+                LOG.error(f'Error committing batch: {e}')
 
         # Rate limiting - Nominatim allows 1 request per second
         time.sleep(delay)
@@ -243,10 +288,10 @@ def populate_country_codes(ctx, batch_size, delay):
     # Final commit
     try:
         session.commit()
-        click.echo(f"\nCompleted: {updated} updated, {failed} failed")
-        LOG.info(f"Completed: {updated} updated, {failed} failed")
+        click.echo(f'\nCompleted: {updated} updated, {failed} failed')
+        LOG.info(f'Completed: {updated} updated, {failed} failed')
     except Exception as e:
         session.rollback()
-        click.echo(f"\nError in final commit: {e}")
-        LOG.error(f"Error in final commit: {e}")
+        click.echo(f'\nError in final commit: {e}')
+        LOG.error(f'Error in final commit: {e}')
         sys.exit(1)

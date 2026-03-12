@@ -1,14 +1,16 @@
 #FROM python:3.11-slim AS prepare
 #FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
-FROM ghcr.io/astral-sh/uv:python3.13-trixie AS prepare
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
 
 # Dockerfile for building a container during aprsd development.
 ARG BRANCH
+ARG COMMIT_SHA
 ARG UID
 ARG GID
 
 ENV APP_GIT=https://github.com/hemna/haminfo.git
 ENV APP_BRANCH=${BRANCH:-master}
+ENV APP_COMMIT_SHA=${COMMIT_SHA:-}
 ENV VIRTUAL_ENV=/root/.venv
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
@@ -38,8 +40,20 @@ RUN uv venv
 RUN uv pip install -U "pip>=26.0" "virtualenv>=20.36.1" "filelock>=3.20.3" wheel
 RUN mkdir /config
 
-RUN git clone -b $APP_BRANCH $APP_GIT; \
-    uv pip install /app/haminfo;
+# Clone the repo and checkout specific commit SHA if provided for reproducibility
+# This ensures the image contains the exact revision that triggered the build
+# For PR builds, github.sha is a merge commit that doesn't exist in the repo,
+# so we fetch unshallow and try the checkout, falling back to HEAD if it fails
+# Note: CACHEBUST is echoed to bust Docker layer cache when commit changes
+RUN echo "Cache bust: $CACHEBUST" && \
+    git clone -b $APP_BRANCH $APP_GIT && \
+    cd /app/haminfo && \
+    if [ -n "$APP_COMMIT_SHA" ]; then \
+        git fetch --unshallow 2>/dev/null || true; \
+        git checkout $APP_COMMIT_SHA 2>/dev/null || echo "SHA not found, using branch HEAD"; \
+    fi && \
+    echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
+    cd /app && uv pip install --override /tmp/overrides.txt /app/haminfo
 
 RUN uv pip install oslo-config
 RUN mkdir -p /app/.config/haminfo
