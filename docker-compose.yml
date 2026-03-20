@@ -1,0 +1,107 @@
+services:
+  haminfo_db:
+    # image: postgis/postgis:15-3.3
+    image: ghcr.io/baosystems/postgis:15-3.3
+    restart: unless-stopped
+    container_name: haminfo_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-haminfo}
+      POSTGRES_USER: ${POSTGRES_USER:-haminfo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      PGDATA: /haminfo/db/data
+    ports:
+      - 5432:5432
+    volumes:
+        - ./data/db:/haminfo/db/data
+        - ./data/backup:/haminfo/backup
+    healthcheck:
+        test: ["CMD-SHELL", "pg_isready"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+    labels:
+        com.centurylinklabs.watchtower.enable: "false"
+
+  db_upgrade:
+    image: hemna6969/haminfo:001-aprs-position-reports
+    depends_on:
+        - "haminfo_db"
+    volumes:
+      - ./data/config:/config
+    entrypoint: /app/db_upgrade.sh
+
+  mqtt_injest:
+    image: hemna6969/haminfo:001-aprs-position-reports
+    restart: on-failure
+    depends_on:
+      db_upgrade:
+        condition: service_completed_successfully
+    volumes:
+      - ./data/config:/config
+    entrypoint: /app/run_mqtt.sh
+    labels:
+      deunhealth.restart.on.unhealthy: "true"
+    healthcheck:
+        #test: ["CMD", "aprsd-healthcheck", "check", "--timeout", "5", "--config", "/config/aprsd.yml", "--url", "http://192.168.1.22:8043/stats"]
+        #test: ["CMD", "aprsd-healthcheck", "check", "--timeout", "5", "--config", "/config/aprsd.yml", "--url", "http://192.168.1.22:8001/stats"]
+        test: ["CMD", "/app/.venv/bin/haminfo_mqtt_healthcheck"]
+        interval: 5m
+        timeout: 15s
+
+  haminfo_memcached:
+    image: ubuntu/memcached:latest
+    restart: unless-stopped
+    container_name: haminfo_memcached
+    ports:
+      - 11211:11211
+    environment:
+      TZ: America/New_York
+      MEMCACHED_CACHE_SIZE: 64MB
+      MEMCACHED_MAX_CONNECTIONS: 1024
+      MEMCACHED_THREADS: 4
+      MEMCACHED_USER: ${MEMCACHED_USER:-memcached}
+      MEMCACHED_PASSWORD: ${MEMCACHED_PASSWORD:?MEMCACHED_PASSWORD must be set}
+
+  haminfo_api:
+    image: hemna6969/haminfo:001-aprs-position-reports
+    restart: unless-stopped
+    container_name: haminfo_api
+    depends_on:
+      db_upgrade:
+        condition: service_completed_successfully
+      haminfo_db:
+        condition: service_started
+      haminfo_memcached:
+        condition: service_started
+    ports:
+      - 8081:8081
+    volumes:
+      - ./data/config:/config
+    environment:
+      - INIT_DB=False
+      - COLUMNS=160
+
+
+  haminfo_cron:
+    image: hemna6969/haminfo:001-aprs-position-reports
+    restart: unless-stopped
+    container_name: haminfo_cron
+    depends_on:
+        - "haminfo_api"
+    volumes:
+      - ./data/config:/config
+    entrypoint: /app/cron_entry.sh
+
+  haminfo_adminer:
+    image: adminer
+    restart: unless-stopped
+    container_name: haminfo_adminer
+    depends_on:
+        - "haminfo_db"
+    ports:
+      - 8066:8080
+
+networks:
+  default:
+    name: aprsd
+    external: true
