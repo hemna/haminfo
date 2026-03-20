@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import click
 import json
+import math
 import logging as python_logging
 import time as time_mod
 from datetime import datetime, timezone
@@ -433,7 +434,7 @@ class HaminfoFlask(flask_classful.FlaskView):
             )
 
             for st, distance, az in query:
-                degrees = az * 57.3
+                degrees = math.degrees(az)
                 cardinal = utils.degrees_to_cardinal(degrees)
                 dict_ = st.to_dict()
                 dict_['distance'] = f'{distance:.2f}'
@@ -487,7 +488,7 @@ class HaminfoFlask(flask_classful.FlaskView):
 
             for st, distance, az in query:
                 LOG.debug(f'Station {st}')
-                degrees = az * 57.3
+                degrees = math.degrees(az)
                 cardinal = utils.degrees_to_cardinal(degrees)
                 dict_ = st.to_dict()
 

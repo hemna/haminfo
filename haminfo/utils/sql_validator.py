@@ -7,7 +7,6 @@ while allowing safe SELECT queries against the haminfo database.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 
 # Tables that are allowed to be queried

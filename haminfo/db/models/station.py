@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import sqlalchemy as sa
 from geoalchemy2 import Geography
 from sqlalchemy.exc import NoResultFound
@@ -43,13 +45,25 @@ class Station(ModelBase):
     fm_analog = sa.Column(sa.Boolean)
     dmr = sa.Column(sa.Boolean)
     dstar = sa.Column(sa.Boolean)
+    # Timestamp tracking when haminfo last modified this record
+    updated_at = sa.Column(
+        sa.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
 
     def __repr__(self):
-        return ("<Station(callsign='{}', freq='{}', offset='{}', country='{}',"
-                "state='{}', county='{}')>".format(
-                    self.callsign, self.frequency, self.offset,
-                    self.country, self.state, self.county)
-                )
+        return (
+            "<Station(callsign='{}', freq='{}', offset='{}', country='{}',"
+            "state='{}', county='{}')>".format(
+                self.callsign,
+                self.frequency,
+                self.offset,
+                self.country,
+                self.state,
+                self.county,
+            )
+        )
 
     def to_dict(self):
         dict_ = {}
@@ -57,15 +71,23 @@ class Station(ModelBase):
             # LOG.debug("KEY {}".format(key))
             if key == 'last_update':
                 dict_[key] = str(getattr(self, key))
-            elif (key == "offset" or key == "uplink_offset"
-                  or key == "uplink_tone" or key == "downlink_tone"
-                  or key == "frequency" or key == "input_frequency"):
+            elif key == 'updated_at':
+                val = getattr(self, key)
+                dict_[key] = str(val) if val else None
+            elif (
+                key == 'offset'
+                or key == 'uplink_offset'
+                or key == 'uplink_tone'
+                or key == 'downlink_tone'
+                or key == 'frequency'
+                or key == 'input_frequency'
+            ):
                 val = getattr(self, key, 0.0)
                 if val and utils.isfloat(val):
                     val = float(val)
                 else:
                     val = 0.000
-                dict_[key] = "{:.4f}".format(val)
+                dict_[key] = '{:.4f}'.format(val)
             elif key == 'location':
                 # don't include this.
                 pass
@@ -76,9 +98,15 @@ class Station(ModelBase):
     @staticmethod
     def find_station_by_ids(session, state_id, repeater_id):
         try:
-            station = session.query(Station).filter(
-                sa.and_(Station.state_id == state_id,
-                        Station.repeater_id == repeater_id)).one()
+            station = (
+                session.query(Station)
+                .filter(
+                    sa.and_(
+                        Station.state_id == state_id, Station.repeater_id == repeater_id
+                    )
+                )
+                .one()
+            )
             return station
         except NoResultFound:
             return None
@@ -86,121 +114,89 @@ class Station(ModelBase):
     @staticmethod
     def find_station_by_callsign(session, callsign):
         try:
-            station = session.query(Station).filter(
-                Station.callsign == callsign
-            ).one()
+            station = session.query(Station).filter(Station.callsign == callsign).one()
             return station
         except NoResultFound:
             return None
 
     @staticmethod
+    def _parse_json_fields(r_json):
+        """Parse and normalize common fields from RepeaterBook JSON.
+
+        Returns a dict of field values ready to assign to a Station instance.
+        Handles default values and optional fields consistently.
+        """
+        # Normalize invalid date
+        last_update = r_json['Last Update']
+        if last_update == '0000-00-00':
+            last_update = '1970-10-24'
+
+        offset = float(r_json['Input Freq']) - float(r_json['Frequency'])
+        freq_band = utils.frequency_band_mhz(float(r_json['Frequency']))
+
+        fields = {
+            'last_update': last_update,
+            'frequency': r_json['Frequency'],
+            'input_frequency': r_json['Input Freq'],
+            'offset': offset,
+            'freq_band': freq_band,
+            'uplink_offset': r_json['PL'],
+            'downlink_offset': r_json['TSQ'],
+            'lat': r_json['Lat'],
+            'long': r_json['Long'],
+            'location': 'POINT({} {})'.format(r_json['Long'], r_json['Lat']),
+            'callsign': r_json['Callsign'],
+            'country': r_json['Country'],
+            'nearest_city': r_json['Nearest City'],
+            'landmark': r_json['Landmark'],
+            'operational_status': r_json['Operational Status'],
+            'use': r_json['Use'],
+            'allstar_node': utils.bool_from_str(r_json['AllStar Node']),
+            'echolink_node': utils.bool_from_str(r_json['EchoLink Node']),
+            'irlp_node': utils.bool_from_str(r_json['IRLP Node']),
+            'wires_node': utils.bool_from_str(r_json['Wires Node']),
+            'fm_analog': utils.bool_from_str(r_json['FM Analog']),
+            'dmr': utils.bool_from_str(r_json['DMR']),
+            'dstar': utils.bool_from_str(r_json['D-Star']),
+        }
+
+        # Optional fields with defaults
+        fields['state'] = r_json.get('State')
+        fields['county'] = r_json.get('County')
+        fields['ares'] = (
+            utils.bool_from_str(r_json['ARES']) if 'ARES' in r_json else False
+        )
+        fields['races'] = (
+            utils.bool_from_str(r_json['RACES']) if 'RACES' in r_json else False
+        )
+        fields['skywarn'] = (
+            utils.bool_from_str(r_json['SKYWARN']) if 'SKYWARN' in r_json else False
+        )
+        fields['canwarn'] = (
+            utils.bool_from_str(r_json['CANWARN']) if 'CANWARN' in r_json else False
+        )
+
+        return fields
+
+    @staticmethod
     def update_from_json(r_json, station):
-        if r_json["Last Update"] == "0000-00-00":
-            # no last update time?
-            r_json["Last Update"] = "1970-10-24"
+        """Update an existing Station from RepeaterBook JSON data."""
+        if not station:
+            return station
 
-        offset = float(r_json["Input Freq"]) - float(r_json["Frequency"])
+        fields = Station._parse_json_fields(r_json)
+        for key, value in fields.items():
+            setattr(station, key, value)
 
-        freq_band = utils.frequency_band_mhz(float(r_json["Frequency"]))
-
-        if station:
-            station.last_update = r_json["Last Update"]
-            station.frequency = r_json["Frequency"]
-            station.input_frequency = r_json["Input Freq"]
-            station.offset = offset
-            station.freq_band = freq_band
-            station.uplink_offset = r_json["PL"]
-            station.downlink_offset = r_json["TSQ"]
-            station.lat = r_json["Lat"]
-            station.long = r_json["Long"]
-            station.location = "POINT({} {})".format(r_json['Long'],
-                                                     r_json['Lat'])
-            station.callsign = r_json["Callsign"]
-            station.country = r_json["Country"]
-            if 'State' in r_json:
-                station.state = r_json["State"]
-            if 'County' in r_json:
-                station.county = r_json["County"]
-            station.nearest_city = r_json["Nearest City"]
-            station.landmark = r_json["Landmark"]
-            station.operational_status = r_json["Operational Status"]
-            station.use = r_json["Use"]
-            if 'ARES' in r_json:
-                station.ares = utils.bool_from_str(r_json["ARES"])
-            if 'RACES' in r_json:
-                station.races = utils.bool_from_str(r_json["RACES"])
-            if 'SKYWARN' in r_json:
-                station.skywarn = utils.bool_from_str(r_json["SKYWARN"])
-            if 'CANWARN' in r_json:
-                station.canwarn = utils.bool_from_str(r_json["CANWARN"])
-            station.allstar_node = utils.bool_from_str(r_json["AllStar Node"])
-            station.echolink_node = utils.bool_from_str(
-                r_json["EchoLink Node"])
-            station.irlp_node = utils.bool_from_str(r_json["IRLP Node"])
-            station.wires_node = utils.bool_from_str(r_json["Wires Node"])
-            station.fm_analog = utils.bool_from_str(r_json["FM Analog"])
-            station.dmr = utils.bool_from_str(r_json["DMR"])
-            station.dstar = utils.bool_from_str(r_json["D-Star"])
         return station
 
     @staticmethod
     def from_json(r_json):
+        """Create a new Station from RepeaterBook JSON data."""
+        fields = Station._parse_json_fields(r_json)
 
-        if r_json["Last Update"] == "0000-00-00":
-            # no last update time?
-            r_json["Last Update"] = "1970-10-24"
+        # Add primary key fields only present in new records
+        fields['state_id'] = r_json['State ID']
+        fields['repeater_id'] = r_json['Rptr ID']
 
-        offset = float(r_json["Input Freq"]) - float(r_json["Frequency"])
-
-        freq_band = utils.frequency_band_mhz(float(r_json["Frequency"]))
-
-        st = Station(state_id=r_json["State ID"],
-                     repeater_id=r_json["Rptr ID"],
-                     last_update=r_json["Last Update"],
-                     frequency=r_json["Frequency"],
-                     input_frequency=r_json["Input Freq"],
-                     offset=offset,
-                     freq_band=freq_band,
-                     uplink_offset=r_json["PL"],
-                     downlink_offset=r_json["TSQ"],
-                     lat=r_json["Lat"],
-                     long=r_json["Long"],
-                     location="POINT({} {})".format(r_json['Long'],
-                                                    r_json['Lat']),
-                     callsign=r_json["Callsign"],
-                     country=r_json["Country"],
-                     nearest_city=r_json["Nearest City"],
-                     landmark=r_json["Landmark"],
-                     operational_status=r_json["Operational Status"],
-                     use=r_json["Use"],
-                     allstar_node=utils.bool_from_str(r_json["AllStar Node"]),
-                     echolink_node=utils.bool_from_str(
-                         r_json["EchoLink Node"]),
-                     irlp_node=utils.bool_from_str(r_json["IRLP Node"]),
-                     wires_node=utils.bool_from_str(r_json["Wires Node"]),
-                     fm_analog=utils.bool_from_str(r_json["FM Analog"]),
-                     dmr=utils.bool_from_str(r_json["DMR"]),
-                     dstar=utils.bool_from_str(r_json["D-Star"]))
-
-        if "State" in r_json:
-            st.state = r_json["State"]
-        if "County" in r_json:
-            st.county = r_json["County"]
-
-        if 'ARES' in r_json:
-            st.ares = utils.bool_from_str(r_json["ARES"])
-        else:
-            st.ares = False
-        if 'RACES' in r_json:
-            st.races = utils.bool_from_str(r_json["RACES"])
-        else:
-            st.races = False
-        if 'SKYWARN' in r_json:
-            st.skywarn = utils.bool_from_str(r_json["SKYWARN"])
-        else:
-            st.skywarn = False
-        if 'CANWARN' in r_json:
-            st.canwarn = utils.bool_from_str(r_json["CANWARN"])
-        else:
-            st.canwarn = False
-        return st
+        return Station(**fields)

@@ -1,3 +1,11 @@
+"""MQTT ingestion module for APRS and weather data.
+
+.. deprecated::
+    This module filename contains a typo ('injest' instead of 'ingest').
+    It will be renamed to 'mqtt_ingest.py' in a future release.
+    Please update any direct imports when this migration occurs.
+"""
+
 import click
 import datetime
 import json
@@ -31,32 +39,31 @@ LOG = logging.getLogger(utils.DOMAIN)
 
 
 def signal_handler(sig, frame):
-    click.echo("signal_handler: called")
+    click.echo('signal_handler: called')
     threads.MyThreadList().stop_all()
-    if "subprocess" not in str(frame):
+    if 'subprocess' not in str(frame):
         LOG.info(
-            "Ctrl+C, Sending all threads exit! Can take up to 10 seconds {}".format(
+            'Ctrl+C, Sending all threads exit! Can take up to 10 seconds {}'.format(
                 datetime.datetime.now(),
             ),
         )
         time.sleep(1.5)
 
-@cached(cache=TTLCache(maxsize=640*1024, ttl=300))
+
+@cached(cache=TTLCache(maxsize=640 * 1024, ttl=300))
 def get_location(coordinates):
-    nom = Nominatim(user_agent="haminfo")
+    nom = Nominatim(user_agent='haminfo')
     location = None
     try:
         location = nom.geocode(
             coordinates,
-            language="en",
+            language='en',
             addressdetails=True,
         )
     except Exception as ex:
-        LOG.error(f"Failed to get location for {coordinates}")
+        LOG.error(f'Failed to get location for {coordinates}')
         location = None
     return location
-
-
 
 
 class APRSPacketFilter:
@@ -65,6 +72,7 @@ class APRSPacketFilter:
     def filter(self, packet):
         if not isinstance(packet, core.Packet):
             return None
+
 
 class WeatherPacketFilter:
     """Filter that processes weather packets and saves them to the database."""
@@ -89,20 +97,23 @@ class WeatherPacketFilter:
             else:
                 # Fallback to to_json() and parse
                 aprs_data_json = packet.to_json()
-                aprs_data = json.loads(aprs_data_json) if isinstance(aprs_data_json, str) else aprs_data_json
+                aprs_data = (
+                    json.loads(aprs_data_json)
+                    if isinstance(aprs_data_json, str)
+                    else aprs_data_json
+                )
         except Exception as ex:
-            LOG.error(f"Failed to convert aprsd packet to dict: {ex}")
+            LOG.error(f'Failed to convert aprsd packet to dict: {ex}')
             return None
 
         # Build the DB model object and insert it
         station = None
         try:
             station = WeatherStation.find_station_by_callsign(
-                self.session,
-                aprs_data["from_call"]
+                self.session, aprs_data['from_call']
             )
         except Exception as ex:
-            LOG.error(f"Failed to find station {aprs_data['from_call']}")
+            LOG.error(f'Failed to find station {aprs_data["from_call"]}')
             LOG.exception(ex)
             pass
 
@@ -111,33 +122,35 @@ class WeatherPacketFilter:
             station = WeatherStation.from_json(aprs_data)
             if station:
                 # Get the country code
-                coordinates = f"{station.latitude:0.6f}, {station.longitude:0.6f}"
+                coordinates = f'{station.latitude:0.6f}, {station.longitude:0.6f}'
                 location = get_location(coordinates)
-                if location and hasattr(location, "raw"):
-                    address = location.raw.get("address")
+                if location and hasattr(location, 'raw'):
+                    address = location.raw.get('address')
                     if address:
-                        station.country_code = address["country_code"]
+                        station.country_code = address['country_code']
                     else:
-                        LOG.error(f"Failed to find address for {coordinates}")
+                        LOG.error(f'Failed to find address for {coordinates}')
                 try:
                     self.session.add(station)
                     self.session.commit()
                 except Exception as ex:
                     self.session.rollback()
-                    LOG.error("Failed getting/creating station for "
-                              f"report {aprs_data['from_call']}")
+                    LOG.error(
+                        'Failed getting/creating station for '
+                        f'report {aprs_data["from_call"]}'
+                    )
                     LOG.error(ex.__cause__)
                     return None
             else:
                 # Failed to get station from json
-                LOG.warning("Failed to get station from json.")
+                LOG.warning('Failed to get station from json.')
                 return None
 
         try:
             report = WeatherReport.from_json(aprs_data, station.id)
         except Exception as ex:
             LOG.error(aprs_data)
-            LOG.error("Failed to create WeatherReport because")
+            LOG.error('Failed to create WeatherReport because')
             LOG.exception(ex)
             return None
 
@@ -146,7 +159,9 @@ class WeatherPacketFilter:
             if report.is_valid():
                 self.reports.append(report)
                 with self.stats_lock:
-                    self.stats['report_counter'] = self.stats.get('report_counter', 0) + 1
+                    self.stats['report_counter'] = (
+                        self.stats.get('report_counter', 0) + 1
+                    )
                 return packet
             else:
                 return None
@@ -157,7 +172,7 @@ class WeatherPacketFilter:
             return None
         except Exception as ex:
             self.session.rollback()
-            LOG.error("Failed to add_wx_report {report}")
+            LOG.error('Failed to add_wx_report {report}')
             LOG.error(ex)
             return None
 
@@ -173,7 +188,7 @@ class APRSPacketProcessorThread(threads.MyThread):
     """Thread that processes all APRS packets from a queue."""
 
     def __init__(self, packet_queue, session, stats, stats_lock):
-        super().__init__("APRSPacketProcessorThread")
+        super().__init__('APRSPacketProcessorThread')
         self.packet_queue = packet_queue
         self.session = session
         self.stats = stats
@@ -192,9 +207,13 @@ class APRSPacketProcessorThread(threads.MyThread):
                 else:
                     # Fallback to to_json() and parse
                     aprs_data_json = aprsd_packet.to_json()
-                    aprs_data = json.loads(aprs_data_json) if isinstance(aprs_data_json, str) else aprs_data_json
+                    aprs_data = (
+                        json.loads(aprs_data_json)
+                        if isinstance(aprs_data_json, str)
+                        else aprs_data_json
+                    )
             except Exception as ex:
-                LOG.error(f"Failed to convert aprsd packet to dict: {ex}")
+                LOG.error(f'Failed to convert aprsd packet to dict: {ex}')
                 return True
 
             # Track unique callsigns
@@ -211,23 +230,31 @@ class APRSPacketProcessorThread(threads.MyThread):
                 self.aprs_packets.append(aprs_packet)
 
                 with self.stats_lock:
-                    self.stats['packet_counter'] = self.stats.get('packet_counter', 0) + 1
+                    self.stats['packet_counter'] = (
+                        self.stats.get('packet_counter', 0) + 1
+                    )
 
                     # Track packet type from aprsd packet object
                     packet_type = getattr(aprsd_packet, 'packet_type', None)
                     if not packet_type:
-                        packet_type = getattr(aprs_packet, 'packet_type', None) or "unknown"
+                        packet_type = (
+                            getattr(aprs_packet, 'packet_type', None) or 'unknown'
+                        )
 
                     if 'packet_types' not in self.stats:
                         self.stats['packet_types'] = {}
-                    self.stats['packet_types'][packet_type] = self.stats['packet_types'].get(packet_type, 0) + 1
+                    self.stats['packet_types'][packet_type] = (
+                        self.stats['packet_types'].get(packet_type, 0) + 1
+                    )
             except Exception as ex:
-                LOG.error(f"Failed to create APRSPacket from JSON: {ex}")
-                LOG.debug(f"Packet data: {aprs_data}")
+                LOG.error(f'Failed to create APRSPacket from JSON: {ex}')
+                LOG.debug(f'Packet data: {aprs_data}')
                 with self.stats_lock:
                     if 'packet_types' not in self.stats:
                         self.stats['packet_types'] = {}
-                    self.stats['packet_types']["failed"] = self.stats['packet_types'].get("failed", 0) + 1
+                    self.stats['packet_types']['failed'] = (
+                        self.stats['packet_types'].get('failed', 0) + 1
+                    )
 
             # Save packets periodically
             self._save_packets_if_needed()
@@ -239,14 +266,14 @@ class APRSPacketProcessorThread(threads.MyThread):
                 self._print_stats()
 
             if counter % 25 == 0:
-                LOG.debug(f"Packet Counter: {counter}")
+                LOG.debug(f'Packet Counter: {counter}')
 
         except queue.Empty:
             # Timeout - check if we should save any pending packets
             self._save_packets_if_needed()
             return True
         except Exception as ex:
-            LOG.error(f"Error processing APRS packet: {ex}")
+            LOG.error(f'Error processing APRS packet: {ex}')
             LOG.exception(ex)
             return True
 
@@ -257,20 +284,22 @@ class APRSPacketProcessorThread(threads.MyThread):
         if len(self.aprs_packets) >= 200:
             try:
                 packets_to_save = len(self.aprs_packets)
-                LOG.info(f"Saving {packets_to_save} APRS packets to DB.")
+                LOG.info(f'Saving {packets_to_save} APRS packets to DB.')
                 tic = time.perf_counter()
                 self.session.bulk_save_objects(self.aprs_packets)
                 self.session.commit()
                 toc = time.perf_counter()
 
                 with self.stats_lock:
-                    self.stats['packets_saved'] = self.stats.get('packets_saved', 0) + packets_to_save
+                    self.stats['packets_saved'] = (
+                        self.stats.get('packets_saved', 0) + packets_to_save
+                    )
 
-                LOG.info(f"Time to save APRS packets = {toc - tic:0.4f}")
+                LOG.info(f'Time to save APRS packets = {toc - tic:0.4f}')
                 self.aprs_packets = []
             except Exception as ex:
                 self.session.rollback()
-                LOG.error(f"Failed to save APRS packets: {ex}")
+                LOG.error(f'Failed to save APRS packets: {ex}')
                 LOG.exception(ex)
                 # Drop the packets to avoid memory issues
                 self.aprs_packets = []
@@ -284,39 +313,41 @@ class APRSPacketProcessorThread(threads.MyThread):
             packet_types = self.stats.get('packet_types', {})
             start_time = self.stats.get('start_time')
 
-        separator = "=" * 80
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
-        logger.opt(colors=True).info("<bold><cyan>APRS Packet Processing Statistics</cyan></bold>")
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
+        separator = '=' * 80
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
         logger.opt(colors=True).info(
-            f"Total packets processed: <green>{packet_counter}</green>"
+            '<bold><cyan>APRS Packet Processing Statistics</cyan></bold>'
+        )
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
+        logger.opt(colors=True).info(
+            f'Total packets processed: <green>{packet_counter}</green>'
         )
         logger.opt(colors=True).info(
-            f"Total packets saved to database: <green>{packets_saved}</green>"
+            f'Total packets saved to database: <green>{packets_saved}</green>'
         )
         logger.opt(colors=True).info(
-            f"Packets pending save: <yellow>{len(self.aprs_packets)}</yellow>"
+            f'Packets pending save: <yellow>{len(self.aprs_packets)}</yellow>'
         )
         logger.opt(colors=True).info(
-            f"Unique callsigns seen: <cyan>{unique_callsigns}</cyan>"
+            f'Unique callsigns seen: <cyan>{unique_callsigns}</cyan>'
         )
 
         if packet_types:
-            logger.opt(colors=True).info("")
-            logger.opt(colors=True).info("<bold>Packet Type Breakdown:</bold>")
+            logger.opt(colors=True).info('')
+            logger.opt(colors=True).info('<bold>Packet Type Breakdown:</bold>')
             sorted_types = sorted(
-                packet_types.items(),
-                key=lambda x: x[1],
-                reverse=True
+                packet_types.items(), key=lambda x: x[1], reverse=True
             )
             for packet_type, count in sorted_types:
                 percentage = (count / packet_counter * 100) if packet_counter > 0 else 0
-                packet_type_str = f"{packet_type:20s}"
-                count_str = f"{count:6d}"
-                percentage_str = f"{percentage:5.1f}%"
-                color_tag = "green" if count > 100 else "yellow" if count > 10 else "red"
+                packet_type_str = f'{packet_type:20s}'
+                count_str = f'{count:6d}'
+                percentage_str = f'{percentage:5.1f}%'
+                color_tag = (
+                    'green' if count > 100 else 'yellow' if count > 10 else 'red'
+                )
                 logger.opt(colors=True).info(
-                    f"  <cyan>{packet_type_str}</cyan>: <{color_tag}>{count_str}</{color_tag}> (<magenta>{percentage_str}</magenta>)"
+                    f'  <cyan>{packet_type_str}</cyan>: <{color_tag}>{count_str}</{color_tag}> (<magenta>{percentage_str}</magenta>)'
                 )
 
         if start_time and packet_counter > 0:
@@ -324,35 +355,39 @@ class APRSPacketProcessorThread(threads.MyThread):
             if elapsed > 0:
                 rate = packet_counter / elapsed
                 save_rate = packets_saved / elapsed if packets_saved > 0 else 0
-                logger.opt(colors=True).info("")
+                logger.opt(colors=True).info('')
                 logger.opt(colors=True).info(
-                    f"Average processing rate: <green>{rate:.2f}</green> packets/second"
+                    f'Average processing rate: <green>{rate:.2f}</green> packets/second'
                 )
                 logger.opt(colors=True).info(
-                    f"Average save rate: <green>{save_rate:.2f}</green> packets/second"
+                    f'Average save rate: <green>{save_rate:.2f}</green> packets/second'
                 )
                 logger.opt(colors=True).info(
-                    f"Uptime: <cyan>{elapsed:.0f}</cyan> seconds (<cyan>{elapsed/60:.1f}</cyan> minutes)"
+                    f'Uptime: <cyan>{elapsed:.0f}</cyan> seconds (<cyan>{elapsed / 60:.1f}</cyan> minutes)'
                 )
 
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
 
     def _cleanup(self):
         """Save any remaining packets before stopping."""
         if self.aprs_packets:
             try:
                 packets_to_save = len(self.aprs_packets)
-                LOG.info(f"Saving {packets_to_save} remaining APRS packets before shutdown.")
+                LOG.info(
+                    f'Saving {packets_to_save} remaining APRS packets before shutdown.'
+                )
                 self.session.bulk_save_objects(self.aprs_packets)
                 self.session.commit()
 
                 with self.stats_lock:
-                    self.stats['packets_saved'] = self.stats.get('packets_saved', 0) + packets_to_save
+                    self.stats['packets_saved'] = (
+                        self.stats.get('packets_saved', 0) + packets_to_save
+                    )
 
                 self.aprs_packets = []
             except Exception as ex:
                 self.session.rollback()
-                LOG.error(f"Failed to save remaining APRS packets: {ex}")
+                LOG.error(f'Failed to save remaining APRS packets: {ex}')
                 LOG.exception(ex)
 
 
@@ -360,13 +395,15 @@ class WeatherPacketProcessorThread(threads.MyThread):
     """Thread that processes weather packets from a queue using WeatherPacketFilter."""
 
     def __init__(self, packet_queue, session, stats, stats_lock):
-        super().__init__("WeatherPacketProcessorThread")
+        super().__init__('WeatherPacketProcessorThread')
         self.packet_queue = packet_queue
         self.session = session
         self.stats = stats
         self.stats_lock = stats_lock
         self.reports = []
-        self.weather_filter = WeatherPacketFilter(session, stats, stats_lock, self.reports)
+        self.weather_filter = WeatherPacketFilter(
+            session, stats, stats_lock, self.reports
+        )
 
     def loop(self):
         try:
@@ -391,7 +428,7 @@ class WeatherPacketProcessorThread(threads.MyThread):
             self._save_reports()
             return True
         except Exception as ex:
-            LOG.error(f"Error processing weather packet: {ex}")
+            LOG.error(f'Error processing weather packet: {ex}')
             LOG.exception(ex)
             return True
 
@@ -403,24 +440,24 @@ class WeatherPacketProcessorThread(threads.MyThread):
             return
 
         try:
-            LOG.info(f"Saving {len(self.reports)} weather reports to DB.")
+            LOG.info(f'Saving {len(self.reports)} weather reports to DB.')
             tic = time.perf_counter()
             self.session.bulk_save_objects(self.reports)
             self.session.commit()
             toc = time.perf_counter()
-            LOG.warning(f"Time to save weather reports = {toc - tic:0.4f}")
+            LOG.warning(f'Time to save weather reports = {toc - tic:0.4f}')
             self.reports = []
         except ValueError as ex:
             self.session.rollback()
-            LOG.error(f"Failed for report {self.reports}")
+            LOG.error(f'Failed for report {self.reports}')
             LOG.exception(ex)
             for r in self.reports:
                 if '\x00' in r.raw_report:
-                    LOG.error(f"Null char in {r}")
+                    LOG.error(f'Null char in {r}')
             self.reports = []
         except Exception as ex:
             self.session.rollback()
-            LOG.error(f"Failed for report {self.reports}")
+            LOG.error(f'Failed for report {self.reports}')
             LOG.exception(ex)
             # Just drop all the reports
             self.reports = []
@@ -429,13 +466,15 @@ class WeatherPacketProcessorThread(threads.MyThread):
         """Save any remaining weather reports before stopping."""
         if self.reports:
             try:
-                LOG.info(f"Saving {len(self.reports)} remaining weather reports before shutdown.")
+                LOG.info(
+                    f'Saving {len(self.reports)} remaining weather reports before shutdown.'
+                )
                 self.session.bulk_save_objects(self.reports)
                 self.session.commit()
                 self.reports = []
             except Exception as ex:
                 self.session.rollback()
-                LOG.error(f"Failed to save remaining weather reports: {ex}")
+                LOG.error(f'Failed to save remaining weather reports: {ex}')
                 LOG.exception(ex)
 
 
@@ -447,7 +486,7 @@ class MQTTThread(threads.MyThread):
     start_time = None
 
     def __init__(self, packet_queue, stats, stats_lock):
-        super().__init__("MQTTThread")
+        super().__init__('MQTTThread')
         self.packet_queue = packet_queue
         self.stats = stats
         self.stats_lock = stats_lock
@@ -463,10 +502,12 @@ class MQTTThread(threads.MyThread):
         self.max_reconnect_delay = 60  # Max 60 seconds between attempts
         self.connection_check_interval = 5  # Check connection every 5 seconds
         self.last_message_time = time.time()  # Track last message received
-        self.message_timeout = 300  # Consider connection dead if no messages for 5 minutes
+        self.message_timeout = (
+            300  # Consider connection dead if no messages for 5 minutes
+        )
         self.reconnecting = False  # Flag to prevent concurrent reconnection attempts
         self.reconnect_lock = threading.Lock()  # Lock for reconnection operations
-        LOG.info("MQTTThread initialized")
+        LOG.info('MQTTThread initialized')
         self.setup()
 
     def _update_stats_attributes(self):
@@ -482,9 +523,9 @@ class MQTTThread(threads.MyThread):
     def _connect(self):
         """Connect to MQTT broker with error handling."""
         try:
-            LOG.info("Creating MQTT Client")
+            LOG.info('Creating MQTT Client')
             # Generate a client id based on date and time.
-            client_id = f"Haminfo-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+            client_id = f'Haminfo-{datetime.datetime.now().strftime("%Y%m%d%H%M%S")}'
             self.client = mqtt.Client(
                 callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
                 client_id=client_id,
@@ -493,34 +534,31 @@ class MQTTThread(threads.MyThread):
             self.client.on_message = self.on_message
             self.client.on_disconnect = self.on_disconnect
             self.client.on_connect_fail = self.on_connect_fail
-            
+
             if CONF.mqtt.user:
                 self.client.username_pw_set(
-                    username=CONF.mqtt.user,
-                    password=CONF.mqtt.password
+                    username=CONF.mqtt.user, password=CONF.mqtt.password
                 )
             else:
-                LOG.info("Not using username/password to auth with MQTT")
-            
-            LOG.info(f"Connecting to MQTT broker at {CONF.mqtt.host_ip}:{CONF.mqtt.host_port}")
-            # Set a connection timeout
-            self.client.connect(
-                CONF.mqtt.host_ip,
-                CONF.mqtt.host_port,
-                keepalive=60
+                LOG.info('Not using username/password to auth with MQTT')
+
+            LOG.info(
+                f'Connecting to MQTT broker at {CONF.mqtt.host_ip}:{CONF.mqtt.host_port}'
             )
+            # Set a connection timeout
+            self.client.connect(CONF.mqtt.host_ip, CONF.mqtt.host_port, keepalive=60)
             self.client.loop_start()  # Start the network loop in background
             self.connection_attempts += 1
-            
+
             # Give connection a moment to establish
             time.sleep(0.5)
-            
+
         except (ConnectionError, OSError) as ex:
-            LOG.error(f"Network error connecting to MQTT broker: {ex}")
+            LOG.error(f'Network error connecting to MQTT broker: {ex}')
             self.connected = False
             self.client = None
         except Exception as ex:
-            LOG.error(f"Failed to create/connect MQTT client: {ex}")
+            LOG.error(f'Failed to create/connect MQTT client: {ex}')
             LOG.exception(ex)
             self.connected = False
             self.client = None
@@ -533,43 +571,47 @@ class MQTTThread(threads.MyThread):
             # or if we're shutting down
             if self.thread_stop or self.reconnecting:
                 return
-            
+
             self.reconnecting = True
-        
+
         try:
             if self.client:
                 try:
-                    LOG.info("Disconnecting existing client before reconnect")
+                    LOG.info('Disconnecting existing client before reconnect')
                     self.client.loop_stop()
                     # Give the loop a moment to stop
                     time.sleep(0.5)
                 except Exception as ex:
-                    LOG.warning(f"Error stopping client loop: {ex}")
+                    LOG.warning(f'Error stopping client loop: {ex}')
                 try:
                     self.client.disconnect()
                 except Exception as ex:
-                    LOG.warning(f"Error disconnecting client: {ex}")
+                    LOG.warning(f'Error disconnecting client: {ex}')
                 finally:
                     self.client = None
-            
+
             self.connected = False
-            
+
             # Exponential backoff: wait before reconnecting
             delay = min(self.reconnect_delay, self.max_reconnect_delay)
-            LOG.info(f"Waiting {delay} seconds before reconnecting (attempt {self.connection_attempts})")
-            
+            LOG.info(
+                f'Waiting {delay} seconds before reconnecting (attempt {self.connection_attempts})'
+            )
+
             # Sleep in small increments to check for thread_stop
             slept = 0
             while slept < delay and not self.thread_stop:
                 time.sleep(min(1, delay - slept))
                 slept += 1
-            
+
             if self.thread_stop:
                 return
-            
+
             # Increase delay for next attempt (exponential backoff)
-            self.reconnect_delay = min(self.reconnect_delay * 2, self.max_reconnect_delay)
-            
+            self.reconnect_delay = min(
+                self.reconnect_delay * 2, self.max_reconnect_delay
+            )
+
             # Attempt reconnection
             self._connect()
         finally:
@@ -579,37 +621,41 @@ class MQTTThread(threads.MyThread):
     def _check_connection_health(self):
         """Check if MQTT connection is healthy."""
         current_time = time.time()
-        
+
         # Don't check too frequently
         if current_time - self.last_connection_check < self.connection_check_interval:
             return
-        
+
         self.last_connection_check = current_time
-        
+
         # Don't check if we're already reconnecting
         if self.reconnecting:
             return
-        
+
         # Check if client exists
         if not self.client:
-            LOG.warning("MQTT client is None, reconnecting...")
+            LOG.warning('MQTT client is None, reconnecting...')
             self._reconnect()
             return
-        
+
         # Check if we're connected
         if not self.connected:
-            LOG.warning("MQTT client not connected, reconnecting...")
+            LOG.warning('MQTT client not connected, reconnecting...')
             self._reconnect()
             return
-        
+
         # Check if client's internal state indicates connection
         try:
             # Check if the network loop is running
-            if not hasattr(self.client, '_thread') or not self.client._thread or not self.client._thread.is_alive():
-                LOG.warning("MQTT network loop not running, reconnecting...")
+            if (
+                not hasattr(self.client, '_thread')
+                or not self.client._thread
+                or not self.client._thread.is_alive()
+            ):
+                LOG.warning('MQTT network loop not running, reconnecting...')
                 self._reconnect()
                 return
-            
+
             # Check if we've received messages recently (connection might be dead)
             # Only check this if we've been connected for a while (give it time to receive first message)
             time_since_start = current_time - self.start_time
@@ -617,12 +663,12 @@ class MQTTThread(threads.MyThread):
                 time_since_last_message = current_time - self.last_message_time
                 if time_since_last_message > self.message_timeout:
                     LOG.warning(
-                        f"No messages received for {time_since_last_message:.0f} seconds "
-                        f"(timeout: {self.message_timeout}), reconnecting..."
+                        f'No messages received for {time_since_last_message:.0f} seconds '
+                        f'(timeout: {self.message_timeout}), reconnecting...'
                     )
                     self._reconnect()
                     return
-                
+
         except AttributeError:
             # _thread attribute might not exist in some versions
             # Try to ping the broker instead
@@ -634,25 +680,27 @@ class MQTTThread(threads.MyThread):
             except Exception:
                 pass
         except Exception as ex:
-            LOG.warning(f"Error checking connection health: {ex}")
+            LOG.warning(f'Error checking connection health: {ex}')
             LOG.exception(ex)
             # If we can't check health, try reconnecting
             self._reconnect()
 
     def on_connect_fail(self, client, userdata):
         """Called when connection fails."""
-        LOG.error("MQTT connection failed")
+        LOG.error('MQTT connection failed')
         self.connected = False
         # Don't reconnect here, let the health check handle it
 
     def on_disconnect(self, client, userdata, flags, rc, properties=None):
         """Called when client disconnects."""
         if rc == 0:
-            LOG.info("MQTT client disconnected cleanly")
+            LOG.info('MQTT client disconnected cleanly')
         else:
-            LOG.warning(f"MQTT client disconnected unexpectedly (rc={rc}, flags={flags})")
+            LOG.warning(
+                f'MQTT client disconnected unexpectedly (rc={rc}, flags={flags})'
+            )
         self.connected = False
-        
+
         # If disconnect was unexpected, trigger reconnection
         if rc != 0:
             # Reset reconnect delay on unexpected disconnect
@@ -662,8 +710,8 @@ class MQTTThread(threads.MyThread):
         """Called when client connects to broker."""
         if rc == 0:
             LOG.info(
-                f"Connected to mqtt://{CONF.mqtt.host_ip}:{CONF.mqtt.host_port}"
-                f"/{CONF.mqtt.topic} (rc={rc})"
+                f'Connected to mqtt://{CONF.mqtt.host_ip}:{CONF.mqtt.host_port}'
+                f'/{CONF.mqtt.topic} (rc={rc})'
             )
             self.connected = True
             self.connection_attempts = 0  # Reset on successful connection
@@ -671,13 +719,13 @@ class MQTTThread(threads.MyThread):
             self.last_message_time = time.time()  # Reset message timer
             try:
                 client.subscribe(CONF.mqtt.topic)
-                LOG.info(f"Subscribed to topic: {CONF.mqtt.topic}")
+                LOG.info(f'Subscribed to topic: {CONF.mqtt.topic}')
             except Exception as ex:
-                LOG.error(f"Failed to subscribe to topic {CONF.mqtt.topic}: {ex}")
+                LOG.error(f'Failed to subscribe to topic {CONF.mqtt.topic}: {ex}')
                 LOG.exception(ex)
                 self.connected = False
         else:
-            LOG.error(f"Failed to connect to MQTT broker (rc={rc})")
+            LOG.error(f'Failed to connect to MQTT broker (rc={rc})')
             self.connected = False
 
     def on_message(self, client, userdata, msg):
@@ -686,15 +734,15 @@ class MQTTThread(threads.MyThread):
             self.counter += 1
             self.last_message_time = time.time()  # Update last message time
             aprs_data_raw = json.loads(msg.payload.decode('utf-8').replace('\x00', ''))
-            LOG.debug(f"Raw packet data: {aprs_data_raw}")
+            LOG.debug(f'Raw packet data: {aprs_data_raw}')
 
             # Try to convert the packet to an aprsd packet object
             aprsd_packet = None
             try:
                 aprsd_packet = core.factory(aprs_data_raw)
             except Exception as ex:
-                LOG.error(f"Failed to convert to aprsd packet object: {ex}")
-                LOG.debug(f"Packet data: {aprs_data_raw}")
+                LOG.error(f'Failed to convert to aprsd packet object: {ex}')
+                LOG.debug(f'Packet data: {aprs_data_raw}')
                 LOG.exception(ex)
                 return False
 
@@ -703,7 +751,7 @@ class MQTTThread(threads.MyThread):
                 try:
                     self.packet_queue.put_nowait(aprsd_packet)
                 except queue.Full:
-                    LOG.warning("APRS packet queue is full, dropping packet")
+                    LOG.warning('APRS packet queue is full, dropping packet')
 
             # Print stats periodically (every 500 packets or every 60 seconds)
             current_time = time.time()
@@ -719,11 +767,13 @@ class MQTTThread(threads.MyThread):
                     report_counter = self.stats.get('report_counter', 0)
                 # Update attributes for KeepAliveThread compatibility
                 self._update_stats_attributes()
-                LOG.debug(f"Loop counter:{self.counter}  "
-                          f"Report Counter:{report_counter}  "
-                          f"Packet Counter:{packet_counter}")
+                LOG.debug(
+                    f'Loop counter:{self.counter}  '
+                    f'Report Counter:{report_counter}  '
+                    f'Packet Counter:{packet_counter}'
+                )
         except Exception as ex:
-            LOG.error(f"Error processing MQTT message: {ex}")
+            LOG.error(f'Error processing MQTT message: {ex}')
             LOG.exception(ex)
             return False
 
@@ -736,48 +786,50 @@ class MQTTThread(threads.MyThread):
             unique_callsigns = len(self.stats.get('unique_callsigns', set()))
             packet_types = self.stats.get('packet_types', {}).copy()
 
-        separator = "=" * 80
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
-        logger.opt(colors=True).info("<bold><cyan>MQTT Ingestion Statistics</cyan></bold>")
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
+        separator = '=' * 80
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
         logger.opt(colors=True).info(
-            f"Total packets ingested from MQTT: <green>{self.counter}</green>"
+            '<bold><cyan>MQTT Ingestion Statistics</cyan></bold>'
+        )
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
+        logger.opt(colors=True).info(
+            f'Total packets ingested from MQTT: <green>{self.counter}</green>'
         )
         logger.opt(colors=True).info(
-            f"Total packets processed: <green>{packet_counter}</green>"
+            f'Total packets processed: <green>{packet_counter}</green>'
         )
         logger.opt(colors=True).info(
-            f"Total packets saved to database: <green>{packets_saved}</green>"
+            f'Total packets saved to database: <green>{packets_saved}</green>'
         )
         logger.opt(colors=True).info(
-            f"Packets pending in queue: <yellow>{self.packet_queue.qsize()}</yellow>"
+            f'Packets pending in queue: <yellow>{self.packet_queue.qsize()}</yellow>'
         )
         logger.opt(colors=True).info(
-            f"Weather reports processed: <green>{report_counter}</green>"
+            f'Weather reports processed: <green>{report_counter}</green>'
         )
         logger.opt(colors=True).info(
-            f"Unique callsigns seen: <cyan>{unique_callsigns}</cyan>"
+            f'Unique callsigns seen: <cyan>{unique_callsigns}</cyan>'
         )
 
         if packet_types:
-            logger.opt(colors=True).info("")
-            logger.opt(colors=True).info("<bold>Packet Type Breakdown:</bold>")
+            logger.opt(colors=True).info('')
+            logger.opt(colors=True).info('<bold>Packet Type Breakdown:</bold>')
             # Sort by count (descending)
             sorted_types = sorted(
-                packet_types.items(),
-                key=lambda x: x[1],
-                reverse=True
+                packet_types.items(), key=lambda x: x[1], reverse=True
             )
             for packet_type, count in sorted_types:
                 percentage = (count / packet_counter * 100) if packet_counter > 0 else 0
                 # Format values first, then apply colors
-                packet_type_str = f"{packet_type:20s}"
-                count_str = f"{count:6d}"
-                percentage_str = f"{percentage:5.1f}%"
+                packet_type_str = f'{packet_type:20s}'
+                count_str = f'{count:6d}'
+                percentage_str = f'{percentage:5.1f}%'
                 # Use different colors for different packet types
-                color_tag = "green" if count > 100 else "yellow" if count > 10 else "red"
+                color_tag = (
+                    'green' if count > 100 else 'yellow' if count > 10 else 'red'
+                )
                 logger.opt(colors=True).info(
-                    f"  <cyan>{packet_type_str}</cyan>: <{color_tag}>{count_str}</{color_tag}> (<magenta>{percentage_str}</magenta>)"
+                    f'  <cyan>{packet_type_str}</cyan>: <{color_tag}>{count_str}</{color_tag}> (<magenta>{percentage_str}</magenta>)'
                 )
 
         # Calculate rates if we have timing info
@@ -786,25 +838,25 @@ class MQTTThread(threads.MyThread):
             if elapsed > 0:
                 rate = self.counter / elapsed
                 save_rate = packets_saved / elapsed if packets_saved > 0 else 0
-                logger.opt(colors=True).info("")
-                rate_str = f"{rate:.2f}"
-                save_rate_str = f"{save_rate:.2f}"
-                elapsed_sec_str = f"{elapsed:.0f}"
-                elapsed_min_str = f"{elapsed/60:.1f}"
+                logger.opt(colors=True).info('')
+                rate_str = f'{rate:.2f}'
+                save_rate_str = f'{save_rate:.2f}'
+                elapsed_sec_str = f'{elapsed:.0f}'
+                elapsed_min_str = f'{elapsed / 60:.1f}'
                 logger.opt(colors=True).info(
-                    f"Average ingestion rate: <green>{rate_str}</green> packets/second"
+                    f'Average ingestion rate: <green>{rate_str}</green> packets/second'
                 )
                 logger.opt(colors=True).info(
-                    f"Average save rate: <green>{save_rate_str}</green> packets/second"
+                    f'Average save rate: <green>{save_rate_str}</green> packets/second'
                 )
                 logger.opt(colors=True).info(
-                    f"Uptime: <cyan>{elapsed_sec_str}</cyan> seconds (<cyan>{elapsed_min_str}</cyan> minutes)"
+                    f'Uptime: <cyan>{elapsed_sec_str}</cyan> seconds (<cyan>{elapsed_min_str}</cyan> minutes)'
                 )
 
-        logger.opt(colors=True).info(f"<cyan>{separator}</cyan>")
+        logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
 
     def stop(self):
-        LOG.info(__class__.__name__+" Stop")
+        LOG.info(__class__.__name__ + ' Stop')
         self.thread_stop = True
 
         # Print final stats before shutdown
@@ -813,31 +865,31 @@ class MQTTThread(threads.MyThread):
         if self.client:
             try:
                 self.client.loop_stop()
-                LOG.info("Stopping MQTT network loop")
+                LOG.info('Stopping MQTT network loop')
             except Exception as ex:
-                LOG.warning(f"Error stopping MQTT loop: {ex}")
+                LOG.warning(f'Error stopping MQTT loop: {ex}')
             try:
                 self.client.disconnect()
-                LOG.info("Disconnected from MQTT")
+                LOG.info('Disconnected from MQTT')
             except Exception as ex:
-                LOG.warning(f"Error disconnecting MQTT client: {ex}")
+                LOG.warning(f'Error disconnecting MQTT client: {ex}')
 
     def loop(self):
         """Main loop that checks connection health and handles reconnection."""
         try:
             # Check connection health periodically
             self._check_connection_health()
-            
+
             # If we don't have a client or aren't connected, wait a bit before next check
             if not self.client or not self.connected:
                 time.sleep(1)
                 return True
-            
+
             # Sleep briefly to avoid tight loop, but allow health checks
             time.sleep(1)
-            
+
         except Exception as ex:
-            LOG.error(f"Error in MQTT loop: {ex}")
+            LOG.error(f'Error in MQTT loop: {ex}')
             LOG.exception(ex)
             # Try to recover by reconnecting
             if self.client:
@@ -846,7 +898,7 @@ class MQTTThread(threads.MyThread):
                 except Exception:
                     pass
             self._reconnect()
-        
+
         return True
 
 
@@ -882,49 +934,37 @@ def wx_mqtt_injest(ctx):
     }
 
     # Create processor threads
-    aprs_processor = APRSPacketProcessorThread(
-        packet_queue,
-        session,
-        stats,
-        stats_lock
-    )
+    aprs_processor = APRSPacketProcessorThread(packet_queue, session, stats, stats_lock)
 
     weather_processor = WeatherPacketProcessorThread(
-        packet_queue,
-        session,
-        stats,
-        stats_lock
+        packet_queue, session, stats, stats_lock
     )
 
     # Create MQTT thread
-    mqtt_thread = MQTTThread(
-        packet_queue,
-        stats,
-        stats_lock
-    )
+    mqtt_thread = MQTTThread(packet_queue, stats, stats_lock)
 
     # Start all threads
     keepalive = threads.KeepAliveThread()
     keepalive.start()
 
-    LOG.info("Starting APRS packet processor thread")
+    LOG.info('Starting APRS packet processor thread')
     aprs_processor.start()
 
-    LOG.info("Starting weather packet processor thread")
+    LOG.info('Starting weather packet processor thread')
     weather_processor.start()
 
-    LOG.info("Starting MQTT thread")
+    LOG.info('Starting MQTT thread')
     mqtt_thread.start()
 
     # Wait for MQTT thread (it runs until stopped)
     mqtt_thread.join()
 
     # Stop processor threads
-    LOG.info("Stopping processor threads")
+    LOG.info('Stopping processor threads')
     aprs_processor.stop()
     weather_processor.stop()
     aprs_processor.join(timeout=5)
     weather_processor.join(timeout=5)
 
-    LOG.info("Waiting for keepalive thread to quit")
+    LOG.info('Waiting for keepalive thread to quit')
     keepalive.join()
