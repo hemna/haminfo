@@ -172,7 +172,7 @@ class WeatherPacketFilter:
             return None
         except Exception as ex:
             self.session.rollback()
-            LOG.error('Failed to add_wx_report {report}')
+            LOG.error(f'Failed to add_wx_report {report}')
             LOG.error(ex)
             return None
 
@@ -658,6 +658,9 @@ class MQTTThread(threads.MyThread):
 
             # Check if we've received messages recently (connection might be dead)
             # Only check this if we've been connected for a while (give it time to receive first message)
+            if self.start_time is None:
+                return  # Not yet initialized, skip health check
+
             time_since_start = current_time - self.start_time
             if time_since_start > 60:  # Only check after 1 minute of runtime
                 time_since_last_message = current_time - self.last_message_time

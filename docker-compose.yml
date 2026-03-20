@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
     container_name: haminfo_db
     environment:
-      POSTGRES_DB: haminfo
-      POSTGRES_USER: haminfo
-      POSTGRES_PASSWORD: haminfo
+      POSTGRES_DB: ${POSTGRES_DB:-haminfo}
+      POSTGRES_USER: ${POSTGRES_USER:-haminfo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       PGDATA: /haminfo/db/data
     ports:
       - 5432:5432
@@ -55,12 +55,12 @@ services:
     ports:
       - 11211:11211
     environment:
-      TZ: Americas/New_York
+      TZ: America/New_York
       MEMCACHED_CACHE_SIZE: 64MB
-      MEMCACHED_MAX_CONNEcTIONS: 1024
+      MEMCACHED_MAX_CONNECTIONS: 1024
       MEMCACHED_THREADS: 4
-      MEMCACHED_USER: hemna
-      MEMCACHED_PASSWORD: 88ranjit
+      MEMCACHED_USER: ${MEMCACHED_USER:-memcached}
+      MEMCACHED_PASSWORD: ${MEMCACHED_PASSWORD:?MEMCACHED_PASSWORD must be set}
 
   haminfo_api:
     image: hemna6969/haminfo:001-aprs-position-reports

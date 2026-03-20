@@ -22,7 +22,8 @@ depends_on = None
 
 def upgrade():
     # 1. Add composite index on weather_report for "latest report" queries
-    # Using raw SQL for CONCURRENTLY option (non-blocking in production)
+    # Note: This is a regular index (not CONCURRENTLY) and may briefly block writes.
+    # For large production tables, consider running manually with CONCURRENTLY.
     op.execute("""
         CREATE INDEX IF NOT EXISTS ix_weather_report_station_time
         ON weather_report (weather_station_id, time DESC)

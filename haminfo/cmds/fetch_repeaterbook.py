@@ -71,6 +71,22 @@ def sleep_and_retry(func):
     return wrapper
 
 
+def _build_repeaterbook_headers():
+    """Build HTTP headers for RepeaterBook API requests.
+
+    Returns a dict with User-Agent and optionally Authorization headers.
+    This is extracted for testability without dealing with rate limit decorators.
+    """
+    headers = {
+        'User-Agent': f'haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo; waboring@hemna.com)',
+    }
+    # Add Authorization header if token is configured
+    if CONF.repeaterbook.api_token:
+        headers['Authorization'] = f'Bearer {CONF.repeaterbook.api_token}'
+        LOG.debug('Using RepeaterBook API token for authentication')
+    return headers
+
+
 # only alloe 1 request every 10 minutes
 @sleep_and_retry
 @limits(calls=1, period=600)
@@ -78,17 +94,11 @@ def fetch_repeaters(url, session, fetch_only=False):
     console = Console()
 
     try:
-        headers = {
-            'User-Agent': f'haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo; waboring@hemna.com)',
-        }
-        # Add Authorization header if token is configured
-        if CONF.repeaterbook.api_token:
-            headers['Authorization'] = f'Bearer {CONF.repeaterbook.api_token}'
-            LOG.debug('Using RepeaterBook API token for authentication')
+        headers = _build_repeaterbook_headers()
 
         msg = f"Fetching '{url}'"
         LOG.debug(msg)
-        resp = requests.get(url, headers=headers)
+        resp = requests.get(url, headers=headers, timeout=30)
         if resp.status_code != 200:
             error_msg = f'Failed to fetch repeaters: HTTP {resp.status_code}'
             if resp.status_code == 401:
@@ -341,7 +351,7 @@ def fetch_Mexico_repeaters(session, fetch_only=False):  # noqa: N802
 
 def fetch_EU_repeaters(session, fetch_only=False):  # noqa: N802
     eu_countries = [
-        'Ablania',
+        'Albania',
         'Andorra',
         'Austria',
         'Belarus',

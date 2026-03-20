@@ -66,11 +66,10 @@ Always invoke these skills when the situation applies:
 
 ## Production Environment
 
-- **Server**: `waboring@cloud.hemna.com`
-- **Docker path**: `~/docker/haminfo`
-- **Config location**: `~/docker/haminfo/data/config/haminfo.conf`
+See private runbook for production deployment details (host, paths, credentials).
+
 - **Database**: PostgreSQL with PostGIS (haminfo_db container)
-- **Cron jobs**: Monthly repeaterbook fetch (1st of month), weekly DB cleanup (Sundays)
+- **Cron jobs**: Monthly RepeaterBook fetch (1st of month), weekly DB cleanup (Sundays)
 
 ## Testing
 

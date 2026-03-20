@@ -120,11 +120,16 @@ class Station(ModelBase):
             return None
 
     @staticmethod
-    def _parse_json_fields(r_json):
+    def _parse_json_fields(r_json, for_update=False):
         """Parse and normalize common fields from RepeaterBook JSON.
 
         Returns a dict of field values ready to assign to a Station instance.
         Handles default values and optional fields consistently.
+
+        Args:
+            r_json: The JSON data from RepeaterBook API.
+            for_update: If True, omit optional boolean fields that are missing
+                        from the payload to preserve existing DB values.
         """
         # Normalize invalid date
         last_update = r_json['Last Update']
@@ -160,21 +165,33 @@ class Station(ModelBase):
             'dstar': utils.bool_from_str(r_json['D-Star']),
         }
 
-        # Optional fields with defaults
-        fields['state'] = r_json.get('State')
-        fields['county'] = r_json.get('County')
-        fields['ares'] = (
-            utils.bool_from_str(r_json['ARES']) if 'ARES' in r_json else False
-        )
-        fields['races'] = (
-            utils.bool_from_str(r_json['RACES']) if 'RACES' in r_json else False
-        )
-        fields['skywarn'] = (
-            utils.bool_from_str(r_json['SKYWARN']) if 'SKYWARN' in r_json else False
-        )
-        fields['canwarn'] = (
-            utils.bool_from_str(r_json['CANWARN']) if 'CANWARN' in r_json else False
-        )
+        # Optional fields - only include state/county if present
+        if 'State' in r_json:
+            fields['state'] = r_json['State']
+        elif not for_update:
+            fields['state'] = None
+
+        if 'County' in r_json:
+            fields['county'] = r_json['County']
+        elif not for_update:
+            fields['county'] = None
+
+        # Optional boolean fields - for updates, only include if present in payload
+        # to preserve existing DB values when API omits these fields
+        optional_bools = [
+            ('ARES', 'ares'),
+            ('RACES', 'races'),
+            ('SKYWARN', 'skywarn'),
+            ('CANWARN', 'canwarn'),
+        ]
+        for json_key, field_name in optional_bools:
+            if json_key in r_json:
+                fields[field_name] = utils.bool_from_str(r_json[json_key])
+            elif not for_update:
+                # For new records, default to False
+                fields[field_name] = False
+            # For updates with missing keys, don't include in fields dict
+            # so existing DB values are preserved
 
         return fields
 
@@ -184,7 +201,7 @@ class Station(ModelBase):
         if not station:
             return station
 
-        fields = Station._parse_json_fields(r_json)
+        fields = Station._parse_json_fields(r_json, for_update=True)
         for key, value in fields.items():
             setattr(station, key, value)
 
@@ -193,7 +210,7 @@ class Station(ModelBase):
     @staticmethod
     def from_json(r_json):
         """Create a new Station from RepeaterBook JSON data."""
-        fields = Station._parse_json_fields(r_json)
+        fields = Station._parse_json_fields(r_json, for_update=False)
 
         # Add primary key fields only present in new records
         fields['state_id'] = r_json['State ID']
