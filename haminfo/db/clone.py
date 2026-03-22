@@ -96,3 +96,34 @@ def get_table_list(include: list | None, exclude: list | None) -> list:
         tables = [t for t in tables if t not in exclude]
 
     return tables
+
+
+def build_pg_dump_command(db_info: dict, tables: list) -> list:
+    """Build pg_dump command for data export.
+
+    Args:
+        db_info: Dict with host, port, user, database keys
+        tables: List of table names to dump
+
+    Returns:
+        Command as list of strings for subprocess
+    """
+    cmd = [
+        'pg_dump',
+        '--data-only',
+        '--no-owner',
+        '--no-privileges',
+        '-h',
+        db_info['host'],
+        '-p',
+        db_info['port'],
+        '-U',
+        db_info['user'],
+        '-d',
+        db_info['database'],
+    ]
+
+    for table in tables:
+        cmd.append(f'--table={table}')
+
+    return cmd

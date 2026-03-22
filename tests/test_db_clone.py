@@ -128,3 +128,34 @@ class TestGetTableList:
 
         with pytest.raises(ValueError, match='Unknown table'):
             get_table_list(include=['station', 'invalid_table'], exclude=None)
+
+
+class TestBuildPgDumpCommand:
+    """Test pg_dump command construction."""
+
+    def test_basic_command(self):
+        """Build basic pg_dump command."""
+        from haminfo.db.clone import build_pg_dump_command
+
+        db_info = {
+            'host': 'prod.example.com',
+            'port': '5432',
+            'user': 'haminfo',
+            'database': 'haminfo',
+        }
+        tables = ['station', 'weather_station']
+
+        cmd = build_pg_dump_command(db_info, tables)
+
+        assert cmd[0] == 'pg_dump'
+        assert '--data-only' in cmd
+        assert '--no-owner' in cmd
+        assert '--no-privileges' in cmd
+        assert '-h' in cmd
+        assert 'prod.example.com' in cmd
+        assert '-p' in cmd
+        assert '5432' in cmd
+        assert '-U' in cmd
+        assert 'haminfo' in cmd
+        assert '--table=station' in cmd
+        assert '--table=weather_station' in cmd
