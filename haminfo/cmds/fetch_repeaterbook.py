@@ -4,13 +4,11 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import requests
 from rich.console import Console
-import secrets
-from ratelimit import limits, sleep_and_retry
+from ratelimit import limits
 from ratelimit.exception import RateLimitException
 from functools import wraps
 import time
 
-import haminfo
 from haminfo.main import cli
 from haminfo import cli_helper
 from haminfo import utils

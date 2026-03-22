@@ -1,0 +1,212 @@
+CHANGES
+=======
+
+v0.6.0
+------
+
+Features:
+* Add `haminfo db clone-from` command to copy database from one PostgreSQL
+  instance to another using pg_dump/psql pipeline - enables syncing production
+  data to development environments without hitting external APIs
+* Update RepeaterBook API to use new token authentication with X-RB-App-Token
+  header and REPEAT/1.0 User-Agent
+
+Bug Fixes:
+* Fix KeyError crash in /nearest endpoint when 'band' parameter not provided -
+  Request.from_json now uses .get() for optional fields
+* Fix container startup race condition - wait for db_upgrade to complete
+* Remove noisy MQTT debug logs
+
+Code Quality:
+* Add required skills and context-mode instructions to AGENTS.md
+* Add postgresql-client to Docker image for db clone command
+* Clean up Request/WXRequest.from_json to use None instead of "None" string
+  for optional field defaults
+
+v0.5.1
+------
+
+* remove log.py
+* pep8 cleanup
+* fix flask reference
+* fix reference
+* Bump werkzeug from 2.2.3 to 3.0.3
+* Bump idna from 2.10 to 3.7
+* Bump black from 21.4b2 to 24.3.0
+* Bump pygments from 2.9.0 to 2.15.0
+* Bump pip from 21.1 to 23.3
+* updated docker scripts after refactor
+* Bump jinja2 from 2.11.3 to 3.1.4
+* Bump cryptography from 3.4.7 to 43.0.1
+* Bump tqdm from 4.60.0 to 4.66.3
+* Bump urllib3 from 1.26.5 to 1.26.19
+* Bump zipp from 3.4.1 to 3.19.1
+* Bump certifi from 2022.12.7 to 2024.7.4
+* Bump requests from 2.25.1 to 2.32.2
+* Bump tj-actions/branch-names from 6 to 8 in /.github/workflows
+* Refactored all commands to cmds
+* ensure we return the number of stations
+* Continue on after failing to find wx report
+* remove len of query
+* Added some debugging
+* Fixed callback apis
+* Update for paho-mqtt 2.0.0
+* don't cache fetching wx stations
+* Call sys.exit(-1) on failure
+* Added github stats?
+* Fix location.raw dereference
+* Add thread checks to mqtt\_healthcheck
+* get address
+* Add country code for wx stations
+* more wx packet fixes
+* Use wx from packet
+* aprs\_data
+* Log the report
+* Bump werkzeug from 2.1.2 to 2.2.3
+* Added cachetools for wx\_stations api request
+* Fixed imports
+* Reworked mqtt\_injest
+* Update keepalive
+* Added healthcheck
+* Added raw to the weather report
+* update repeater\_ids version
+
+v0.5.0
+------
+
+* Re-add repeater\_ids version
+* Use Dockerfile
+* Added WXRequest to track WXNOW service
+* Added single weather report fetching
+* id
+* rework todict
+* add \_to\_dict
+* loglevel
+* add test
+* api log debug
+* dump url map
+* wxstations is a GET
+* added api for fetching all wx stations
+* Add run\_mqtt
+* add paths
+* Use Dockerfile
+* Add db\_upgrade.sh
+
+v0.4.9
+------
+
+* Update weather injesting
+* Added weather station and weather report and mqtt\_injest
+* cleanup
+* cleanup
+* Update
+* Add weather\_report model
+* fetch only again
+* Bump certifi from 2020.12.5 to 2022.12.7
+* Bump wheel from 0.33.6 to 0.38.1
+* fixed missing fetch\_only
+* expire\_time is int
+* Allow setting memcached expire time
+* Added 60 second rate limiting
+* Fixed mapbox.py setup\_logging
+* Updated tox runs to pass pep8
+* upgrade to pytest 7.2.0
+* Add building support for master
+* don't allow http access to /
+* added haminfo\_init command
+* Add init\_schema
+* Added cron
+* fixed load\_repeaterbook
+* Added memcached
+* Add multiple tags to container build
+* Try and use branch name as tag
+* change tag to master and added raspi
+* trying another
+* try building and publishing
+* try and fix docker build
+* cd docker before running build
+* try fix werkzeug
+* Update Dockerfile
+* Create docker-image.yml
+* update pytest
+* Try adding github workflow
+* Query by ids
+* must be strings
+* Log stationids
+
+v0.4.1
+------
+
+* Added station ids to request object
+* Added new requests API
+* Fixed upgrade syntax error
+
+v0.3.2
+------
+
+* Use DateTime for request tracking
+
+v0.3.1
+------
+
+* Try to fix callsign logging in request
+
+v0.3.0
+------
+
+* Request Logging
+* Force update of the sqlalchemy.url from code
+* Convert to using Alembic for DB schema versioning
+
+v0.2.2
+------
+
+* Added SqlAlchemyIntegration to the sentry
+* added blinker
+
+v0.2.1
+------
+
+* updated build
+* Updated sentry sdk init
+* config web
+* Bump pip from 19.2.3 to 21.1
+* Added sentry support
+
+v0.2.0
+------
+
+* Close the session after we are done
+* Fix problem with running out of DB sessions
+* Added tracing
+* Return units in meters for distance
+* Automatically convert distance to miles/km
+* Added find\_station\_by\_callsign and fixed frequency
+* Added missing Ontario for Canada
+* Make sure filters is initialized
+* Updated FREQ\_BAND\_PLAN
+* Updates
+* added showing the number of stations in the DB
+* nuke the sleeps for testing
+* more fixes
+* try to fix container
+* bleh
+* update log-level in flask
+* Fixed version in init
+* Fixed loading all countries
+* Added loading of non US countries
+* Added support for filtering by feature
+* added basic api\_key auth
+* pep8 passing
+* docker build
+* added opts
+
+v0.1.0
+------
+
+* Added band mapping
+* Got nearest stations working
+* loading db is working
+* stuffs
+* Slurping from repeaterbook script
+* Initial commit

@@ -357,8 +357,6 @@ def clone_from(
     """
     from haminfo.db import clone as db_clone
 
-    console = click.get_current_context().obj or {}
-
     # Validate we have a source URL
     if not source_db_url and not source_config:
         raise click.UsageError(
@@ -380,7 +378,7 @@ def clone_from(
     try:
         table_list = db_clone.get_table_list(include_tables, exclude_tables_list)
     except ValueError as e:
-        raise click.UsageError(str(e))
+        raise click.UsageError(str(e)) from e
 
     # Get local DB URL from config
     local_db_url = CONF.database.connection
@@ -431,4 +429,4 @@ def clone_from(
         click.echo('Clone completed successfully.')
     except Exception as e:
         LOG.exception('Clone failed')
-        raise click.ClickException(f'Clone failed: {e}')
+        raise click.ClickException(f'Clone failed: {e}') from e
