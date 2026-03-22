@@ -159,3 +159,30 @@ class TestBuildPgDumpCommand:
         assert 'haminfo' in cmd
         assert '--table=station' in cmd
         assert '--table=weather_station' in cmd
+
+
+class TestBuildPsqlCommand:
+    """Test psql command construction."""
+
+    def test_basic_command(self):
+        """Build basic psql command."""
+        from haminfo.db.clone import build_psql_command
+
+        db_info = {
+            'host': 'localhost',
+            'port': '5432',
+            'user': 'haminfo',
+            'database': 'haminfo',
+        }
+
+        cmd = build_psql_command(db_info)
+
+        assert cmd[0] == 'psql'
+        assert '--quiet' in cmd
+        assert '-h' in cmd
+        assert 'localhost' in cmd
+        assert '-p' in cmd
+        assert '5432' in cmd
+        assert '-U' in cmd
+        assert 'haminfo' in cmd
+        assert '-d' in cmd

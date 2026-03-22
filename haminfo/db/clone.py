@@ -127,3 +127,28 @@ def build_pg_dump_command(db_info: dict, tables: list) -> list:
         cmd.append(f'--table={table}')
 
     return cmd
+
+
+def build_psql_command(db_info: dict) -> list:
+    """Build psql command for data import.
+
+    Args:
+        db_info: Dict with host, port, user, database keys
+
+    Returns:
+        Command as list of strings for subprocess
+    """
+    return [
+        'psql',
+        '--quiet',
+        '--set',
+        'ON_ERROR_STOP=on',
+        '-h',
+        db_info['host'],
+        '-p',
+        db_info['port'],
+        '-U',
+        db_info['user'],
+        '-d',
+        db_info['database'],
+    ]
