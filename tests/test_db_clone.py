@@ -2,6 +2,7 @@
 """Tests for database clone functionality."""
 
 import pytest
+from unittest.mock import patch, MagicMock
 
 
 class TestParseDbUrl:
@@ -52,3 +53,35 @@ class TestParseDbUrl:
 
         with pytest.raises(ValueError, match='Only PostgreSQL'):
             parse_db_url('mysql://user:pass@host/db')
+
+
+class TestTestDbConnection:
+    """Test database connection testing."""
+
+    @patch('haminfo.db.clone.create_engine')
+    def test_connection_success(self, mock_create_engine):
+        """Successful connection returns True."""
+        from haminfo.db.clone import test_db_connection
+
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+        mock_create_engine.return_value = mock_engine
+
+        result = test_db_connection('postgresql://user:pass@host/db')
+
+        assert result is True
+
+    @patch('haminfo.db.clone.create_engine')
+    def test_connection_failure(self, mock_create_engine):
+        """Failed connection returns False."""
+        from haminfo.db.clone import test_db_connection
+
+        mock_engine = MagicMock()
+        mock_engine.connect.side_effect = Exception('Connection refused')
+        mock_create_engine.return_value = mock_engine
+
+        result = test_db_connection('postgresql://user:pass@host/db')
+
+        assert result is False

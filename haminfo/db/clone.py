@@ -3,6 +3,8 @@
 
 from urllib.parse import urlparse, unquote
 
+from sqlalchemy import create_engine, text
+
 
 def parse_db_url(url: str) -> dict:
     """Parse PostgreSQL URL into components for pg_dump/psql.
@@ -38,3 +40,21 @@ def parse_db_url(url: str) -> dict:
         'port': str(parsed.port) if parsed.port else '5432',
         'database': parsed.path.lstrip('/') if parsed.path else '',
     }
+
+
+def test_db_connection(url: str) -> bool:
+    """Test if database is reachable.
+
+    Args:
+        url: PostgreSQL connection URL
+
+    Returns:
+        True if connection succeeds, False otherwise
+    """
+    try:
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        return True
+    except Exception:
+        return False
