@@ -1,9 +1,17 @@
 # haminfo/db/clone.py
 """Database cloning utilities."""
 
+import os
+import subprocess
 from urllib.parse import urlparse, unquote
 
 from sqlalchemy import create_engine, text
+
+
+class CloneError(Exception):
+    """Error during database clone operation."""
+
+    pass
 
 
 def parse_db_url(url: str) -> dict:
@@ -152,3 +160,111 @@ def build_psql_command(db_info: dict) -> list:
         '-d',
         db_info['database'],
     ]
+
+
+def clone_database(source_url: str, target_url: str, tables: list) -> dict:
+    """Clone data from source database to target database.
+
+    Uses pg_dump | psql pipeline for efficient data transfer.
+
+    Args:
+        source_url: Source PostgreSQL connection URL
+        target_url: Target PostgreSQL connection URL
+        tables: List of table names to clone
+
+    Returns:
+        Dict mapping table names to row counts
+
+    Raises:
+        CloneError: If clone operation fails
+    """
+    source_info = parse_db_url(source_url)
+    target_info = parse_db_url(target_url)
+
+    # Set up environment with passwords
+    env = os.environ.copy()
+    source_env = env.copy()
+    source_env['PGPASSWORD'] = source_info['password']
+    target_env = env.copy()
+    target_env['PGPASSWORD'] = target_info['password']
+
+    # Connect to target to truncate tables
+    target_engine = create_engine(target_url)
+    with target_engine.connect() as conn:
+        # Disable FK constraints
+        conn.execute(text('SET session_replication_role = replica'))
+        conn.commit()
+
+        # Truncate tables in reverse order (for FK dependencies)
+        for table in reversed(tables):
+            conn.execute(text(f'TRUNCATE TABLE {table} CASCADE'))
+        conn.commit()
+
+    # Build commands
+    pg_dump_cmd = build_pg_dump_command(source_info, tables)
+    psql_cmd = build_psql_command(target_info)
+
+    # Execute pg_dump | psql pipeline
+    pg_dump_proc = subprocess.Popen(
+        pg_dump_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=source_env,
+    )
+
+    psql_proc = subprocess.Popen(
+        psql_cmd,
+        stdin=pg_dump_proc.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=target_env,
+    )
+
+    # Close pg_dump stdout in parent to allow SIGPIPE
+    pg_dump_proc.stdout.close()
+
+    # Wait for processes
+    psql_stdout, psql_stderr = psql_proc.communicate()
+    pg_dump_proc.wait()
+
+    if pg_dump_proc.returncode != 0:
+        stderr = pg_dump_proc.stderr.read().decode() if pg_dump_proc.stderr else ''
+        raise CloneError(
+            f'pg_dump failed with code {pg_dump_proc.returncode}: {stderr}'
+        )
+
+    if psql_proc.returncode != 0:
+        raise CloneError(
+            f'psql failed with code {psql_proc.returncode}: {psql_stderr.decode()}'
+        )
+
+    # Re-enable FK constraints and reset sequences
+    with target_engine.connect() as conn:
+        conn.execute(text('SET session_replication_role = DEFAULT'))
+        conn.commit()
+
+        # Reset sequences
+        for table in tables:
+            try:
+                conn.execute(
+                    text(f"""
+                    SELECT setval(
+                        pg_get_serial_sequence('{table}', 'id'),
+                        COALESCE((SELECT MAX(id) FROM {table}), 0) + 1,
+                        false
+                    )
+                """)
+                )
+            except Exception:
+                # Table might not have an id column with sequence
+                pass
+        conn.commit()
+
+    # Get row counts
+    row_counts = {}
+    with target_engine.connect() as conn:
+        for table in tables:
+            result = conn.execute(text(f'SELECT COUNT(*) FROM {table}'))
+            row_counts[table] = result.scalar()
+
+    return row_counts

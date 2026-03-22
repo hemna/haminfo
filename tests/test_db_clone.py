@@ -186,3 +186,84 @@ class TestBuildPsqlCommand:
         assert '-U' in cmd
         assert 'haminfo' in cmd
         assert '-d' in cmd
+
+
+class TestCloneDatabase:
+    """Test database cloning."""
+
+    @patch('haminfo.db.clone.subprocess.Popen')
+    @patch('haminfo.db.clone.create_engine')
+    def test_clone_executes_pg_dump_psql_pipeline(self, mock_engine, mock_popen):
+        """Clone executes pg_dump | psql pipeline."""
+        from haminfo.db.clone import clone_database
+
+        # Mock subprocess pipeline
+        mock_pg_dump = MagicMock()
+        mock_pg_dump.stdout = MagicMock()
+        mock_pg_dump.wait.return_value = 0
+        mock_pg_dump.returncode = 0
+        mock_pg_dump.stderr = MagicMock()
+        mock_pg_dump.stderr.read.return_value = b''
+
+        mock_psql = MagicMock()
+        mock_psql.wait.return_value = 0
+        mock_psql.returncode = 0
+        mock_psql.communicate.return_value = (b'', b'')
+
+        mock_popen.side_effect = [mock_pg_dump, mock_psql]
+
+        # Mock SQLAlchemy for truncate and count - using context manager properly
+        mock_conn = MagicMock()
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 100
+        mock_conn.execute.return_value = mock_result
+
+        # Mock context manager for connect()
+        mock_engine.return_value.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.return_value.connect.return_value.__exit__.return_value = False
+
+        clone_database(
+            source_url='postgresql://user:pass@source/db',
+            target_url='postgresql://user:pass@target/db',
+            tables=['station'],
+        )
+
+        # Verify pg_dump was called
+        assert mock_popen.call_count == 2
+        pg_dump_call = mock_popen.call_args_list[0]
+        assert 'pg_dump' in pg_dump_call[0][0][0]
+
+        # Verify psql was called
+        psql_call = mock_popen.call_args_list[1]
+        assert 'psql' in psql_call[0][0][0]
+
+    @patch('haminfo.db.clone.subprocess.Popen')
+    @patch('haminfo.db.clone.create_engine')
+    def test_clone_raises_on_pg_dump_failure(self, mock_engine, mock_popen):
+        """Clone raises exception if pg_dump fails."""
+        from haminfo.db.clone import clone_database, CloneError
+
+        # Mock failed pg_dump
+        mock_pg_dump = MagicMock()
+        mock_pg_dump.stdout = MagicMock()
+        mock_pg_dump.wait.return_value = 1
+        mock_pg_dump.stderr = MagicMock()
+        mock_pg_dump.stderr.read.return_value = b'pg_dump: error'
+
+        # Mock psql process (still needed since both Popen calls happen)
+        mock_psql = MagicMock()
+        mock_psql.communicate.return_value = (b'', b'')
+
+        mock_popen.side_effect = [mock_pg_dump, mock_psql]
+
+        # Mock SQLAlchemy - using context manager properly
+        mock_conn = MagicMock()
+        mock_engine.return_value.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.return_value.connect.return_value.__exit__.return_value = False
+
+        with pytest.raises(CloneError, match='pg_dump failed'):
+            clone_database(
+                source_url='postgresql://user:pass@source/db',
+                target_url='postgresql://user:pass@target/db',
+                tables=['station'],
+            )
