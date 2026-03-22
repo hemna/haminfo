@@ -58,3 +58,41 @@ def test_db_connection(url: str) -> bool:
         return True
     except Exception:
         return False
+
+
+# Default tables to clone (all application tables)
+DEFAULT_TABLES = [
+    'station',
+    'weather_station',
+    'weather_report',
+    'aprs_packet',
+    'request',
+    'wx_request',
+]
+
+
+def get_table_list(include: list | None, exclude: list | None) -> list:
+    """Get list of tables to clone.
+
+    Args:
+        include: If provided, only clone these tables
+        exclude: If provided, exclude these tables from default list
+
+    Returns:
+        List of table names to clone
+
+    Raises:
+        ValueError: If include contains unknown table names
+    """
+    if include:
+        # Validate all tables exist
+        unknown = set(include) - set(DEFAULT_TABLES)
+        if unknown:
+            raise ValueError(f'Unknown table(s): {", ".join(sorted(unknown))}')
+        return list(include)
+
+    tables = DEFAULT_TABLES.copy()
+    if exclude:
+        tables = [t for t in tables if t not in exclude]
+
+    return tables

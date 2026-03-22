@@ -85,3 +85,46 @@ class TestTestDbConnection:
         result = test_db_connection('postgresql://user:pass@host/db')
 
         assert result is False
+
+
+class TestGetTableList:
+    """Test table list generation."""
+
+    def test_default_tables(self):
+        """Returns all application tables by default."""
+        from haminfo.db.clone import get_table_list
+
+        tables = get_table_list(include=None, exclude=None)
+
+        assert 'station' in tables
+        assert 'weather_station' in tables
+        assert 'weather_report' in tables
+        assert 'aprs_packet' in tables
+        assert 'request' in tables
+        assert 'wx_request' in tables
+        assert 'alembic_version' not in tables
+
+    def test_include_filter(self):
+        """Include filter limits to specified tables."""
+        from haminfo.db.clone import get_table_list
+
+        tables = get_table_list(include=['station', 'weather_station'], exclude=None)
+
+        assert tables == ['station', 'weather_station']
+
+    def test_exclude_filter(self):
+        """Exclude filter removes specified tables."""
+        from haminfo.db.clone import get_table_list
+
+        tables = get_table_list(include=None, exclude=['request', 'wx_request'])
+
+        assert 'station' in tables
+        assert 'request' not in tables
+        assert 'wx_request' not in tables
+
+    def test_include_invalid_table_raises(self):
+        """Including invalid table raises ValueError."""
+        from haminfo.db.clone import get_table_list
+
+        with pytest.raises(ValueError, match='Unknown table'):
+            get_table_list(include=['station', 'invalid_table'], exclude=None)
