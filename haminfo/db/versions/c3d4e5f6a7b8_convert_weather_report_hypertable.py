@@ -59,12 +59,12 @@ def upgrade():
 
     # Step 5: Enable compression on the hypertable
     # segment by station_id for better query performance when filtering by station
-    # order by time DESC since most queries want recent data
+    # order by time DESC, then id for uniqueness (required because primary key includes id)
     op.execute("""
         ALTER TABLE weather_report SET (
             timescaledb.compress,
             timescaledb.compress_segmentby = 'weather_station_id',
-            timescaledb.compress_orderby = 'time DESC'
+            timescaledb.compress_orderby = 'time DESC, id'
         )
     """)
 
