@@ -19,10 +19,12 @@ class Request(ModelBase):
     repeater_ids = sa.Column(sa.String)
 
     def __repr__(self):
-        return (f"<Request(callsign='{self.callsign}', created='{self.created}'"
-                f", latitude='{self.latitude}', longitude='{self.longitude}'), "
-                f"count='{self.count}' filters='{self.filters}' "
-                f"stations='{self.stations}' repeater_ids='{self.repeater_ids}'>")
+        return (
+            f"<Request(callsign='{self.callsign}', created='{self.created}'"
+            f", latitude='{self.latitude}', longitude='{self.longitude}'), "
+            f"count='{self.count}' filters='{self.filters}' "
+            f"stations='{self.stations}' repeater_ids='{self.repeater_ids}'>"
+        )
 
     def to_dict(self):
         dict_ = {}
@@ -34,15 +36,15 @@ class Request(ModelBase):
     @staticmethod
     def from_json(r_json):
         r = Request(
-            latitude=r_json["lat"],
-            longitude=r_json["lon"],
-            band=r_json["band"],
-            callsign=r_json.get("callsign", "None"),
-            count=r_json.get("count", 1),
-            filters=r_json.get("filters", "None"),
-            stations=r_json.get("stations", "None"),
-            repeater_ids=r_json.get("repeater_ids", "None"),
-            created=datetime.datetime.now()
+            latitude=r_json['lat'],
+            longitude=r_json['lon'],
+            band=r_json.get('band'),
+            callsign=r_json.get('callsign'),
+            count=r_json.get('count', 1),
+            filters=r_json.get('filters'),
+            stations=r_json.get('stations'),
+            repeater_ids=r_json.get('repeater_ids'),
+            created=datetime.datetime.now(),
         )
 
         return r
@@ -61,10 +63,12 @@ class WXRequest(ModelBase):
     wx_station_ids = sa.Column(sa.String)
 
     def __repr__(self):
-        return (f"<WXRequest(callsign='{self.callsign}', created='{self.created}'"
-                f", latitude='{self.latitude}', longitude='{self.longitude}'), "
-                f"count='{self.count}' callsign='{self.callsign}' "
-                f"stations='{self.station_callsigns}' repeater_ids='{self.wx_station_ids}'>")
+        return (
+            f"<WXRequest(callsign='{self.callsign}', created='{self.created}'"
+            f", latitude='{self.latitude}', longitude='{self.longitude}'), "
+            f"count='{self.count}' callsign='{self.callsign}' "
+            f"stations='{self.station_callsigns}' repeater_ids='{self.wx_station_ids}'>"
+        )
 
     def to_dict(self):
         dict_ = {}
@@ -76,13 +80,13 @@ class WXRequest(ModelBase):
     @staticmethod
     def from_json(r_json):
         r = WXRequest(
-            latitude=r_json["lat"],
-            longitude=r_json["lon"],
-            callsign=r_json.get("callsign", "None"),
-            count=r_json.get("count", 1),
-            station_callsigns=r_json.get("station_callsigns", "None"),
-            wx_station_ids=r_json.get("wx_station_ids", "None"),
-            created=datetime.datetime.now()
+            latitude=r_json['lat'],
+            longitude=r_json['lon'],
+            callsign=r_json.get('callsign'),
+            count=r_json.get('count', 1),
+            station_callsigns=r_json.get('station_callsigns'),
+            wx_station_ids=r_json.get('wx_station_ids'),
+            created=datetime.datetime.now(),
         )
 
         return r
