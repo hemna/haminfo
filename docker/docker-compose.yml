@@ -1,7 +1,8 @@
 services:
   haminfo_db:
-    # image: postgis/postgis:15-3.3
-    image: ghcr.io/baosystems/postgis:15-3.3
+    # TimescaleDB with PostGIS for time-series compression
+    # See docs/superpowers/specs/2026-03-22-timescaledb-compression-design.md
+    image: timescale/timescaledb-ha:pg15-latest
     restart: unless-stopped
     container_name: haminfo_db
     environment:
