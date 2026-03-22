@@ -74,15 +74,19 @@ def sleep_and_retry(func):
 def _build_repeaterbook_headers():
     """Build HTTP headers for RepeaterBook API requests.
 
-    Returns a dict with User-Agent and optionally Authorization headers.
+    Returns a dict with User-Agent and optionally X-RB-App-Token headers.
     This is extracted for testability without dealing with rate limit decorators.
+
+    RepeaterBook requires:
+    - User-Agent: REPEAT/1.0 (approved app name)
+    - X-RB-App-Token: app_<token> (canonical header for authentication)
     """
     headers = {
-        'User-Agent': f'haminfo/{haminfo.__version__} (https://github.com/hemna/haminfo; waboring@hemna.com)',
+        'User-Agent': 'REPEAT/1.0',
     }
-    # Add Authorization header if token is configured
+    # Add X-RB-App-Token header if token is configured
     if CONF.repeaterbook.api_token:
-        headers['Authorization'] = f'Bearer {CONF.repeaterbook.api_token}'
+        headers['X-RB-App-Token'] = CONF.repeaterbook.api_token
         LOG.debug('Using RepeaterBook API token for authentication')
     return headers
 

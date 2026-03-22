@@ -9,30 +9,30 @@ class TestBuildRepeaterBookHeaders:
 
     @patch('haminfo.cmds.fetch_repeaterbook.CONF')
     def test_auth_header_added_when_token_configured(self, mock_conf):
-        """Authorization header should be added when api_token is set."""
+        """X-RB-App-Token header should be added when api_token is set."""
         from haminfo.cmds.fetch_repeaterbook import _build_repeaterbook_headers
 
-        mock_conf.repeaterbook.api_token = 'test-token-123'
+        mock_conf.repeaterbook.api_token = 'app_test-token-123'
 
         headers = _build_repeaterbook_headers()
 
-        assert 'Authorization' in headers
-        assert headers['Authorization'] == 'Bearer test-token-123'
+        assert 'X-RB-App-Token' in headers
+        assert headers['X-RB-App-Token'] == 'app_test-token-123'
 
     @patch('haminfo.cmds.fetch_repeaterbook.CONF')
     def test_no_auth_header_when_token_empty(self, mock_conf):
-        """No Authorization header when api_token is empty."""
+        """No X-RB-App-Token header when api_token is empty."""
         from haminfo.cmds.fetch_repeaterbook import _build_repeaterbook_headers
 
         mock_conf.repeaterbook.api_token = ''
 
         headers = _build_repeaterbook_headers()
 
-        assert 'Authorization' not in headers
+        assert 'X-RB-App-Token' not in headers
 
     @patch('haminfo.cmds.fetch_repeaterbook.CONF')
-    def test_user_agent_always_included(self, mock_conf):
-        """User-Agent header should always be included."""
+    def test_user_agent_is_repeat(self, mock_conf):
+        """User-Agent header should be REPEAT/1.0."""
         from haminfo.cmds.fetch_repeaterbook import _build_repeaterbook_headers
 
         mock_conf.repeaterbook.api_token = ''
@@ -40,7 +40,7 @@ class TestBuildRepeaterBookHeaders:
         headers = _build_repeaterbook_headers()
 
         assert 'User-Agent' in headers
-        assert 'haminfo' in headers['User-Agent']
+        assert headers['User-Agent'] == 'REPEAT/1.0'
 
 
 class TestRepeaterBookAuth:
