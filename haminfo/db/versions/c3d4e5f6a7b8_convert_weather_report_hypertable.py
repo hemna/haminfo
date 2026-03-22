@@ -30,13 +30,21 @@ def upgrade():
         DROP CONSTRAINT IF EXISTS weather_report_pkey
     """)
 
-    # Step 2: Create new composite primary key including time column
+    # Step 2: Drop the unique constraint on 'id' column
+    # TimescaleDB requires any unique constraint to include the partitioning column (time)
+    # The unique=True on the id column creates a constraint named 'weather_report_id_key'
+    op.execute("""
+        ALTER TABLE weather_report 
+        DROP CONSTRAINT IF EXISTS weather_report_id_key
+    """)
+
+    # Step 3: Create new composite primary key including time column
     op.execute("""
         ALTER TABLE weather_report 
         ADD PRIMARY KEY (id, time)
     """)
 
-    # Step 3: Convert to hypertable with 7-day chunks
+    # Step 4: Convert to hypertable with 7-day chunks
     # migrate_data => true will move existing data into chunks
     # This may take a while for large tables (~7M rows)
     op.execute("""
@@ -49,7 +57,7 @@ def upgrade():
         )
     """)
 
-    # Step 4: Enable compression on the hypertable
+    # Step 5: Enable compression on the hypertable
     # segment by station_id for better query performance when filtering by station
     # order by time DESC since most queries want recent data
     op.execute("""
@@ -60,7 +68,7 @@ def upgrade():
         )
     """)
 
-    # Step 5: Add automatic compression policy
+    # Step 6: Add automatic compression policy
     # Compress chunks older than 30 days
     op.execute("""
         SELECT add_compression_policy(
