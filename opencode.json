@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "haminfo": {
+      "type": "local",
+      "command": [
+        "/Users/I530566/devel/mine/hamradio/haminfo/.venv/bin/haminfo",
+        "--config", "/Users/I530566/devel/mine/hamradio/haminfo/haminfo.conf",
+        "mcp-server"
+      ],
+      "enabled": true
+    }
+  }
+}
