@@ -6,7 +6,7 @@
       "command": [
         "/Users/I530566/devel/mine/hamradio/haminfo/.venv/bin/haminfo",
         "mcp-server",
-        "-c", "/Users/I530566/devel/mine/hamradio/haminfo/haminfo.conf"
+        "-c", "/Users/I530566/devel/mine/hamradio/haminfo/haminfo-prod.conf"
       ],
       "enabled": true
     }
