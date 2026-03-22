@@ -16,7 +16,7 @@ ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git sudo cron libmemcached-dev build-essential \
+    git sudo cron libmemcached-dev build-essential postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
