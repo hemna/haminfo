@@ -32,14 +32,21 @@ jobs:
     - name: Get Branch Name
       id: branch-name
       uses: tj-actions/branch-names@v8
-    - name: Sanitize branch name for Docker tag
-      id: sanitize
-      env:
-        BRANCH_NAME: ${{ steps.branch-name.outputs.current_branch }}
+    - name: Determine Docker tag
+      id: docker-tag
       run: |
-        # Replace / with - to make valid Docker tag
-        SANITIZED_BRANCH=$(echo "${BRANCH_NAME}" | sed 's/\//-/g')
-        echo "branch=${SANITIZED_BRANCH}" >> $GITHUB_OUTPUT
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          # Extract tag name (e.g., v0.6.0 -> 0.6.0)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "is_tag=true" >> $GITHUB_OUTPUT
+        else
+          # Use branch name, sanitize / to -
+          BRANCH_NAME="${{ steps.branch-name.outputs.current_branch }}"
+          SANITIZED_BRANCH=$(echo "${BRANCH_NAME}" | sed 's/\//-/g')
+          echo "tag=${SANITIZED_BRANCH}" >> $GITHUB_OUTPUT
+          echo "is_tag=false" >> $GITHUB_OUTPUT
+        fi
     - name: Setup QEMU
       uses: docker/setup-qemu-action@v3
     - name: Setup Docker Buildx
@@ -57,9 +64,9 @@ jobs:
         file: ./Dockerfile
         push: true
         build-args: |
-          BRANCH=${{ steps.branch-name.outputs.current_branch }}
+          BRANCH=${{ steps.docker-tag.outputs.tag }}
           COMMIT_SHA=${{ github.sha }}
           CACHEBUST=${{ github.sha }}
         tags: |
-          hemna6969/haminfo:${{ steps.sanitize.outputs.branch }}
+          hemna6969/haminfo:${{ steps.docker-tag.outputs.tag }}
           hemna6969/haminfo:latest
