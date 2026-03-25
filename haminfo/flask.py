@@ -17,6 +17,7 @@ from typing import Any, TYPE_CHECKING
 
 import flask
 import flask_classful
+from apispec import APISpec
 from flask import request, jsonify, Response
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
@@ -30,10 +31,247 @@ import sentry_sdk
 import haminfo
 from haminfo import utils, trace, cli_helper
 from haminfo.db import db
+from haminfo.db.db import WX_FIELD_MAPPING
 from haminfo.conf import log as log_conf
 
 if TYPE_CHECKING:
     from haminfo.db.models.aprs_packet import APRSPacket
+
+from haminfo.db.models.weather_report import WeatherStation
+
+
+def create_openapi_spec() -> APISpec:
+    """Create OpenAPI specification for all haminfo endpoints."""
+    spec = APISpec(
+        title='Haminfo API',
+        version=haminfo.__version__,
+        openapi_version='3.0.3',
+        info={
+            'description': 'Ham radio information API for repeaters, weather stations, and APRS data.',
+            'contact': {'email': 'waboring@hemna.com'},
+        },
+    )
+
+    # Security scheme
+    spec.components.security_scheme(
+        'ApiKeyAuth',
+        {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'X-Api-Key',
+        },
+    )
+
+    # Weather History endpoint
+    spec.path(
+        path='/api/v1/wx/history',
+        operations={
+            'get': {
+                'summary': 'Get weather station history',
+                'description': 'Returns hourly aggregated weather data for graphing.',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'station_id',
+                        'in': 'query',
+                        'schema': {'type': 'integer'},
+                        'description': 'Weather station ID',
+                    },
+                    {
+                        'name': 'callsign',
+                        'in': 'query',
+                        'schema': {'type': 'string'},
+                        'description': 'Station callsign',
+                    },
+                    {
+                        'name': 'start',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string', 'format': 'date-time'},
+                        'description': 'Start time (ISO 8601)',
+                    },
+                    {
+                        'name': 'end',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string', 'format': 'date-time'},
+                        'description': 'End time (ISO 8601)',
+                    },
+                    {
+                        'name': 'fields',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                        'description': 'Comma-separated field names',
+                    },
+                ],
+                'responses': {
+                    '200': {
+                        'description': 'Successful response',
+                        'content': {
+                            'application/json': {
+                                'schema': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'station_id': {'type': 'integer'},
+                                        'callsign': {'type': 'string'},
+                                        'start': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                        },
+                                        'end': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                        },
+                                        'interval': {'type': 'string'},
+                                        'fields': {
+                                            'type': 'array',
+                                            'items': {'type': 'string'},
+                                        },
+                                        'history': {
+                                            'type': 'array',
+                                            'items': {'type': 'object'},
+                                        },
+                                        'count': {'type': 'integer'},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {'description': 'Validation error'},
+                    '401': {'description': 'Unauthorized'},
+                    '404': {'description': 'Station not found'},
+                },
+            },
+        },
+    )
+
+    # Document existing endpoints
+    spec.path(
+        path='/wxstations',
+        operations={
+            'get': {
+                'summary': 'List all weather stations',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'List of weather stations'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/wxstation_report',
+        operations={
+            'get': {
+                'summary': 'Get latest weather report for a station',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'wx_station_id',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'integer'},
+                    },
+                ],
+                'responses': {'200': {'description': 'Weather report'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/wxnearest',
+        operations={
+            'post': {
+                'summary': 'Find nearest weather stations',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'Nearest weather stations'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/nearest',
+        operations={
+            'post': {
+                'summary': 'Find nearest repeaters',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'Nearest repeaters'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/api/v1/location',
+        operations={
+            'get': {
+                'summary': 'Get APRS location data (native format)',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'callsign',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                ],
+                'responses': {'200': {'description': 'Location data'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/api/get',
+        operations={
+            'get': {
+                'summary': 'Get APRS location data (aprs.fi compatible)',
+                'parameters': [
+                    {
+                        'name': 'apikey',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                    {
+                        'name': 'what',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                    {
+                        'name': 'name',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                ],
+                'responses': {
+                    '200': {'description': 'Location data in aprs.fi format'}
+                },
+            },
+        },
+    )
+
+    spec.path(
+        path='/stats',
+        operations={
+            'get': {
+                'summary': 'Get API statistics',
+                'responses': {'200': {'description': 'Statistics'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/test',
+        operations={
+            'get': {
+                'summary': 'Test endpoint',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'OK'}},
+            },
+        },
+    )
+
+    return spec
 
 
 auth = HTTPBasicAuth()
@@ -208,6 +446,177 @@ def validate_callsigns(callsigns_str: Any) -> list[str]:
         )
 
     return raw
+
+
+def validate_iso_timestamp(value: Any, field_name: str = 'timestamp') -> datetime:
+    """Validate and parse an ISO 8601 timestamp string.
+
+    Args:
+        value: Timestamp string to validate.
+        field_name: Name of the field (for error messages).
+
+    Returns:
+        datetime object in UTC timezone.
+
+    Raises:
+        ValidationError: If value is missing or not a valid ISO 8601 timestamp.
+    """
+    if not value:
+        raise ValidationError(f"'{field_name}' is required", field_name)
+
+    try:
+        # Try parsing with timezone
+        if value.endswith('Z'):
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        else:
+            dt = datetime.fromisoformat(value)
+
+        # Require full datetime, not just date
+        # fromisoformat accepts date-only strings, but we need time too
+        if not isinstance(dt, datetime) or 'T' not in value:
+            raise ValueError('Date-only format not accepted')
+
+        # If no timezone, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            # Convert to UTC
+            dt = dt.astimezone(timezone.utc)
+
+        return dt
+    except (ValueError, AttributeError) as err:
+        raise ValidationError(
+            f"Invalid timestamp format for '{field_name}': {value}",
+            field_name,
+        ) from err
+
+
+# Valid weather report fields - derived from centralized WX_FIELD_MAPPING
+# to prevent drift between validation and query layers
+VALID_WX_FIELDS = frozenset(WX_FIELD_MAPPING.keys())
+
+
+def validate_wx_fields(fields_str: Any) -> list[str]:
+    """Validate and parse a comma-separated weather fields string.
+
+    Args:
+        fields_str: Comma-separated field names.
+
+    Returns:
+        List of validated field names.
+
+    Raises:
+        ValidationError: If input is empty or contains invalid field names.
+    """
+    if not fields_str or not isinstance(fields_str, str):
+        raise ValidationError(
+            'At least one valid field is required',
+            'fields',
+        )
+
+    fields = [f.strip().lower() for f in fields_str.split(',') if f.strip()]
+
+    if not fields:
+        raise ValidationError(
+            'At least one valid field is required',
+            'fields',
+        )
+
+    for field in fields:
+        if field not in VALID_WX_FIELDS:
+            valid_list = ', '.join(sorted(VALID_WX_FIELDS))
+            raise ValidationError(
+                f"Invalid field: '{field}'. Valid fields: {valid_list}",
+                'fields',
+            )
+
+    return fields
+
+
+MAX_DATE_RANGE_DAYS = 30
+
+
+def validate_date_range(start: datetime, end: datetime) -> None:
+    """Validate that a date range is valid.
+
+    Args:
+        start: Start datetime.
+        end: End datetime.
+
+    Raises:
+        ValidationError: If start >= end or range exceeds maximum.
+    """
+    if start >= end:
+        raise ValidationError(
+            "'start' must be before 'end'",
+            'start/end',
+        )
+
+    delta = end - start
+    if delta.days > MAX_DATE_RANGE_DAYS:
+        raise ValidationError(
+            f'Date range exceeds maximum of {MAX_DATE_RANGE_DAYS} days',
+            'start/end',
+        )
+
+
+def _run_validation(fn, *args, **kwargs):
+    """Run a validation function and return (result, error_response).
+
+    Helper to reduce repetitive try/except ValidationError blocks.
+
+    Args:
+        fn: Validation function to call.
+        *args: Positional arguments for fn.
+        **kwargs: Keyword arguments for fn.
+
+    Returns:
+        Tuple of (result, None) on success, or (None, (response, status_code)) on error.
+    """
+    try:
+        return fn(*args, **kwargs), None
+    except ValidationError as ex:
+        return None, (jsonify({'error': ex.message, 'field': ex.field}), 400)
+
+
+def _get_weather_station(session, station_id: str | None, callsign: str | None):
+    """Look up a weather station by ID or callsign.
+
+    Args:
+        session: Database session.
+        station_id: Station ID string (will be converted to int).
+        callsign: Station callsign (case-insensitive).
+
+    Returns:
+        WeatherStation query result with id and callsign.
+
+    Raises:
+        ValidationError: If station_id is not an integer or station not found.
+    """
+    if station_id:
+        try:
+            station_id_int = int(station_id)
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "'station_id' must be an integer", 'station_id'
+            ) from None
+
+        station = (
+            session.query(WeatherStation.id, WeatherStation.callsign)
+            .filter(WeatherStation.id == station_id_int)
+            .first()
+        )
+    else:
+        station = (
+            session.query(WeatherStation.id, WeatherStation.callsign)
+            .filter(WeatherStation.callsign == callsign.upper())
+            .first()
+        )
+
+    if not station:
+        raise ValidationError('Weather station not found', 'station_id/callsign')
+
+    return station
 
 
 def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
@@ -831,6 +1240,87 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f'URL MAP: {self.app.url_map}')
         return jsonify({'status': 'ok', 'version': haminfo.__version__})
 
+    def openapi(self):
+        """Return OpenAPI specification."""
+        spec = create_openapi_spec()
+        return jsonify(spec.to_dict())
+
+    @require_appkey
+    def wx_history(self) -> Response | tuple[Response, int]:
+        """Handle GET /api/v1/wx/history - weather station historical data.
+
+        Returns hourly aggregated weather data for graphing.
+
+        Returns:
+            Flask JSON response with history data or error.
+        """
+        # Validate station identifier
+        station_id = request.args.get('station_id')
+        callsign = request.args.get('callsign')
+
+        if not station_id and not callsign:
+            return jsonify(
+                {
+                    'error': "Either 'station_id' or 'callsign' is required",
+                    'field': 'station_id/callsign',
+                }
+            ), 400
+
+        # Validate timestamps
+        start, error = _run_validation(
+            validate_iso_timestamp, request.args.get('start'), 'start'
+        )
+        if error:
+            return error
+
+        end, error = _run_validation(
+            validate_iso_timestamp, request.args.get('end'), 'end'
+        )
+        if error:
+            return error
+
+        # Validate date range
+        _, error = _run_validation(validate_date_range, start, end)
+        if error:
+            return error
+
+        # Validate fields
+        fields, error = _run_validation(validate_wx_fields, request.args.get('fields'))
+        if error:
+            return error
+
+        # Look up station and get history
+        session_factory = self._get_db_session()
+        with session_factory() as session:
+            try:
+                station = _get_weather_station(session, station_id, callsign)
+            except ValidationError as ex:
+                # Return 404 for "not found", 400 for invalid input
+                status = 404 if 'not found' in ex.message.lower() else 400
+                return jsonify({'error': ex.message, 'field': ex.field}), status
+
+            # Get history data
+            history = db.get_wx_history(
+                session,
+                station_id=station.id,
+                start=start,
+                end=end,
+                fields=fields,
+            )
+
+            return jsonify(
+                {
+                    'station_id': station.id,
+                    'callsign': station.callsign,
+                    'start': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'end': end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'interval': '1h',
+                    'fields': fields,
+                    'history': history,
+                    'count': len(history),
+                }
+            )
+
 
 @click.command()
 @cli_helper.add_options(cli_helper.common_options)
@@ -883,6 +1373,8 @@ def create_app(ctx):
     app.route('/test', methods=['GET'])(server.test)
     app.route('/api/get', methods=['GET'])(server.aprsfi_location)
     app.route('/api/v1/location', methods=['GET'])(server.location)
+    app.route('/api/v1/wx/history', methods=['GET'])(server.wx_history)
+    app.route('/openapi.json', methods=['GET'])(server.openapi)
     LOG.debug(f'URL MAP: {app.url_map}')
     return app
 

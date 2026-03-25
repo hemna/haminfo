@@ -29,6 +29,20 @@ from haminfo import utils
 
 
 LOG = logging.getLogger(utils.DOMAIN)
+
+# Centralized weather field mapping - maps field names to model columns
+# Used by both validation (flask.py) and query (get_wx_history)
+WX_FIELD_MAPPING = {
+    'temperature': WeatherReport.temperature,
+    'humidity': WeatherReport.humidity,
+    'pressure': WeatherReport.pressure,
+    'wind_speed': WeatherReport.wind_speed,
+    'wind_direction': WeatherReport.wind_direction,
+    'wind_gust': WeatherReport.wind_gust,
+    'rain_1h': WeatherReport.rain_1h,
+    'rain_24h': WeatherReport.rain_24h,
+    'rain_since_midnight': WeatherReport.rain_since_midnight,
+}
 CONF = cfg.CONF
 
 grp = cfg.OptGroup('database')
@@ -427,7 +441,7 @@ def clean_empty_wx_stations(session: Session) -> int:
 
     # Find stations with no reports using a NOT EXISTS subquery
     # This is more efficient than loading all stations and checking reports
-    from sqlalchemy import exists, select
+    from sqlalchemy import select
 
     # Subquery to check if a station has any reports
     has_reports = (
@@ -596,3 +610,75 @@ def get_aprs_packet_stats(session: Session) -> dict[str, Any]:
         'unique_callsigns': unique_callsigns,
         'last_24h': last_24h,
     }
+
+
+def get_wx_history(
+    session: Session,
+    station_id: int,
+    start: datetime,
+    end: datetime,
+    fields: list[str],
+) -> list[dict[str, Any]]:
+    """Get hourly aggregated weather history for a station.
+
+    Uses date_trunc for hourly aggregation (PostgreSQL) or strftime (SQLite).
+
+    Args:
+        session: Database session.
+        station_id: Weather station ID.
+        start: Start datetime (inclusive).
+        end: End datetime (exclusive).
+        fields: List of field names to include.
+
+    Returns:
+        List of dicts with 'time' and requested field values,
+        ordered by time ascending.
+    """
+    # Use date_trunc for hourly bucketing (works on PostgreSQL)
+    # For SQLite, use strftime-based approach
+    dialect = session.bind.dialect.name if session.bind else 'postgresql'
+
+    if dialect == 'sqlite':
+        # SQLite: use strftime to truncate to hour
+        bucket = func.strftime('%Y-%m-%d %H:00:00', WeatherReport.time).label('bucket')
+    else:
+        # PostgreSQL/TimescaleDB: use date_trunc
+        bucket = func.date_trunc('hour', WeatherReport.time).label('bucket')
+
+    # Build select columns using centralized WX_FIELD_MAPPING
+    select_cols = [bucket]
+    for field in fields:
+        if field in WX_FIELD_MAPPING:
+            select_cols.append(func.avg(WX_FIELD_MAPPING[field]).label(field))
+
+    query = (
+        session.query(*select_cols)
+        .filter(
+            WeatherReport.weather_station_id == station_id,
+            WeatherReport.time >= start,
+            WeatherReport.time < end,
+        )
+        .group_by(bucket)
+        .order_by(bucket)
+    )
+
+    results = []
+    for row in query:
+        bucket_val = row.bucket
+        if isinstance(bucket_val, str):
+            # SQLite returns string
+            time_str = bucket_val.replace(' ', 'T') + 'Z'
+        else:
+            # PostgreSQL returns datetime
+            time_str = bucket_val.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        entry = {'time': time_str}
+        for field in fields:
+            value = getattr(row, field, None)
+            if value is not None:
+                entry[field] = round(float(value), 2)
+            else:
+                entry[field] = None
+        results.append(entry)
+
+    return results

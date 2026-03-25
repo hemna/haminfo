@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import datetime, timezone
+
 from haminfo.flask import (
     validate_lat_lon,
     validate_count,
+    validate_iso_timestamp,
+    validate_wx_fields,
+    validate_date_range,
     ValidationError,
-    LAT_MIN,
-    LAT_MAX,
-    LON_MIN,
-    LON_MAX,
     COUNT_MIN,
     COUNT_MAX,
+    VALID_WX_FIELDS,
 )
 
 
@@ -130,3 +132,134 @@ class TestValidationError:
     def test_error_without_field(self):
         err = ValidationError('bad input')
         assert err.field == ''
+
+
+class TestValidateIsoTimestamp:
+    """Tests for ISO 8601 timestamp validation."""
+
+    def test_valid_utc_timestamp(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T00:00:00Z')
+        assert result == datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_valid_timestamp_with_offset(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T12:00:00+00:00')
+        assert result == datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_timestamp_without_timezone_assumes_utc(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T00:00:00')
+        assert result == datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_rejects_none(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_iso_timestamp(None, 'start')
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_iso_timestamp('', 'start')
+
+    def test_rejects_invalid_format(self):
+        with pytest.raises(ValidationError, match='Invalid timestamp'):
+            validate_iso_timestamp('not-a-date', 'start')
+
+    def test_rejects_partial_date(self):
+        with pytest.raises(ValidationError, match='Invalid timestamp'):
+            validate_iso_timestamp('2026-03-20', 'start')
+
+    def test_error_includes_field_name(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_iso_timestamp('bad', 'end')
+        assert exc_info.value.field == 'end'
+
+
+class TestValidateWxFields:
+    """Tests for weather field validation."""
+
+    def test_valid_single_field(self):
+        result = validate_wx_fields('temperature')
+        assert result == ['temperature']
+
+    def test_valid_multiple_fields(self):
+        result = validate_wx_fields('temperature,humidity,pressure')
+        assert result == ['temperature', 'humidity', 'pressure']
+
+    def test_strips_whitespace(self):
+        result = validate_wx_fields(' temperature , humidity ')
+        assert result == ['temperature', 'humidity']
+
+    def test_all_valid_fields(self):
+        all_fields = ','.join(VALID_WX_FIELDS)
+        result = validate_wx_fields(all_fields)
+        assert set(result) == set(VALID_WX_FIELDS)
+
+    def test_rejects_none(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_wx_fields(None)
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_wx_fields('')
+
+    def test_rejects_invalid_field(self):
+        with pytest.raises(ValidationError, match='Invalid field'):
+            validate_wx_fields('invalid_field')
+
+    def test_rejects_mixed_valid_invalid(self):
+        with pytest.raises(ValidationError, match='Invalid field'):
+            validate_wx_fields('temperature,bad_field')
+
+    def test_error_lists_valid_fields(self):
+        with pytest.raises(ValidationError, match='temperature'):
+            validate_wx_fields('bad')
+
+    def test_preserves_duplicate_fields(self):
+        """Duplicate fields should be preserved rather than deduplicated."""
+        result = validate_wx_fields('temperature,temperature')
+        assert result == ['temperature', 'temperature']
+
+    def test_normalizes_mixed_case_fields(self):
+        """Input field names should be normalized to lowercase."""
+        result = validate_wx_fields('Temperature,HUMIDITY')
+        assert result == ['temperature', 'humidity']
+
+    def test_mixed_case_with_whitespace(self):
+        """Mixed case with whitespace should normalize correctly."""
+        result = validate_wx_fields(' TEMPERATURE , Humidity , PRESSURE ')
+        assert result == ['temperature', 'humidity', 'pressure']
+
+
+class TestValidateDateRange:
+    """Tests for date range validation."""
+
+    def test_valid_one_day_range(self):
+        start = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 21, 0, 0, 0, tzinfo=timezone.utc)
+        validate_date_range(start, end)  # Should not raise
+
+    def test_valid_max_range(self):
+        start = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 31, 0, 0, 0, tzinfo=timezone.utc)
+        validate_date_range(start, end)  # Should not raise
+
+    def test_rejects_start_after_end(self):
+        start = datetime(2026, 3, 21, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        with pytest.raises(ValidationError, match='before'):
+            validate_date_range(start, end)
+
+    def test_rejects_start_equals_end(self):
+        start = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        with pytest.raises(ValidationError, match='before'):
+            validate_date_range(start, end)
+
+    def test_rejects_range_exceeds_max(self):
+        start = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 4, 2, 0, 0, 0, tzinfo=timezone.utc)  # 32 days
+        with pytest.raises(ValidationError, match='30 days'):
+            validate_date_range(start, end)

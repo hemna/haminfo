@@ -3,13 +3,30 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta
+
 import pytest
 from unittest.mock import patch
 
+from oslo_config import cfg
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from haminfo.db.models.modelbase import ModelBase
+from haminfo.db.models.weather_report import WeatherStation, WeatherReport
+
+
+# Set up test API key
+TEST_API_KEY = 'test-api-key-12345'
+
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_test_config():
+    """Configure test settings including API key."""
+    # Import flask module to register the 'web' config group
+    import haminfo.flask  # noqa: F401
+
+    cfg.CONF.set_override('api_key', TEST_API_KEY, group='web')
 
 
 @pytest.fixture(scope='session')
@@ -221,3 +238,120 @@ def mock_flask_app():
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
+
+
+@pytest.fixture
+def app(engine):
+    """Create Flask test application."""
+    from haminfo.flask import app as flask_app, HaminfoFlask
+
+    flask_app.config['TESTING'] = True
+
+    # Create the scoped session that will be used by both Flask and fixtures
+    test_session_factory = scoped_session(sessionmaker(bind=engine))
+
+    # Store it so other fixtures can access it
+    flask_app.test_session_factory = test_session_factory
+
+    # Patch the DB session to use our test engine
+    with patch('haminfo.db.db.get_engine', return_value=engine):
+        with patch('haminfo.db.db.setup_session', return_value=test_session_factory):
+            # Register routes for testing (normally done in create_app)
+            server = HaminfoFlask()
+            server.app = flask_app
+
+            # Register endpoints if not already registered
+            rules = [rule.rule for rule in flask_app.url_map.iter_rules()]
+            if '/api/v1/wx/history' not in rules:
+                flask_app.route('/api/v1/wx/history', methods=['GET'])(
+                    server.wx_history
+                )
+            if '/api/v1/location' not in rules:
+                flask_app.route('/api/v1/location', methods=['GET'])(server.location)
+            if '/wxstation_report' not in rules:
+                flask_app.route('/wxstation_report', methods=['GET'])(
+                    server.wxstation_report
+                )
+            if '/openapi.json' not in rules:
+                flask_app.route('/openapi.json', methods=['GET'])(server.openapi)
+
+            yield flask_app
+
+            # Clean up the scoped session and delete test data
+            test_session_factory.remove()
+
+            # Delete all test data created during the test
+            with engine.connect() as conn:
+                conn.execute(WeatherReport.__table__.delete())
+                conn.execute(WeatherStation.__table__.delete())
+                conn.commit()
+
+
+@pytest.fixture
+def client(app):
+    """Create Flask test client."""
+    return app.test_client()
+
+
+@pytest.fixture
+def api_key_header():
+    """Return headers with valid API key."""
+    return {'X-Api-Key': TEST_API_KEY}
+
+
+@pytest.fixture
+def wx_station_with_reports(request, db_session):
+    """Create a weather station with test reports.
+
+    Returns a simple object with station id to avoid SQLAlchemy lazy-loading
+    the geography column (which GeoAlchemy2 can't parse in SQLite test env).
+
+    When used with Flask endpoint tests (via 'app' fixture), creates data
+    in the app's session factory. Otherwise uses db_session.
+    """
+    # Check if app fixture is being used (for endpoint tests)
+    if 'app' in request.fixturenames:
+        app = request.getfixturevalue('app')
+        session_factory = app.test_session_factory
+        session = session_factory()
+    else:
+        session = db_session
+
+    # SQLite doesn't support PostgreSQL sequences, so we need to provide an ID
+    # In production, the sequence handles this automatically
+    station_id = 1
+    station = WeatherStation(
+        id=station_id,
+        callsign='TEST1',
+        latitude=42.0,
+        longitude=-71.0,
+        location='POINT(-71.0 42.0)',
+    )
+    session.add(station)
+    session.flush()
+
+    # Add reports at different times within the same hour
+    base_time = datetime(2026, 3, 20, 0, 30, 0)  # No tzinfo for SQLite compatibility
+    for i in range(5):
+        report = WeatherReport(
+            weather_station_id=station_id,
+            time=base_time + timedelta(minutes=i * 10),
+            temperature=20.0 + i,
+            humidity=50 + i,
+            pressure=1013.0,
+            wind_speed=5.0,
+            wind_direction=180,
+            wind_gust=10.0,
+            rain_1h=0.0,
+            rain_24h=0.0,
+            rain_since_midnight=0.0,
+        )
+        session.add(report)
+
+    session.commit()
+
+    # Return a simple namespace with just the id to avoid re-fetching the
+    # station (which would trigger GeoAlchemy2 to parse the geography column)
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=station_id, callsign='TEST1')
