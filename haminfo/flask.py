@@ -1372,6 +1372,13 @@ def create_app(ctx):
         LOG.info(f'Trusted hosts configured: {trusted}')
         # Set trusted_hosts on Flask's request class
         app.request_class.trusted_hosts = trusted
+
+    # Add debug logging for Host header issues
+    @app.before_request
+    def log_request_host():
+        host_header = request.headers.get('Host', '<missing>')
+        LOG.debug(f'Incoming request Host header: {host_header}')
+
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
 
     server = HaminfoFlask()
