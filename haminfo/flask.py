@@ -280,12 +280,23 @@ CONF = cfg.CONF
 LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
 
+
+# Custom Request class that will have trusted_hosts set later
+class TrustedHostsRequest(flask.Request):
+    """Flask Request subclass that allows configuring trusted_hosts."""
+
+    # Will be set during create_app() based on config
+    trusted_hosts = None
+
+
 app = flask.Flask(
     utils.DOMAIN,
     static_url_path='/static',
     static_folder='web/static',
     template_folder='web/templates',
 )
+# Use our custom Request class
+app.request_class = TrustedHostsRequest
 
 grp = cfg.OptGroup('web')
 cfg.CONF.register_group(grp)
@@ -1370,14 +1381,8 @@ def create_app(ctx):
     if CONF.web.trusted_hosts:
         trusted = CONF.web.trusted_hosts
         LOG.info(f'Trusted hosts configured: {trusted}')
-        # Set trusted_hosts on Flask's request class
-        app.request_class.trusted_hosts = trusted
-
-    # Add debug logging for Host header issues
-    @app.before_request
-    def log_request_host():
-        host_header = request.headers.get('Host', '<missing>')
-        LOG.debug(f'Incoming request Host header: {host_header}')
+        # Set trusted_hosts on our custom TrustedHostsRequest class
+        TrustedHostsRequest.trusted_hosts = trusted
 
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
 
