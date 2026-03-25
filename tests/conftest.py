@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta
+
 import pytest
 from unittest.mock import patch
 
@@ -10,6 +12,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from haminfo.db.models.modelbase import ModelBase
+from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 
 
 @pytest.fixture(scope='session')
@@ -221,3 +224,50 @@ def mock_flask_app():
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
+
+
+@pytest.fixture
+def wx_station_with_reports(db_session):
+    """Create a weather station with test reports.
+
+    Returns a simple object with station id to avoid SQLAlchemy lazy-loading
+    the geography column (which GeoAlchemy2 can't parse in SQLite test env).
+    """
+    # SQLite doesn't support PostgreSQL sequences, so we need to provide an ID
+    # In production, the sequence handles this automatically
+    station_id = 1
+    station = WeatherStation(
+        id=station_id,
+        callsign='TEST1',
+        latitude=42.0,
+        longitude=-71.0,
+        location='POINT(-71.0 42.0)',
+    )
+    db_session.add(station)
+    db_session.flush()
+
+    # Add reports at different times within the same hour
+    base_time = datetime(2026, 3, 20, 0, 30, 0)  # No tzinfo for SQLite compatibility
+    for i in range(5):
+        report = WeatherReport(
+            weather_station_id=station_id,
+            time=base_time + timedelta(minutes=i * 10),
+            temperature=20.0 + i,
+            humidity=50 + i,
+            pressure=1013.0,
+            wind_speed=5.0,
+            wind_direction=180,
+            wind_gust=10.0,
+            rain_1h=0.0,
+            rain_24h=0.0,
+            rain_since_midnight=0.0,
+        )
+        db_session.add(report)
+
+    db_session.commit()
+
+    # Return a simple namespace with just the id to avoid re-fetching the
+    # station (which would trigger GeoAlchemy2 to parse the geography column)
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=station_id, callsign='TEST1')
