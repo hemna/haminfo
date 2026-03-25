@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import datetime, timezone, timedelta
+
 from haminfo.flask import (
     validate_lat_lon,
     validate_count,
     validate_iso_timestamp,
     validate_wx_fields,
+    validate_date_range,
     ValidationError,
     LAT_MIN,
     LAT_MAX,
@@ -17,6 +20,7 @@ from haminfo.flask import (
     COUNT_MIN,
     COUNT_MAX,
     VALID_WX_FIELDS,
+    MAX_DATE_RANGE_DAYS,
 )
 
 
@@ -217,3 +221,35 @@ class TestValidateWxFields:
     def test_error_lists_valid_fields(self):
         with pytest.raises(ValidationError, match='temperature'):
             validate_wx_fields('bad')
+
+
+class TestValidateDateRange:
+    """Tests for date range validation."""
+
+    def test_valid_one_day_range(self):
+        start = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 21, 0, 0, 0, tzinfo=timezone.utc)
+        validate_date_range(start, end)  # Should not raise
+
+    def test_valid_max_range(self):
+        start = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 31, 0, 0, 0, tzinfo=timezone.utc)
+        validate_date_range(start, end)  # Should not raise
+
+    def test_rejects_start_after_end(self):
+        start = datetime(2026, 3, 21, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        with pytest.raises(ValidationError, match='before'):
+            validate_date_range(start, end)
+
+    def test_rejects_start_equals_end(self):
+        start = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+        with pytest.raises(ValidationError, match='before'):
+            validate_date_range(start, end)
+
+    def test_rejects_range_exceeds_max(self):
+        start = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 4, 2, 0, 0, 0, tzinfo=timezone.utc)  # 32 days
+        with pytest.raises(ValidationError, match='30 days'):
+            validate_date_range(start, end)

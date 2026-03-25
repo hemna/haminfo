@@ -306,6 +306,33 @@ def validate_wx_fields(fields_str: Any) -> list[str]:
     return fields
 
 
+MAX_DATE_RANGE_DAYS = 30
+
+
+def validate_date_range(start: datetime, end: datetime) -> None:
+    """Validate that a date range is valid.
+
+    Args:
+        start: Start datetime.
+        end: End datetime.
+
+    Raises:
+        ValidationError: If start >= end or range exceeds maximum.
+    """
+    if start >= end:
+        raise ValidationError(
+            "'start' must be before 'end'",
+            'start/end',
+        )
+
+    delta = end - start
+    if delta.days > MAX_DATE_RANGE_DAYS:
+        raise ValidationError(
+            f'Date range exceeds maximum of {MAX_DATE_RANGE_DAYS} days',
+            'start/end',
+        )
+
+
 def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
     """Convert an APRSPacket model instance to aprs.fi-compatible dict.
 
