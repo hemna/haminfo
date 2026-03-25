@@ -253,6 +253,59 @@ def validate_iso_timestamp(value: Any, field_name: str = 'timestamp') -> datetim
         ) from err
 
 
+# Valid weather report fields for history queries
+VALID_WX_FIELDS = frozenset(
+    [
+        'temperature',
+        'humidity',
+        'pressure',
+        'wind_speed',
+        'wind_direction',
+        'wind_gust',
+        'rain_1h',
+        'rain_24h',
+        'rain_since_midnight',
+    ]
+)
+
+
+def validate_wx_fields(fields_str: Any) -> list[str]:
+    """Validate and parse a comma-separated weather fields string.
+
+    Args:
+        fields_str: Comma-separated field names.
+
+    Returns:
+        List of validated field names.
+
+    Raises:
+        ValidationError: If input is empty or contains invalid field names.
+    """
+    if not fields_str or not isinstance(fields_str, str):
+        raise ValidationError(
+            'At least one valid field is required',
+            'fields',
+        )
+
+    fields = [f.strip().lower() for f in fields_str.split(',') if f.strip()]
+
+    if not fields:
+        raise ValidationError(
+            'At least one valid field is required',
+            'fields',
+        )
+
+    for field in fields:
+        if field not in VALID_WX_FIELDS:
+            valid_list = ', '.join(sorted(VALID_WX_FIELDS))
+            raise ValidationError(
+                f"Invalid field: '{field}'. Valid fields: {valid_list}",
+                'fields',
+            )
+
+    return fields
+
+
 def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
     """Convert an APRSPacket model instance to aprs.fi-compatible dict.
 

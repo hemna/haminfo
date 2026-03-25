@@ -8,6 +8,7 @@ from haminfo.flask import (
     validate_lat_lon,
     validate_count,
     validate_iso_timestamp,
+    validate_wx_fields,
     ValidationError,
     LAT_MIN,
     LAT_MAX,
@@ -15,6 +16,7 @@ from haminfo.flask import (
     LON_MAX,
     COUNT_MIN,
     COUNT_MAX,
+    VALID_WX_FIELDS,
 )
 
 
@@ -174,3 +176,44 @@ class TestValidateIsoTimestamp:
         with pytest.raises(ValidationError) as exc_info:
             validate_iso_timestamp('bad', 'end')
         assert exc_info.value.field == 'end'
+
+
+class TestValidateWxFields:
+    """Tests for weather field validation."""
+
+    def test_valid_single_field(self):
+        result = validate_wx_fields('temperature')
+        assert result == ['temperature']
+
+    def test_valid_multiple_fields(self):
+        result = validate_wx_fields('temperature,humidity,pressure')
+        assert result == ['temperature', 'humidity', 'pressure']
+
+    def test_strips_whitespace(self):
+        result = validate_wx_fields(' temperature , humidity ')
+        assert result == ['temperature', 'humidity']
+
+    def test_all_valid_fields(self):
+        all_fields = ','.join(VALID_WX_FIELDS)
+        result = validate_wx_fields(all_fields)
+        assert set(result) == set(VALID_WX_FIELDS)
+
+    def test_rejects_none(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_wx_fields(None)
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_wx_fields('')
+
+    def test_rejects_invalid_field(self):
+        with pytest.raises(ValidationError, match='Invalid field'):
+            validate_wx_fields('invalid_field')
+
+    def test_rejects_mixed_valid_invalid(self):
+        with pytest.raises(ValidationError, match='Invalid field'):
+            validate_wx_fields('temperature,bad_field')
+
+    def test_error_lists_valid_fields(self):
+        with pytest.raises(ValidationError, match='temperature'):
+            validate_wx_fields('bad')
