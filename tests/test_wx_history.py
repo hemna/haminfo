@@ -7,6 +7,92 @@ from datetime import datetime, timezone
 from haminfo.db.db import get_wx_history
 
 
+class TestWxHistoryEndpoint:
+    """Integration tests for /api/v1/wx/history endpoint."""
+
+    def test_requires_api_key(self, client):
+        """Test that endpoint requires authentication."""
+        response = client.get('/api/v1/wx/history')
+        assert response.status_code == 401
+
+    def test_requires_station_identifier(self, client, api_key_header):
+        """Test that station_id or callsign is required."""
+        response = client.get(
+            '/api/v1/wx/history?start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 400
+        assert (
+            'station_id' in response.json['error'].lower()
+            or 'callsign' in response.json['error'].lower()
+        )
+
+    def test_requires_start_and_end(self, client, api_key_header):
+        """Test that start and end are required."""
+        response = client.get(
+            '/api/v1/wx/history?station_id=1&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 400
+        assert (
+            'start' in response.json['error'].lower()
+            or 'end' in response.json['error'].lower()
+        )
+
+    def test_requires_fields(self, client, api_key_header):
+        """Test that fields parameter is required."""
+        response = client.get(
+            '/api/v1/wx/history?station_id=1&start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z',
+            headers=api_key_header,
+        )
+        assert response.status_code == 400
+        assert 'field' in response.json['error'].lower()
+
+    def test_returns_404_for_unknown_station(self, client, api_key_header):
+        """Test that unknown station returns 404."""
+        response = client.get(
+            '/api/v1/wx/history?station_id=99999&start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 404
+
+    def test_successful_response_structure(
+        self, client, api_key_header, wx_station_with_reports
+    ):
+        """Test successful response has correct structure."""
+        station = wx_station_with_reports
+        response = client.get(
+            f'/api/v1/wx/history?station_id={station.id}&start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 200
+        data = response.json
+        assert 'station_id' in data
+        assert 'callsign' in data
+        assert 'history' in data
+        assert 'count' in data
+        assert isinstance(data['history'], list)
+
+    def test_lookup_by_callsign(self, client, api_key_header, wx_station_with_reports):
+        """Test lookup by callsign works."""
+        station = wx_station_with_reports
+        response = client.get(
+            f'/api/v1/wx/history?callsign={station.callsign}&start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 200
+        assert response.json['callsign'] == station.callsign
+
+    def test_rejects_non_integer_station_id(self, client, api_key_header):
+        """Test that non-integer station_id returns 400."""
+        response = client.get(
+            '/api/v1/wx/history?station_id=abc&start=2026-03-20T00:00:00Z&end=2026-03-21T00:00:00Z&fields=temperature',
+            headers=api_key_header,
+        )
+        assert response.status_code == 400
+        assert 'integer' in response.json['error'].lower()
+
+
 class TestGetWxHistory:
     """Tests for get_wx_history database function."""
 

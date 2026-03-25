@@ -35,6 +35,8 @@ from haminfo.conf import log as log_conf
 if TYPE_CHECKING:
     from haminfo.db.models.aprs_packet import APRSPacket
 
+from haminfo.db.models.weather_report import WeatherStation
+
 
 auth = HTTPBasicAuth()
 users = None
@@ -954,6 +956,109 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f'URL MAP: {self.app.url_map}')
         return jsonify({'status': 'ok', 'version': haminfo.__version__})
 
+    @require_appkey
+    def wx_history(self) -> Response | tuple[Response, int]:
+        """Handle GET /api/v1/wx/history - weather station historical data.
+
+        Returns hourly aggregated weather data for graphing.
+
+        Returns:
+            Flask JSON response with history data or error.
+        """
+        # Validate station identifier
+        station_id = request.args.get('station_id')
+        callsign = request.args.get('callsign')
+
+        if not station_id and not callsign:
+            return jsonify(
+                {
+                    'error': "Either 'station_id' or 'callsign' is required",
+                    'field': 'station_id/callsign',
+                }
+            ), 400
+
+        # Validate timestamps
+        try:
+            start = validate_iso_timestamp(request.args.get('start'), 'start')
+            end = validate_iso_timestamp(request.args.get('end'), 'end')
+        except ValidationError as ex:
+            return jsonify({'error': ex.message, 'field': ex.field}), 400
+
+        # Validate date range
+        try:
+            validate_date_range(start, end)
+        except ValidationError as ex:
+            return jsonify({'error': ex.message, 'field': ex.field}), 400
+
+        # Validate fields
+        try:
+            fields = validate_wx_fields(request.args.get('fields'))
+        except ValidationError as ex:
+            return jsonify({'error': ex.message, 'field': ex.field}), 400
+
+        # Look up station
+        session = self._get_db_session()
+        with session() as session:
+            # Resolve station_id and callsign
+            if station_id:
+                try:
+                    station_id = int(station_id)
+                except (ValueError, TypeError):
+                    return jsonify(
+                        {
+                            'error': "'station_id' must be an integer",
+                            'field': 'station_id',
+                        }
+                    ), 400
+
+                station = (
+                    session.query(
+                        WeatherStation.id,
+                        WeatherStation.callsign,
+                    )
+                    .filter(WeatherStation.id == station_id)
+                    .first()
+                )
+            else:
+                station = (
+                    session.query(
+                        WeatherStation.id,
+                        WeatherStation.callsign,
+                    )
+                    .filter(WeatherStation.callsign == callsign.upper())
+                    .first()
+                )
+
+            if not station:
+                return jsonify(
+                    {
+                        'error': 'Weather station not found',
+                        'field': 'station_id/callsign',
+                    }
+                ), 404
+
+            # Get history data
+            history = db.get_wx_history(
+                session,
+                station_id=station.id,
+                start=start,
+                end=end,
+                fields=fields,
+            )
+
+            return jsonify(
+                {
+                    'station_id': station.id,
+                    'callsign': station.callsign,
+                    'start': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'end': end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'interval': '1h',
+                    'fields': fields,
+                    'history': history,
+                    'count': len(history),
+                }
+            )
+
 
 @click.command()
 @cli_helper.add_options(cli_helper.common_options)
@@ -1006,6 +1111,7 @@ def create_app(ctx):
     app.route('/test', methods=['GET'])(server.test)
     app.route('/api/get', methods=['GET'])(server.aprsfi_location)
     app.route('/api/v1/location', methods=['GET'])(server.location)
+    app.route('/api/v1/wx/history', methods=['GET'])(server.wx_history)
     LOG.debug(f'URL MAP: {app.url_map}')
     return app
 
