@@ -309,9 +309,9 @@ web_opts = [
     ),
     cfg.ListOpt(
         'trusted_hosts',
-        default=[],
+        default=None,
         help='List of trusted hostnames for the Host header validation. '
-        'Example: haminfo_api:8081,localhost:8081',
+        'Example: haminfo_api:8081,localhost:8081. Leave unset to trust all hosts.',
     ),
 ]
 
