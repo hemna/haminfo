@@ -31,6 +31,7 @@ import sentry_sdk
 import haminfo
 from haminfo import utils, trace, cli_helper
 from haminfo.db import db
+from haminfo.db.db import WX_FIELD_MAPPING
 from haminfo.conf import log as log_conf
 
 if TYPE_CHECKING:
@@ -490,20 +491,9 @@ def validate_iso_timestamp(value: Any, field_name: str = 'timestamp') -> datetim
         ) from err
 
 
-# Valid weather report fields for history queries
-VALID_WX_FIELDS = frozenset(
-    [
-        'temperature',
-        'humidity',
-        'pressure',
-        'wind_speed',
-        'wind_direction',
-        'wind_gust',
-        'rain_1h',
-        'rain_24h',
-        'rain_since_midnight',
-    ]
-)
+# Valid weather report fields - derived from centralized WX_FIELD_MAPPING
+# to prevent drift between validation and query layers
+VALID_WX_FIELDS = frozenset(WX_FIELD_MAPPING.keys())
 
 
 def validate_wx_fields(fields_str: Any) -> list[str]:
@@ -568,6 +558,65 @@ def validate_date_range(start: datetime, end: datetime) -> None:
             f'Date range exceeds maximum of {MAX_DATE_RANGE_DAYS} days',
             'start/end',
         )
+
+
+def _run_validation(fn, *args, **kwargs):
+    """Run a validation function and return (result, error_response).
+
+    Helper to reduce repetitive try/except ValidationError blocks.
+
+    Args:
+        fn: Validation function to call.
+        *args: Positional arguments for fn.
+        **kwargs: Keyword arguments for fn.
+
+    Returns:
+        Tuple of (result, None) on success, or (None, (response, status_code)) on error.
+    """
+    try:
+        return fn(*args, **kwargs), None
+    except ValidationError as ex:
+        return None, (jsonify({'error': ex.message, 'field': ex.field}), 400)
+
+
+def _get_weather_station(session, station_id: str | None, callsign: str | None):
+    """Look up a weather station by ID or callsign.
+
+    Args:
+        session: Database session.
+        station_id: Station ID string (will be converted to int).
+        callsign: Station callsign (case-insensitive).
+
+    Returns:
+        WeatherStation query result with id and callsign.
+
+    Raises:
+        ValidationError: If station_id is not an integer or station not found.
+    """
+    if station_id:
+        try:
+            station_id_int = int(station_id)
+        except (ValueError, TypeError):
+            raise ValidationError(
+                "'station_id' must be an integer", 'station_id'
+            ) from None
+
+        station = (
+            session.query(WeatherStation.id, WeatherStation.callsign)
+            .filter(WeatherStation.id == station_id_int)
+            .first()
+        )
+    else:
+        station = (
+            session.query(WeatherStation.id, WeatherStation.callsign)
+            .filter(WeatherStation.callsign == callsign.upper())
+            .first()
+        )
+
+    if not station:
+        raise ValidationError('Weather station not found', 'station_id/callsign')
+
+    return station
 
 
 def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
@@ -1218,64 +1267,97 @@ class HaminfoFlask(flask_classful.FlaskView):
             ), 400
 
         # Validate timestamps
-        try:
-            start = validate_iso_timestamp(request.args.get('start'), 'start')
-            end = validate_iso_timestamp(request.args.get('end'), 'end')
-        except ValidationError as ex:
-            return jsonify({'error': ex.message, 'field': ex.field}), 400
+        start, error = _run_validation(
+            validate_iso_timestamp, request.args.get('start'), 'start'
+        )
+        if error:
+            return error
+
+        end, error = _run_validation(
+            validate_iso_timestamp, request.args.get('end'), 'end'
+        )
+        if error:
+            return error
 
         # Validate date range
-        try:
-            validate_date_range(start, end)
-        except ValidationError as ex:
-            return jsonify({'error': ex.message, 'field': ex.field}), 400
+        _, error = _run_validation(validate_date_range, start, end)
+        if error:
+            return error
 
         # Validate fields
-        try:
-            fields = validate_wx_fields(request.args.get('fields'))
-        except ValidationError as ex:
-            return jsonify({'error': ex.message, 'field': ex.field}), 400
+        fields, error = _run_validation(validate_wx_fields, request.args.get('fields'))
+        if error:
+            return error
 
-        # Look up station
-        session = self._get_db_session()
-        with session() as session:
-            # Resolve station_id and callsign
-            if station_id:
-                try:
-                    station_id = int(station_id)
-                except (ValueError, TypeError):
-                    return jsonify(
-                        {
-                            'error': "'station_id' must be an integer",
-                            'field': 'station_id',
-                        }
-                    ), 400
+        # Look up station and get history
+        session_factory = self._get_db_session()
+        with session_factory() as session:
+            try:
+                station = _get_weather_station(session, station_id, callsign)
+            except ValidationError as ex:
+                # Return 404 for "not found", 400 for invalid input
+                status = 404 if 'not found' in ex.message.lower() else 400
+                return jsonify({'error': ex.message, 'field': ex.field}), status
 
-                station = (
-                    session.query(
-                        WeatherStation.id,
-                        WeatherStation.callsign,
-                    )
-                    .filter(WeatherStation.id == station_id)
-                    .first()
-                )
-            else:
-                station = (
-                    session.query(
-                        WeatherStation.id,
-                        WeatherStation.callsign,
-                    )
-                    .filter(WeatherStation.callsign == callsign.upper())
-                    .first()
-                )
+            # Get history data
+            history = db.get_wx_history(
+                session,
+                station_id=station.id,
+                start=start,
+                end=end,
+                fields=fields,
+            )
 
-            if not station:
-                return jsonify(
-                    {
-                        'error': 'Weather station not found',
-                        'field': 'station_id/callsign',
-                    }
-                ), 404
+            return jsonify(
+                {
+                    'station_id': station.id,
+                    'callsign': station.callsign,
+                    'start': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'end': end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'interval': '1h',
+                    'fields': fields,
+                    'history': history,
+                    'count': len(history),
+                }
+            )
+        if error:
+            return error
+
+        end, error = _run_validation(
+            validate_iso_timestamp, request.args.get('end'), 'end'
+        )
+        if error:
+            return error
+
+        # Validate date range
+        _, error = _run_validation(validate_date_range, start, end)
+        if error:
+            return error
+
+        # Validate fields
+        fields, error = _run_validation(validate_wx_fields, request.args.get('fields'))
+        if error:
+            return error
+
+        # Look up station and get history
+        session_factory = self._get_db_session()
+        with session_factory() as session:
+            station, error = _run_validation(
+                _get_weather_station, session, station_id, callsign
+            )
+            if error:
+                # Check if it's a 404 (station not found) vs 400 (invalid input)
+                # _get_weather_station raises ValidationError for both cases
+                # but we need to return 404 for "not found"
+                pass
+
+            # Re-run without helper to get proper 404 status
+            try:
+                station = _get_weather_station(session, station_id, callsign)
+            except ValidationError as ex:
+                if 'not found' in ex.message.lower():
+                    return jsonify({'error': ex.message, 'field': ex.field}), 404
+                return jsonify({'error': ex.message, 'field': ex.field}), 400
 
             # Get history data
             history = db.get_wx_history(

@@ -29,6 +29,20 @@ from haminfo import utils
 
 
 LOG = logging.getLogger(utils.DOMAIN)
+
+# Centralized weather field mapping - maps field names to model columns
+# Used by both validation (flask.py) and query (get_wx_history)
+WX_FIELD_MAPPING = {
+    'temperature': WeatherReport.temperature,
+    'humidity': WeatherReport.humidity,
+    'pressure': WeatherReport.pressure,
+    'wind_speed': WeatherReport.wind_speed,
+    'wind_direction': WeatherReport.wind_direction,
+    'wind_gust': WeatherReport.wind_gust,
+    'rain_1h': WeatherReport.rain_1h,
+    'rain_24h': WeatherReport.rain_24h,
+    'rain_since_midnight': WeatherReport.rain_since_midnight,
+}
 CONF = cfg.CONF
 
 grp = cfg.OptGroup('database')
@@ -620,19 +634,6 @@ def get_wx_history(
         List of dicts with 'time' and requested field values,
         ordered by time ascending.
     """
-    # Build dynamic column selection based on requested fields
-    field_mapping = {
-        'temperature': WeatherReport.temperature,
-        'humidity': WeatherReport.humidity,
-        'pressure': WeatherReport.pressure,
-        'wind_speed': WeatherReport.wind_speed,
-        'wind_direction': WeatherReport.wind_direction,
-        'wind_gust': WeatherReport.wind_gust,
-        'rain_1h': WeatherReport.rain_1h,
-        'rain_24h': WeatherReport.rain_24h,
-        'rain_since_midnight': WeatherReport.rain_since_midnight,
-    }
-
     # Use date_trunc for hourly bucketing (works on PostgreSQL)
     # For SQLite, use strftime-based approach
     dialect = session.bind.dialect.name if session.bind else 'postgresql'
@@ -644,11 +645,11 @@ def get_wx_history(
         # PostgreSQL/TimescaleDB: use date_trunc
         bucket = func.date_trunc('hour', WeatherReport.time).label('bucket')
 
-    # Build select columns
+    # Build select columns using centralized WX_FIELD_MAPPING
     select_cols = [bucket]
     for field in fields:
-        if field in field_mapping:
-            select_cols.append(func.avg(field_mapping[field]).label(field))
+        if field in WX_FIELD_MAPPING:
+            select_cols.append(func.avg(WX_FIELD_MAPPING[field]).label(field))
 
     query = (
         session.query(*select_cols)

@@ -217,6 +217,21 @@ class TestValidateWxFields:
         with pytest.raises(ValidationError, match='temperature'):
             validate_wx_fields('bad')
 
+    def test_preserves_duplicate_fields(self):
+        """Duplicate fields should be preserved rather than deduplicated."""
+        result = validate_wx_fields('temperature,temperature')
+        assert result == ['temperature', 'temperature']
+
+    def test_normalizes_mixed_case_fields(self):
+        """Input field names should be normalized to lowercase."""
+        result = validate_wx_fields('Temperature,HUMIDITY')
+        assert result == ['temperature', 'humidity']
+
+    def test_mixed_case_with_whitespace(self):
+        """Mixed case with whitespace should normalize correctly."""
+        result = validate_wx_fields(' TEMPERATURE , Humidity , PRESSURE ')
+        assert result == ['temperature', 'humidity', 'pressure']
+
 
 class TestValidateDateRange:
     """Tests for date range validation."""

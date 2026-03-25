@@ -169,8 +169,58 @@ class TestOpenAPIEndpoint:
         response = client.get('/openapi.json')
         data = response.json
         assert '/api/v1/wx/history' in data['paths']
+        assert 'get' in data['paths']['/api/v1/wx/history']
 
     def test_openapi_no_auth_required(self, client):
         """Test that /openapi.json does not require authentication."""
         response = client.get('/openapi.json')
         assert response.status_code == 200
+
+    def test_openapi_wx_history_parameters(self, client):
+        """Test that wx_history parameters are documented correctly."""
+        response = client.get('/openapi.json')
+        data = response.json
+        wx_history = data['paths']['/api/v1/wx/history']['get']
+
+        # Get parameters as a dict by name
+        params = {p['name']: p for p in wx_history.get('parameters', [])}
+
+        # Check expected parameters exist
+        expected_params = {'station_id', 'callsign', 'start', 'end', 'fields'}
+        assert expected_params.issubset(params.keys())
+
+        # station_id: optional query parameter
+        assert params['station_id']['in'] == 'query'
+        assert params['station_id'].get('required') is not True
+
+        # callsign: optional query parameter
+        assert params['callsign']['in'] == 'query'
+        assert params['callsign'].get('required') is not True
+        assert params['callsign']['schema']['type'] == 'string'
+
+        # start: required date-time query parameter
+        assert params['start']['in'] == 'query'
+        assert params['start']['required'] is True
+        assert params['start']['schema']['type'] == 'string'
+        assert params['start']['schema'].get('format') == 'date-time'
+
+        # end: required date-time query parameter
+        assert params['end']['in'] == 'query'
+        assert params['end']['required'] is True
+        assert params['end']['schema']['type'] == 'string'
+        assert params['end']['schema'].get('format') == 'date-time'
+
+        # fields: required query parameter
+        assert params['fields']['in'] == 'query'
+        assert params['fields']['schema']['type'] == 'string'
+
+    def test_openapi_wx_history_security(self, client):
+        """Test that wx_history uses ApiKeyAuth security."""
+        response = client.get('/openapi.json')
+        data = response.json
+        wx_history = data['paths']['/api/v1/wx/history']['get']
+
+        # Validate security uses ApiKeyAuth
+        assert 'security' in wx_history
+        assert isinstance(wx_history['security'], list)
+        assert {'ApiKeyAuth': []} in wx_history['security']
