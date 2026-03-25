@@ -1341,14 +1341,6 @@ def create_app(ctx):
     python_logging.captureWarnings(True)
     version = haminfo.__version__
 
-    # Configure trusted hosts for Host header validation (Werkzeug 3.x)
-    # This allows requests from Docker container hostnames like 'haminfo_api:8081'
-    if CONF.web.trusted_hosts:
-        trusted = CONF.web.trusted_hosts
-        LOG.info(f'Trusted hosts configured: {trusted}')
-        # Set trusted_hosts on Flask's request class
-        app.request_class.trusted_hosts = trusted
-
     # Validate API key is configured
     if not CONF.web.api_key:
         LOG.warning(
@@ -1372,6 +1364,14 @@ def create_app(ctx):
     CONF.log_opt_values(LOG, log_conf.LOG_LEVELS[log_level])
     LOG.info(f'haminfo_api version: {haminfo.__version__}')
     LOG.info(f'using config file {CONF.config_file}')
+
+    # Configure trusted hosts for Host header validation (Werkzeug 3.x)
+    # This allows requests from Docker container hostnames like 'haminfo_api:8081'
+    if CONF.web.trusted_hosts:
+        trusted = CONF.web.trusted_hosts
+        LOG.info(f'Trusted hosts configured: {trusted}')
+        # Set trusted_hosts on Flask's request class
+        app.request_class.trusted_hosts = trusted
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
 
     server = HaminfoFlask()
