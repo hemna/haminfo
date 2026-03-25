@@ -1383,6 +1383,10 @@ def create_app(ctx):
         LOG.info(f'Trusted hosts configured: {trusted}')
         # Set trusted_hosts on our custom TrustedHostsRequest class
         TrustedHostsRequest.trusted_hosts = trusted
+        LOG.debug(f'app.request_class = {app.request_class}')
+        LOG.debug(
+            f'app.request_class.trusted_hosts = {app.request_class.trusted_hosts}'
+        )
 
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
 
