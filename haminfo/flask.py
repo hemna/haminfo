@@ -281,22 +281,12 @@ LOG = logging.getLogger(utils.DOMAIN)
 logging.register_options(CONF)
 
 
-# Custom Request class that will have trusted_hosts set later
-class TrustedHostsRequest(flask.Request):
-    """Flask Request subclass that allows configuring trusted_hosts."""
-
-    # Will be set during create_app() based on config
-    trusted_hosts = None
-
-
 app = flask.Flask(
     utils.DOMAIN,
     static_url_path='/static',
     static_folder='web/static',
     template_folder='web/templates',
 )
-# Use our custom Request class
-app.request_class = TrustedHostsRequest
 
 grp = cfg.OptGroup('web')
 cfg.CONF.register_group(grp)
@@ -1376,16 +1366,15 @@ def create_app(ctx):
     LOG.info(f'haminfo_api version: {haminfo.__version__}')
     LOG.info(f'using config file {CONF.config_file}')
 
-    # Configure trusted hosts for Host header validation (Werkzeug 3.x)
-    # This allows requests from Docker container hostnames like 'haminfo_api:8081'
+    # NOTE: trusted_hosts configuration is currently disabled due to Werkzeug
+    # Request class attribute inheritance issues. The TrustedHostsRequest
+    # subclass approach doesn't work reliably. For now, all hosts are trusted.
+    # TODO: Implement proper Host header validation via middleware if needed.
     if CONF.web.trusted_hosts:
-        trusted = CONF.web.trusted_hosts
-        LOG.info(f'Trusted hosts configured: {trusted}')
-        # Set trusted_hosts on our custom TrustedHostsRequest class
-        TrustedHostsRequest.trusted_hosts = trusted
-        LOG.debug(f'app.request_class = {app.request_class}')
-        LOG.debug(
-            f'app.request_class.trusted_hosts = {app.request_class.trusted_hosts}'
+        LOG.warning(
+            f'trusted_hosts config option is set ({CONF.web.trusted_hosts}) but '
+            'is currently not enforced due to compatibility issues with Werkzeug 3.x. '
+            'All hosts are currently trusted.'
         )
 
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
