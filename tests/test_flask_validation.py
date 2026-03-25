@@ -7,6 +7,7 @@ import pytest
 from haminfo.flask import (
     validate_lat_lon,
     validate_count,
+    validate_iso_timestamp,
     ValidationError,
     LAT_MIN,
     LAT_MAX,
@@ -130,3 +131,46 @@ class TestValidationError:
     def test_error_without_field(self):
         err = ValidationError('bad input')
         assert err.field == ''
+
+
+class TestValidateIsoTimestamp:
+    """Tests for ISO 8601 timestamp validation."""
+
+    def test_valid_utc_timestamp(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T00:00:00Z')
+        assert result == datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_valid_timestamp_with_offset(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T12:00:00+00:00')
+        assert result == datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_timestamp_without_timezone_assumes_utc(self):
+        from datetime import datetime, timezone
+
+        result = validate_iso_timestamp('2026-03-20T00:00:00')
+        assert result == datetime(2026, 3, 20, 0, 0, 0, tzinfo=timezone.utc)
+
+    def test_rejects_none(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_iso_timestamp(None, 'start')
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValidationError, match='required'):
+            validate_iso_timestamp('', 'start')
+
+    def test_rejects_invalid_format(self):
+        with pytest.raises(ValidationError, match='Invalid timestamp'):
+            validate_iso_timestamp('not-a-date', 'start')
+
+    def test_rejects_partial_date(self):
+        with pytest.raises(ValidationError, match='Invalid timestamp'):
+            validate_iso_timestamp('2026-03-20', 'start')
+
+    def test_error_includes_field_name(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_iso_timestamp('bad', 'end')
+        assert exc_info.value.field == 'end'

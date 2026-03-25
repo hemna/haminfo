@@ -210,6 +210,49 @@ def validate_callsigns(callsigns_str: Any) -> list[str]:
     return raw
 
 
+def validate_iso_timestamp(value: Any, field_name: str = 'timestamp') -> datetime:
+    """Validate and parse an ISO 8601 timestamp string.
+
+    Args:
+        value: Timestamp string to validate.
+        field_name: Name of the field (for error messages).
+
+    Returns:
+        datetime object in UTC timezone.
+
+    Raises:
+        ValidationError: If value is missing or not a valid ISO 8601 timestamp.
+    """
+    if not value:
+        raise ValidationError(f"'{field_name}' is required", field_name)
+
+    try:
+        # Try parsing with timezone
+        if value.endswith('Z'):
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        else:
+            dt = datetime.fromisoformat(value)
+
+        # Require full datetime, not just date
+        # fromisoformat accepts date-only strings, but we need time too
+        if not isinstance(dt, datetime) or 'T' not in value:
+            raise ValueError('Date-only format not accepted')
+
+        # If no timezone, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            # Convert to UTC
+            dt = dt.astimezone(timezone.utc)
+
+        return dt
+    except (ValueError, AttributeError) as err:
+        raise ValidationError(
+            f"Invalid timestamp format for '{field_name}': {value}",
+            field_name,
+        ) from err
+
+
 def aprs_packet_to_aprsfi_entry(packet: APRSPacket) -> dict[str, str]:
     """Convert an APRSPacket model instance to aprs.fi-compatible dict.
 
