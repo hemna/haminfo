@@ -223,6 +223,55 @@ curl -X POST http://localhost:8081/wxnearest \
 ]
 ```
 
+### Weather Station History
+
+Retrieve hourly aggregated weather data for graphing. Useful for building charts and analyzing trends.
+
+```bash
+curl "http://localhost:8081/api/v1/wx/history?station_id=123&start=2024-03-20T00:00:00Z&end=2024-03-21T00:00:00Z&fields=temperature,humidity,pressure" \
+  -H "X-Api-Key: YOUR_API_KEY"
+```
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `station_id` | int | No* | Weather station ID |
+| `callsign` | string | No* | Station callsign (case-insensitive) |
+| `start` | string | Yes | Start time (ISO 8601 format) |
+| `end` | string | Yes | End time (ISO 8601 format, max 30 days from start) |
+| `fields` | string | Yes | Comma-separated field names to return |
+
+*Either `station_id` or `callsign` is required.
+
+**Available fields:** `temperature`, `humidity`, `pressure`, `wind_speed`, `wind_direction`, `wind_gust`, `rain_1h`, `rain_24h`, `rain_since_midnight`
+
+**Response:**
+```json
+{
+  "station_id": 123,
+  "callsign": "EW1234",
+  "start": "2024-03-20T00:00:00Z",
+  "end": "2024-03-21T00:00:00Z",
+  "interval": "1h",
+  "fields": ["temperature", "humidity", "pressure"],
+  "count": 24,
+  "history": [
+    {
+      "time": "2024-03-20T00:00:00Z",
+      "temperature": 45.2,
+      "humidity": 78.5,
+      "pressure": 1013.25
+    },
+    {
+      "time": "2024-03-20T01:00:00Z",
+      "temperature": 44.8,
+      "humidity": 80.1,
+      "pressure": 1013.10
+    }
+  ]
+}
+```
+
 ### APRS Location Query (aprs.fi Compatible)
 
 ```bash
@@ -256,12 +305,28 @@ curl "http://localhost:8081/api/get?apikey=YOUR_KEY&what=loc&name=W3ABC,K4XYZ"
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
+| `GET` | `/openapi.json` | No | OpenAPI 3.0 specification |
 | `GET` | `/test` | Yes | Health check, returns version |
 | `GET` | `/stats` | No | APRS packet statistics |
 | `POST` | `/stations` | No | Query by callsigns or repeater IDs |
 | `GET` | `/wxstations` | Yes | List all weather stations |
 | `GET` | `/wxstation_report?wx_station_id=123` | Yes | Get weather report |
 | `GET` | `/api/v1/location?callsign=W3ABC` | Yes | Native location query |
+| `GET` | `/api/v1/wx/history` | Yes | Weather station history (see above) |
+
+### OpenAPI Documentation
+
+The API provides an OpenAPI 3.0 specification at `/openapi.json`:
+
+```bash
+# Fetch the OpenAPI spec
+curl http://localhost:8081/openapi.json
+
+# Pretty-print the spec
+curl -s http://localhost:8081/openapi.json | python -m json.tool
+```
+
+You can import this into tools like [Swagger UI](https://swagger.io/tools/swagger-ui/), [Postman](https://www.postman.com/), or [Insomnia](https://insomnia.rest/) to explore the API interactively.
 
 ## CLI Commands
 
