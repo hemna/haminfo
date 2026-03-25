@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from haminfo.flask import (
     validate_lat_lon,
@@ -13,14 +13,9 @@ from haminfo.flask import (
     validate_wx_fields,
     validate_date_range,
     ValidationError,
-    LAT_MIN,
-    LAT_MAX,
-    LON_MIN,
-    LON_MAX,
     COUNT_MIN,
     COUNT_MAX,
     VALID_WX_FIELDS,
-    MAX_DATE_RANGE_DAYS,
 )
 
 
