@@ -17,6 +17,7 @@ from typing import Any, TYPE_CHECKING
 
 import flask
 import flask_classful
+from apispec import APISpec
 from flask import request, jsonify, Response
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg
@@ -36,6 +37,240 @@ if TYPE_CHECKING:
     from haminfo.db.models.aprs_packet import APRSPacket
 
 from haminfo.db.models.weather_report import WeatherStation
+
+
+def create_openapi_spec() -> APISpec:
+    """Create OpenAPI specification for all haminfo endpoints."""
+    spec = APISpec(
+        title='Haminfo API',
+        version=haminfo.__version__,
+        openapi_version='3.0.3',
+        info={
+            'description': 'Ham radio information API for repeaters, weather stations, and APRS data.',
+            'contact': {'email': 'waboring@hemna.com'},
+        },
+    )
+
+    # Security scheme
+    spec.components.security_scheme(
+        'ApiKeyAuth',
+        {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'X-Api-Key',
+        },
+    )
+
+    # Weather History endpoint
+    spec.path(
+        path='/api/v1/wx/history',
+        operations={
+            'get': {
+                'summary': 'Get weather station history',
+                'description': 'Returns hourly aggregated weather data for graphing.',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'station_id',
+                        'in': 'query',
+                        'schema': {'type': 'integer'},
+                        'description': 'Weather station ID',
+                    },
+                    {
+                        'name': 'callsign',
+                        'in': 'query',
+                        'schema': {'type': 'string'},
+                        'description': 'Station callsign',
+                    },
+                    {
+                        'name': 'start',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string', 'format': 'date-time'},
+                        'description': 'Start time (ISO 8601)',
+                    },
+                    {
+                        'name': 'end',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string', 'format': 'date-time'},
+                        'description': 'End time (ISO 8601)',
+                    },
+                    {
+                        'name': 'fields',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                        'description': 'Comma-separated field names',
+                    },
+                ],
+                'responses': {
+                    '200': {
+                        'description': 'Successful response',
+                        'content': {
+                            'application/json': {
+                                'schema': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'station_id': {'type': 'integer'},
+                                        'callsign': {'type': 'string'},
+                                        'start': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                        },
+                                        'end': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                        },
+                                        'interval': {'type': 'string'},
+                                        'fields': {
+                                            'type': 'array',
+                                            'items': {'type': 'string'},
+                                        },
+                                        'history': {
+                                            'type': 'array',
+                                            'items': {'type': 'object'},
+                                        },
+                                        'count': {'type': 'integer'},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': {'description': 'Validation error'},
+                    '401': {'description': 'Unauthorized'},
+                    '404': {'description': 'Station not found'},
+                },
+            },
+        },
+    )
+
+    # Document existing endpoints
+    spec.path(
+        path='/wxstations',
+        operations={
+            'get': {
+                'summary': 'List all weather stations',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'List of weather stations'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/wxstation_report',
+        operations={
+            'get': {
+                'summary': 'Get latest weather report for a station',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'wx_station_id',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'integer'},
+                    },
+                ],
+                'responses': {'200': {'description': 'Weather report'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/wxnearest',
+        operations={
+            'post': {
+                'summary': 'Find nearest weather stations',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'Nearest weather stations'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/nearest',
+        operations={
+            'post': {
+                'summary': 'Find nearest repeaters',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'Nearest repeaters'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/api/v1/location',
+        operations={
+            'get': {
+                'summary': 'Get APRS location data (native format)',
+                'security': [{'ApiKeyAuth': []}],
+                'parameters': [
+                    {
+                        'name': 'callsign',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                ],
+                'responses': {'200': {'description': 'Location data'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/api/get',
+        operations={
+            'get': {
+                'summary': 'Get APRS location data (aprs.fi compatible)',
+                'parameters': [
+                    {
+                        'name': 'apikey',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                    {
+                        'name': 'what',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                    {
+                        'name': 'name',
+                        'in': 'query',
+                        'required': True,
+                        'schema': {'type': 'string'},
+                    },
+                ],
+                'responses': {
+                    '200': {'description': 'Location data in aprs.fi format'}
+                },
+            },
+        },
+    )
+
+    spec.path(
+        path='/stats',
+        operations={
+            'get': {
+                'summary': 'Get API statistics',
+                'responses': {'200': {'description': 'Statistics'}},
+            },
+        },
+    )
+
+    spec.path(
+        path='/test',
+        operations={
+            'get': {
+                'summary': 'Test endpoint',
+                'security': [{'ApiKeyAuth': []}],
+                'responses': {'200': {'description': 'OK'}},
+            },
+        },
+    )
+
+    return spec
 
 
 auth = HTTPBasicAuth()
@@ -956,6 +1191,11 @@ class HaminfoFlask(flask_classful.FlaskView):
         LOG.debug(f'URL MAP: {self.app.url_map}')
         return jsonify({'status': 'ok', 'version': haminfo.__version__})
 
+    def openapi(self):
+        """Return OpenAPI specification."""
+        spec = create_openapi_spec()
+        return jsonify(spec.to_dict())
+
     @require_appkey
     def wx_history(self) -> Response | tuple[Response, int]:
         """Handle GET /api/v1/wx/history - weather station historical data.
@@ -1112,6 +1352,7 @@ def create_app(ctx):
     app.route('/api/get', methods=['GET'])(server.aprsfi_location)
     app.route('/api/v1/location', methods=['GET'])(server.location)
     app.route('/api/v1/wx/history', methods=['GET'])(server.wx_history)
+    app.route('/openapi.json', methods=['GET'])(server.openapi)
     LOG.debug(f'URL MAP: {app.url_map}')
     return app
 

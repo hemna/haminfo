@@ -272,6 +272,8 @@ def app(engine):
                 flask_app.route('/wxstation_report', methods=['GET'])(
                     server.wxstation_report
                 )
+            if '/openapi.json' not in rules:
+                flask_app.route('/openapi.json', methods=['GET'])(server.openapi)
 
             yield flask_app
 

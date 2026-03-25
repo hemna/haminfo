@@ -150,3 +150,27 @@ class TestGetWxHistory:
             assert 'humidity' in row
             assert 'pressure' not in row
             assert 'wind_speed' not in row
+
+
+class TestOpenAPIEndpoint:
+    """Tests for /openapi.json endpoint."""
+
+    def test_openapi_returns_valid_spec(self, client):
+        """Test that /openapi.json returns valid OpenAPI 3.0 spec."""
+        response = client.get('/openapi.json')
+        assert response.status_code == 200
+        data = response.json
+        assert data['openapi'].startswith('3.')
+        assert 'info' in data
+        assert 'paths' in data
+
+    def test_openapi_includes_wx_history(self, client):
+        """Test that wx_history endpoint is documented."""
+        response = client.get('/openapi.json')
+        data = response.json
+        assert '/api/v1/wx/history' in data['paths']
+
+    def test_openapi_no_auth_required(self, client):
+        """Test that /openapi.json does not require authentication."""
+        response = client.get('/openapi.json')
+        assert response.status_code == 200
