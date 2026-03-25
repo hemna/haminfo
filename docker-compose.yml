@@ -1,9 +1,9 @@
 services:
-  haminfo_db:
+  haminfo-db:
     # image: postgis/postgis:15-3.3
     image: ghcr.io/baosystems/postgis:15-3.3
     restart: unless-stopped
-    container_name: haminfo_db
+    container_name: haminfo-db
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-haminfo}
       POSTGRES_USER: ${POSTGRES_USER:-haminfo}
@@ -25,7 +25,7 @@ services:
   db_upgrade:
     image: hemna6969/haminfo:001-aprs-position-reports
     depends_on:
-        - "haminfo_db"
+        - "haminfo-db"
     volumes:
       - ./data/config:/config
     entrypoint: /app/db_upgrade.sh
@@ -48,10 +48,10 @@ services:
         interval: 5m
         timeout: 15s
 
-  haminfo_memcached:
+  haminfo-memcached:
     image: ubuntu/memcached:latest
     restart: unless-stopped
-    container_name: haminfo_memcached
+    container_name: haminfo-memcached
     ports:
       - 11211:11211
     environment:
@@ -62,16 +62,16 @@ services:
       MEMCACHED_USER: ${MEMCACHED_USER:-memcached}
       MEMCACHED_PASSWORD: ${MEMCACHED_PASSWORD:?MEMCACHED_PASSWORD must be set}
 
-  haminfo_api:
+  haminfo-api:
     image: hemna6969/haminfo:001-aprs-position-reports
     restart: unless-stopped
-    container_name: haminfo_api
+    container_name: haminfo-api
     depends_on:
       db_upgrade:
         condition: service_completed_successfully
-      haminfo_db:
+      haminfo-db:
         condition: service_started
-      haminfo_memcached:
+      haminfo-memcached:
         condition: service_started
     ports:
       - 8081:8081
@@ -82,22 +82,22 @@ services:
       - COLUMNS=160
 
 
-  haminfo_cron:
+  haminfo-cron:
     image: hemna6969/haminfo:001-aprs-position-reports
     restart: unless-stopped
-    container_name: haminfo_cron
+    container_name: haminfo-cron
     depends_on:
-        - "haminfo_api"
+        - "haminfo-api"
     volumes:
       - ./data/config:/config
     entrypoint: /app/cron_entry.sh
 
-  haminfo_adminer:
+  haminfo-adminer:
     image: adminer
     restart: unless-stopped
-    container_name: haminfo_adminer
+    container_name: haminfo-adminer
     depends_on:
-        - "haminfo_db"
+        - "haminfo-db"
     ports:
       - 8066:8080
 
