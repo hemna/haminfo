@@ -1320,66 +1320,6 @@ class HaminfoFlask(flask_classful.FlaskView):
                     'count': len(history),
                 }
             )
-        if error:
-            return error
-
-        end, error = _run_validation(
-            validate_iso_timestamp, request.args.get('end'), 'end'
-        )
-        if error:
-            return error
-
-        # Validate date range
-        _, error = _run_validation(validate_date_range, start, end)
-        if error:
-            return error
-
-        # Validate fields
-        fields, error = _run_validation(validate_wx_fields, request.args.get('fields'))
-        if error:
-            return error
-
-        # Look up station and get history
-        session_factory = self._get_db_session()
-        with session_factory() as session:
-            station, error = _run_validation(
-                _get_weather_station, session, station_id, callsign
-            )
-            if error:
-                # Check if it's a 404 (station not found) vs 400 (invalid input)
-                # _get_weather_station raises ValidationError for both cases
-                # but we need to return 404 for "not found"
-                pass
-
-            # Re-run without helper to get proper 404 status
-            try:
-                station = _get_weather_station(session, station_id, callsign)
-            except ValidationError as ex:
-                if 'not found' in ex.message.lower():
-                    return jsonify({'error': ex.message, 'field': ex.field}), 404
-                return jsonify({'error': ex.message, 'field': ex.field}), 400
-
-            # Get history data
-            history = db.get_wx_history(
-                session,
-                station_id=station.id,
-                start=start,
-                end=end,
-                fields=fields,
-            )
-
-            return jsonify(
-                {
-                    'station_id': station.id,
-                    'callsign': station.callsign,
-                    'start': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                    'end': end.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                    'interval': '1h',
-                    'fields': fields,
-                    'history': history,
-                    'count': len(history),
-                }
-            )
 
 
 @click.command()
