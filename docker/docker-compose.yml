@@ -46,6 +46,28 @@ services:
         interval: 5m
         timeout: 15s
 
+  # Free-threaded Python 3.13t version for better multi-threaded performance
+  # Use this instead of mqtt_ingest for experimental no-GIL support
+  # Build with: docker build -f Dockerfile-freethreaded -t hemna6969/haminfo:freethreaded .
+  mqtt_ingest_freethreaded:
+    image: hemna6969/haminfo:freethreaded
+    restart: on-failure
+    depends_on:
+        - "db_upgrade"
+    volumes:
+      - ./data/config:/config
+    environment:
+      # Disable GIL for true parallel thread execution
+      - PYTHON_GIL=0
+    labels:
+      deunhealth.restart.on.unhealthy: "true"
+    healthcheck:
+        test: ["CMD", "uv", "run", "haminfo", "mqtt-healthcheck"]
+        interval: 5m
+        timeout: 15s
+    profiles:
+      - freethreaded  # Only start when explicitly requested
+
   haminfo_memcached:
     image: ubuntu/memcached:latest
     restart: unless-stopped
