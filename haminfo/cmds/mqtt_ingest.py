@@ -13,7 +13,6 @@ import signal
 import threading
 import time
 
-from loguru import logger
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -106,7 +105,7 @@ def wx_mqtt_ingest(ctx):
     keepalive = threads.KeepAliveThread()
     keepalive.start()
 
-    for i, processor in enumerate(aprs_processors):
+    for processor in aprs_processors:
         LOG.info(f'Starting {processor.name}')
         processor.start()
 
