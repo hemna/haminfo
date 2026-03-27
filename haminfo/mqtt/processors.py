@@ -56,6 +56,13 @@ class APRSPacketProcessorThread(threads.MyThread):
         self.thread_index = thread_index
         # Stagger batch save thresholds: thread 0=500, thread 1=525, thread 2=550, etc.
         self.batch_save_threshold = BATCH_SIZE + (thread_index * self.BATCH_STAGGER)
+
+        # Initialize per-thread pending count in shared stats
+        with self.stats_lock:
+            if 'pending_per_thread' not in self.stats:
+                self.stats['pending_per_thread'] = {}
+            self.stats['pending_per_thread'][thread_index] = 0
+
         logger.info(
             f'[T{thread_index}] APRSPacketProcessorThread initialized with '
             f'batch_save_threshold={self.batch_save_threshold}'
@@ -86,6 +93,10 @@ class APRSPacketProcessorThread(threads.MyThread):
                     self.stats['packet_counter'] = (
                         self.stats.get('packet_counter', 0) + 1
                     )
+                    # Update this thread's pending count
+                    self.stats['pending_per_thread'][self.thread_index] = len(
+                        self.aprs_packets
+                    )
 
                     packet_type = (
                         getattr(aprsd_packet, 'packet_type', None)
@@ -109,11 +120,13 @@ class APRSPacketProcessorThread(threads.MyThread):
 
             self._save_packets_if_needed()
 
-            # Print detailed stats periodically (every STATS_INTERVAL packets)
-            with self.stats_lock:
-                counter = self.stats.get('packet_counter', 0)
-            if counter % STATS_INTERVAL == 0:
-                self._print_stats()
+            # Only thread 0 prints stats to avoid duplicate output
+            # All threads contribute to shared stats dict
+            if self.thread_index == 0:
+                with self.stats_lock:
+                    counter = self.stats.get('packet_counter', 0)
+                if counter % STATS_INTERVAL == 0 and counter > 0:
+                    self._print_stats()
 
         except queue.Empty:
             self._save_packets_if_needed()
@@ -188,6 +201,8 @@ class APRSPacketProcessorThread(threads.MyThread):
                 self.stats['packets_saved'] = (
                     self.stats.get('packets_saved', 0) + actual_inserted
                 )
+                # Reset this thread's pending count after successful save
+                self.stats['pending_per_thread'][self.thread_index] = 0
 
             if actual_inserted < packets_to_save:
                 logger.info(
@@ -210,13 +225,20 @@ class APRSPacketProcessorThread(threads.MyThread):
             session.close()
 
     def _print_stats(self) -> None:
-        """Print statistics about processed packets."""
+        """Print statistics about processed packets.
+
+        Only called by thread 0 to avoid duplicate output.
+        Shows aggregated stats from all processor threads.
+        """
         with self.stats_lock:
             packet_counter = self.stats.get('packet_counter', 0)
             packets_saved = self.stats.get('packets_saved', 0)
             unique_callsigns = len(self.stats.get('unique_callsigns', set()))
             packet_types = self.stats.get('packet_types', {}).copy()
             start_time = self.stats.get('start_time')
+            # Sum pending packets across all threads
+            pending_per_thread = self.stats.get('pending_per_thread', {})
+            total_pending = sum(pending_per_thread.values())
 
         separator = '=' * 80
         logger.opt(colors=True).info(f'<cyan>{separator}</cyan>')
@@ -231,7 +253,7 @@ class APRSPacketProcessorThread(threads.MyThread):
             f'Total packets saved to database: <green>{packets_saved}</green>'
         )
         logger.opt(colors=True).info(
-            f'Packets pending save: <yellow>{len(self.aprs_packets)}</yellow>'
+            f'Packets pending save (all threads): <yellow>{total_pending}</yellow>'
         )
         logger.opt(colors=True).info(
             f'Unique callsigns seen: <cyan>{unique_callsigns}</cyan>'
