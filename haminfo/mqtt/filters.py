@@ -93,7 +93,7 @@ class WeatherPacketFilter:
 
     def __init__(
         self,
-        session: Any,
+        session_factory: Any,
         stats: dict,
         stats_lock: threading.Lock,
         reports: list,
@@ -101,12 +101,12 @@ class WeatherPacketFilter:
         """Initialize the weather packet filter.
 
         Args:
-            session: SQLAlchemy database session.
+            session_factory: SQLAlchemy session factory for creating sessions.
             stats: Shared statistics dictionary.
             stats_lock: Lock for thread-safe stats access.
             reports: List to accumulate weather reports for bulk saving.
         """
-        self.session = session
+        self.session_factory = session_factory
         self.stats = stats
         self.stats_lock = stats_lock
         self.reports = reports
@@ -143,42 +143,40 @@ class WeatherPacketFilter:
             WeatherStation or None on failure.
         """
         from_call = aprs_data.get('from_call', 'unknown')
+        session = self.session_factory()
 
         try:
-            station = WeatherStation.find_station_by_callsign(self.session, from_call)
-        except Exception as ex:
-            logger.error(f'Failed to find station {from_call}: {ex}')
-            return None
+            station = WeatherStation.find_station_by_callsign(session, from_call)
+            if station:
+                return station
 
-        if station:
+            logger.info(f'Creating new station for {from_call}')
+            station = WeatherStation.from_json(aprs_data)
+            if not station:
+                logger.warning(
+                    f'Failed to create station from packet data for {from_call}'
+                )
+                return None
+
+            # Geocode to get country code
+            coordinates = f'{station.latitude:0.6f}, {station.longitude:0.6f}'
+            location = get_location(coordinates)
+            if location and hasattr(location, 'raw'):
+                address = location.raw.get('address')
+                if address:
+                    station.country_code = address.get('country_code', '')
+                else:
+                    logger.warning(f'No address found for coordinates {coordinates}')
+
+            session.add(station)
+            session.commit()
             return station
-
-        logger.info(f'Creating new station for {from_call}')
-        station = WeatherStation.from_json(aprs_data)
-        if not station:
-            logger.warning(f'Failed to create station from packet data for {from_call}')
-            return None
-
-        # Geocode to get country code
-        coordinates = f'{station.latitude:0.6f}, {station.longitude:0.6f}'
-        location = get_location(coordinates)
-        if location and hasattr(location, 'raw'):
-            address = location.raw.get('address')
-            if address:
-                station.country_code = address.get('country_code', '')
-            else:
-                logger.warning(f'No address found for coordinates {coordinates}')
-        try:
-            self.session.add(station)
-            self.session.commit()
         except Exception as ex:
-            self.session.rollback()
-            logger.error(
-                f'Failed to save new station {from_call}: {ex.__cause__ or ex}'
-            )
+            session.rollback()
+            logger.error(f'Failed to find/create station {from_call}: {ex}')
             return None
-
-        return station
+        finally:
+            session.close()
 
     def _create_report(
         self, aprs_data: dict, station: WeatherStation

@@ -36,13 +36,13 @@ class APRSPacketProcessorThread(threads.MyThread):
     def __init__(
         self,
         packet_queue: queue.Queue,
-        session: Any,
+        session_factory: Any,
         stats: dict,
         stats_lock: threading.Lock,
     ):
         super().__init__('APRSPacketProcessorThread')
         self.packet_queue = packet_queue
-        self.session = session
+        self.session_factory = session_factory
         self.stats = stats
         self.stats_lock = stats_lock
         self.aprs_packets: list[APRSPacket] = []
@@ -116,10 +116,14 @@ class APRSPacketProcessorThread(threads.MyThread):
 
         Uses INSERT ... ON CONFLICT DO NOTHING to handle duplicate
         (from_call, timestamp) keys gracefully.
+        Gets a fresh session from the factory for each batch to avoid
+        stale connection issues.
         """
         if len(self.aprs_packets) < BATCH_SIZE:
             return
 
+        # Get a fresh session for this batch
+        session = self.session_factory()
         try:
             packets_to_save = len(self.aprs_packets)
             logger.info(f'Saving {packets_to_save} APRS packets to DB.')
@@ -154,8 +158,8 @@ class APRSPacketProcessorThread(threads.MyThread):
             stmt = stmt.on_conflict_do_nothing(
                 index_elements=['from_call', 'timestamp']
             )
-            result = self.session.execute(stmt)
-            self.session.commit()
+            result = session.execute(stmt)
+            session.commit()
 
             # rowcount shows how many were actually inserted (not duplicates)
             actual_inserted = result.rowcount
@@ -174,13 +178,15 @@ class APRSPacketProcessorThread(threads.MyThread):
                 )
             else:
                 logger.info(f'Time to save APRS packets = {toc - tic:0.4f}s')
+            # Only clear on success — failed batches will be retried
+            self.aprs_packets = []
         except Exception as ex:
-            self.session.rollback()
+            session.rollback()
             logger.error(f'Failed to save APRS packets: {ex}')
             logger.exception(ex)
-            return
-        # Only clear on success — failed batches will be retried
-        self.aprs_packets = []
+        finally:
+            # Always close the session to return connection to pool
+            session.close()
 
     def _print_stats(self) -> None:
         """Print statistics about processed packets."""
@@ -248,22 +254,25 @@ class APRSPacketProcessorThread(threads.MyThread):
         if not self.aprs_packets:
             return
 
+        session = self.session_factory()
         try:
             packets_to_save = len(self.aprs_packets)
             logger.info(
                 f'Saving {packets_to_save} remaining APRS packets before shutdown.'
             )
-            self.session.bulk_save_objects(self.aprs_packets)
-            self.session.commit()
+            session.bulk_save_objects(self.aprs_packets)
+            session.commit()
             with self.stats_lock:
                 self.stats['packets_saved'] = (
                     self.stats.get('packets_saved', 0) + packets_to_save
                 )
             self.aprs_packets = []
         except Exception as ex:
-            self.session.rollback()
+            session.rollback()
             logger.error(f'Failed to save remaining APRS packets: {ex}')
             logger.exception(ex)
+        finally:
+            session.close()
 
 
 class WeatherPacketProcessorThread(threads.MyThread):
@@ -276,18 +285,18 @@ class WeatherPacketProcessorThread(threads.MyThread):
     def __init__(
         self,
         packet_queue: queue.Queue,
-        session: Any,
+        session_factory: Any,
         stats: dict,
         stats_lock: threading.Lock,
     ):
         super().__init__('WeatherPacketProcessorThread')
         self.packet_queue = packet_queue
-        self.session = session
+        self.session_factory = session_factory
         self.stats = stats
         self.stats_lock = stats_lock
         self.reports: list = []
         self.weather_filter = WeatherPacketFilter(
-            session, stats, stats_lock, self.reports
+            session_factory, stats, stats_lock, self.reports
         )
 
     def loop(self) -> bool:
@@ -313,40 +322,45 @@ class WeatherPacketProcessorThread(threads.MyThread):
         if not self.reports:
             return
 
+        session = self.session_factory()
         try:
             count = len(self.reports)
             logger.info(f'Saving {count} weather reports to DB.')
             tic = time.perf_counter()
-            self.session.bulk_save_objects(self.reports)
-            self.session.commit()
+            session.bulk_save_objects(self.reports)
+            session.commit()
             toc = time.perf_counter()
             logger.info(f'Time to save weather reports = {toc - tic:0.4f}s')
+            # Only clear on success — failed batches will be retried
+            self.reports.clear()
         except ValueError as ex:
-            self.session.rollback()
+            session.rollback()
             logger.error(f'ValueError saving weather reports: {ex}')
             for r in self.reports:
                 if hasattr(r, 'raw_report') and r.raw_report and '\x00' in r.raw_report:
                     logger.error(f'Null char found in report: {r}')
         except Exception as ex:
-            self.session.rollback()
+            session.rollback()
             logger.error(f'Failed to save weather reports: {ex}')
             logger.exception(ex)
-            return
-        # Only clear on success — failed batches will be retried
-        self.reports.clear()
+        finally:
+            session.close()
 
     def _cleanup(self) -> None:
         """Save any remaining weather reports before stopping."""
         if not self.reports:
             return
 
+        session = self.session_factory()
         try:
             count = len(self.reports)
             logger.info(f'Saving {count} remaining weather reports before shutdown.')
-            self.session.bulk_save_objects(self.reports)
-            self.session.commit()
+            session.bulk_save_objects(self.reports)
+            session.commit()
             self.reports.clear()
         except Exception as ex:
-            self.session.rollback()
+            session.rollback()
             logger.error(f'Failed to save remaining weather reports: {ex}')
             logger.exception(ex)
+        finally:
+            session.close()

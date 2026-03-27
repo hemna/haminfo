@@ -56,8 +56,8 @@ def wx_mqtt_ingest(ctx):
     LOG.info(f'Haminfo MQTT Started version: {haminfo.__version__}')
     CONF.log_opt_values(LOG, logging.DEBUG)
 
-    db_session = db.setup_session()
-    session = db_session()
+    # Get session factory - processors will create their own sessions
+    session_factory = db.setup_session()
 
     # Create separate queues for each processor (fan-out)
     aprs_queue = queue.Queue(maxsize=5000)
@@ -74,16 +74,16 @@ def wx_mqtt_ingest(ctx):
         'unique_callsigns': set(),
     }
 
-    # Create processor threads with their own queues
+    # Create processor threads with session factory (not a single session)
     aprs_processor = APRSPacketProcessorThread(
         aprs_queue,
-        session,
+        session_factory,
         stats,
         stats_lock,
     )
     weather_processor = WeatherPacketProcessorThread(
         weather_queue,
-        session,
+        session_factory,
         stats,
         stats_lock,
     )

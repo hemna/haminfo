@@ -129,10 +129,21 @@ def _create_cache_regions() -> dict[str, Any]:
 
 
 def get_engine() -> Any:
-    """Create and return a SQLAlchemy engine."""
+    """Create and return a SQLAlchemy engine.
+
+    Configures connection pooling with:
+    - pool_pre_ping: Validates connections before use (detects stale connections)
+    - pool_recycle: Recycles connections after 30 minutes (avoids server-side timeouts)
+    - pool_size: Number of connections to keep open (default 5)
+    - max_overflow: Additional connections allowed beyond pool_size (default 10)
+    """
     engine = create_engine(
         CONF.database.connection,
         echo=CONF.database.debug,
+        pool_pre_ping=True,  # Verify connections are alive before using
+        pool_recycle=1800,  # Recycle connections after 30 minutes
+        pool_size=5,  # Keep 5 connections in the pool
+        max_overflow=10,  # Allow up to 10 additional connections
     )
     return engine
 
