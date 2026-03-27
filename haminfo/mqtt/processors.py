@@ -6,7 +6,6 @@ for storage in the database.
 
 from __future__ import annotations
 
-import json
 import queue
 import threading
 import time
