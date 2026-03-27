@@ -1,6 +1,9 @@
-# Dockerfile for haminfo MQTT ingest with free-threaded Python 3.13t
-# Uses uv to install Python 3.13t (no-GIL experimental build) for better
+# Dockerfile for haminfo MQTT ingest with free-threaded Python 3.14t
+# Uses uv to install Python 3.14t (no-GIL experimental build) for better
 # multi-threaded performance with parallel APRS packet processors.
+#
+# Note: Python 3.13t doesn't work because cffi doesn't support it.
+# cffi only supports free-threaded Python 3.14+.
 
 FROM ghcr.io/astral-sh/uv:bookworm AS prepare
 
@@ -28,18 +31,19 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Stage 2: Install Python 3.13t and dependencies
+# Stage 2: Install Python 3.14t and dependencies
 FROM prepare AS install
 ARG CACHEBUST
 
 WORKDIR /app
 
-# Install free-threaded Python 3.13t using uv
+# Install free-threaded Python 3.14t using uv
 # The 't' suffix indicates the free-threaded (no-GIL) build
-RUN uv python install 3.13t
+# Note: 3.13t doesn't work because cffi doesn't support it
+RUN uv python install 3.14t
 
 # Create venv with free-threaded Python
-RUN uv venv --python 3.13t
+RUN uv venv --python 3.14t
 ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
