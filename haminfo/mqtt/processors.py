@@ -34,6 +34,10 @@ class APRSPacketProcessorThread(threads.MyThread):
     Supports staggered batch saving to reduce DB contention when multiple
     processor threads run in parallel. Each thread can have a different
     batch_save_threshold based on its thread_index.
+
+    When stats_only=True, packets are processed for statistics but not
+    saved to the database. This is useful for measuring MQTT ingestion
+    throughput independent of database performance.
     """
 
     # Stagger increment per thread (e.g., thread 0=500, thread 1=525, etc.)
@@ -46,6 +50,7 @@ class APRSPacketProcessorThread(threads.MyThread):
         stats: dict,
         stats_lock: threading.Lock,
         thread_index: int = 0,
+        stats_only: bool = False,
     ):
         super().__init__('APRSPacketProcessorThread')
         self.packet_queue = packet_queue
@@ -54,6 +59,7 @@ class APRSPacketProcessorThread(threads.MyThread):
         self.stats_lock = stats_lock
         self.aprs_packets: list[APRSPacket] = []
         self.thread_index = thread_index
+        self.stats_only = stats_only
         # Stagger batch save thresholds: thread 0=500, thread 1=525, thread 2=550, etc.
         self.batch_save_threshold = BATCH_SIZE + (thread_index * self.BATCH_STAGGER)
 
@@ -63,9 +69,13 @@ class APRSPacketProcessorThread(threads.MyThread):
                 self.stats['pending_per_thread'] = {}
             self.stats['pending_per_thread'][thread_index] = 0
 
+        mode = (
+            'STATS-ONLY mode'
+            if stats_only
+            else f'batch_save_threshold={self.batch_save_threshold}'
+        )
         logger.info(
-            f'[T{thread_index}] APRSPacketProcessorThread initialized with '
-            f'batch_save_threshold={self.batch_save_threshold}'
+            f'[T{thread_index}] APRSPacketProcessorThread initialized with {mode}'
         )
 
     def loop(self) -> bool:
@@ -148,8 +158,26 @@ class APRSPacketProcessorThread(threads.MyThread):
 
         Uses staggered threshold based on thread_index to avoid all threads
         saving simultaneously and causing DB contention.
+
+        In stats_only mode, packets are discarded after threshold to prevent
+        memory growth, but no database writes occur.
         """
         if len(self.aprs_packets) < self.batch_save_threshold:
+            return
+
+        # In stats_only mode, just discard packets and update stats
+        if self.stats_only:
+            packets_discarded = len(self.aprs_packets)
+            with self.stats_lock:
+                # Track discarded packets as "saved" for rate calculation purposes
+                self.stats['packets_saved'] = (
+                    self.stats.get('packets_saved', 0) + packets_discarded
+                )
+                self.stats['pending_per_thread'][self.thread_index] = 0
+            logger.debug(
+                f'[T{self.thread_index}] STATS-ONLY: Discarded {packets_discarded} packets (no DB write)'
+            )
+            self.aprs_packets = []
             return
 
         # Get a fresh session for this batch
@@ -297,6 +325,15 @@ class APRSPacketProcessorThread(threads.MyThread):
         if not self.aprs_packets:
             return
 
+        # In stats_only mode, just discard remaining packets
+        if self.stats_only:
+            count = len(self.aprs_packets)
+            logger.info(
+                f'[T{self.thread_index}] STATS-ONLY: Discarding {count} remaining packets on shutdown'
+            )
+            self.aprs_packets = []
+            return
+
         session = self.session_factory()
         try:
             packets_to_save = len(self.aprs_packets)
@@ -325,6 +362,9 @@ class WeatherPacketProcessorThread(threads.MyThread):
 
     Uses WeatherPacketFilter to handle station lookup/creation
     and report generation.
+
+    When stats_only=True, packets are processed for statistics but not
+    saved to the database.
     """
 
     def __init__(
@@ -333,16 +373,20 @@ class WeatherPacketProcessorThread(threads.MyThread):
         session_factory: Any,
         stats: dict,
         stats_lock: threading.Lock,
+        stats_only: bool = False,
     ):
         super().__init__('WeatherPacketProcessorThread')
         self.packet_queue = packet_queue
         self.session_factory = session_factory
         self.stats = stats
         self.stats_lock = stats_lock
+        self.stats_only = stats_only
         self.reports: list = []
         self.weather_filter = WeatherPacketFilter(
-            session_factory, stats, stats_lock, self.reports
+            session_factory, stats, stats_lock, self.reports, stats_only=stats_only
         )
+        if stats_only:
+            logger.info('WeatherPacketProcessorThread initialized in STATS-ONLY mode')
 
     def loop(self) -> bool:
         try:
@@ -365,6 +409,15 @@ class WeatherPacketProcessorThread(threads.MyThread):
     def _save_reports(self) -> None:
         """Save weather reports to database."""
         if not self.reports:
+            return
+
+        # In stats_only mode, just discard reports
+        if self.stats_only:
+            count = len(self.reports)
+            logger.debug(
+                f'STATS-ONLY: Discarding {count} weather reports (no DB write)'
+            )
+            self.reports.clear()
             return
 
         session = self.session_factory()
@@ -394,6 +447,15 @@ class WeatherPacketProcessorThread(threads.MyThread):
     def _cleanup(self) -> None:
         """Save any remaining weather reports before stopping."""
         if not self.reports:
+            return
+
+        # In stats_only mode, just discard remaining reports
+        if self.stats_only:
+            count = len(self.reports)
+            logger.info(
+                f'STATS-ONLY: Discarding {count} remaining weather reports on shutdown'
+            )
+            self.reports.clear()
             return
 
         session = self.session_factory()

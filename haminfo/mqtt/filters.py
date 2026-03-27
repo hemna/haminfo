@@ -89,6 +89,8 @@ class WeatherPacketFilter:
 
     Handles finding or creating weather stations and creating weather
     reports from incoming weather packets.
+
+    When stats_only=True, packets are counted but no database operations occur.
     """
 
     def __init__(
@@ -97,6 +99,7 @@ class WeatherPacketFilter:
         stats: dict,
         stats_lock: threading.Lock,
         reports: list,
+        stats_only: bool = False,
     ):
         """Initialize the weather packet filter.
 
@@ -105,11 +108,13 @@ class WeatherPacketFilter:
             stats: Shared statistics dictionary.
             stats_lock: Lock for thread-safe stats access.
             reports: List to accumulate weather reports for bulk saving.
+            stats_only: If True, only count packets without DB operations.
         """
         self.session_factory = session_factory
         self.stats = stats
         self.stats_lock = stats_lock
         self.reports = reports
+        self.stats_only = stats_only
 
     def filter(self, packet: Any) -> Optional[WeatherPacket]:
         """Process weather packet: find/create station, create report.
@@ -126,6 +131,12 @@ class WeatherPacketFilter:
         aprs_data = _convert_packet_to_dict(packet)
         if aprs_data is None:
             return None
+
+        # In stats_only mode, just count the weather packet without DB operations
+        if self.stats_only:
+            with self.stats_lock:
+                self.stats['report_counter'] = self.stats.get('report_counter', 0) + 1
+            return packet
 
         station = self._find_or_create_station(aprs_data)
         if station is None:

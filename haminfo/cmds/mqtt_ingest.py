@@ -55,6 +55,13 @@ def wx_mqtt_ingest(ctx):
     LOG.info(f'Haminfo MQTT Started version: {haminfo.__version__}')
     CONF.log_opt_values(LOG, logging.DEBUG)
 
+    # Check for stats_only mode
+    stats_only = CONF.mqtt.stats_only
+    if stats_only:
+        LOG.warning('=' * 60)
+        LOG.warning('STATS-ONLY MODE: Packets will NOT be saved to database!')
+        LOG.warning('=' * 60)
+
     # Get session factory - processors will create their own sessions
     session_factory = db.setup_session()
 
@@ -86,6 +93,7 @@ def wx_mqtt_ingest(ctx):
             stats,
             stats_lock,
             thread_index=i,  # Pass index for staggered batch saves
+            stats_only=stats_only,
         )
         processor.name = f'APRSPacketProcessorThread-{i}'
         aprs_processors.append(processor)
@@ -96,6 +104,7 @@ def wx_mqtt_ingest(ctx):
         session_factory,
         stats,
         stats_lock,
+        stats_only=stats_only,
     )
 
     # MQTT thread gets all queues: [aprs_0, ..., aprs_N-1, weather]

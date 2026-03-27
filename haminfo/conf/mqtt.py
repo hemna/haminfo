@@ -30,6 +30,13 @@ mqtt_opts = [
         help='Number of parallel APRS packet processor threads. '
         'Increase to improve throughput on multi-core systems.',
     ),
+    cfg.BoolOpt(
+        'stats_only',
+        default=False,
+        help='When enabled, only collect statistics about packets without '
+        'inserting them into the database. Useful for diagnosing throughput '
+        'issues and measuring MQTT ingestion rate independent of DB performance.',
+    ),
 ]
 
 
