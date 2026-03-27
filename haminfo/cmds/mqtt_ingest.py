@@ -59,8 +59,12 @@ def wx_mqtt_ingest(ctx):
     # Get session factory - processors will create their own sessions
     session_factory = db.setup_session()
 
-    # Create separate queues for each processor (fan-out)
-    aprs_queue = queue.Queue(maxsize=5000)
+    # Get processor count from config
+    processor_count = CONF.mqtt.processor_count
+    LOG.info(f'Starting {processor_count} parallel APRS packet processor threads')
+
+    # Create N APRS queues + 1 weather queue
+    aprs_queues = [queue.Queue(maxsize=5000) for _ in range(processor_count)]
     weather_queue = queue.Queue(maxsize=5000)
 
     # Shared stats dictionary and lock for thread-safe access
@@ -74,27 +78,37 @@ def wx_mqtt_ingest(ctx):
         'unique_callsigns': set(),
     }
 
-    # Create processor threads with session factory (not a single session)
-    aprs_processor = APRSPacketProcessorThread(
-        aprs_queue,
-        session_factory,
-        stats,
-        stats_lock,
-    )
+    # Create N APRS processor threads
+    aprs_processors = []
+    for i in range(processor_count):
+        processor = APRSPacketProcessorThread(
+            aprs_queues[i],
+            session_factory,
+            stats,
+            stats_lock,
+        )
+        processor.name = f'APRSPacketProcessorThread-{i}'
+        aprs_processors.append(processor)
+
+    # Single weather processor
     weather_processor = WeatherPacketProcessorThread(
         weather_queue,
         session_factory,
         stats,
         stats_lock,
     )
-    mqtt_thread = MQTTThread([aprs_queue, weather_queue], stats, stats_lock)
+
+    # MQTT thread gets all queues: [aprs_0, ..., aprs_N-1, weather]
+    all_queues = aprs_queues + [weather_queue]
+    mqtt_thread = MQTTThread(all_queues, stats, stats_lock)
 
     # Start all threads
     keepalive = threads.KeepAliveThread()
     keepalive.start()
 
-    LOG.info('Starting APRS packet processor thread')
-    aprs_processor.start()
+    for i, processor in enumerate(aprs_processors):
+        LOG.info(f'Starting {processor.name}')
+        processor.start()
 
     LOG.info('Starting weather packet processor thread')
     weather_processor.start()
@@ -105,11 +119,15 @@ def wx_mqtt_ingest(ctx):
     # Wait for MQTT thread (runs until stopped)
     mqtt_thread.join()
 
-    # Stop processor threads
+    # Graceful shutdown - stop all processor threads
     LOG.info('Stopping processor threads')
-    aprs_processor.stop()
+    for processor in aprs_processors:
+        processor.stop()
     weather_processor.stop()
-    aprs_processor.join(timeout=5)
+
+    # Wait for processors to finish
+    for processor in aprs_processors:
+        processor.join(timeout=5)
     weather_processor.join(timeout=5)
 
     LOG.info('Waiting for keepalive thread to quit')
