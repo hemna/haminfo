@@ -54,6 +54,19 @@ class MQTTThread(threads.MyThread):
             self.packet_queues = list(packet_queues)
         # Keep backward-compat attribute for stats reporting
         self.packet_queue = self.packet_queues[0]
+
+        # Separate APRS queues (round-robin) from weather queue (last one)
+        if len(self.packet_queues) > 1:
+            self.aprs_queues = self.packet_queues[:-1]
+            self.weather_queue = self.packet_queues[-1]
+        else:
+            # Single queue mode: same queue for both
+            self.aprs_queues = self.packet_queues
+            self.weather_queue = self.packet_queues[0]
+
+        # Round-robin index for APRS queue distribution
+        self.rr_index: int = 0
+
         self.stats = stats
         self.stats_lock = stats_lock
 
@@ -421,11 +434,22 @@ class MQTTThread(threads.MyThread):
                 return
 
             if aprsd_packet:
-                for pq in self.packet_queues:
+                # Round-robin to APRS processors
+                aprs_queue = self.aprs_queues[self.rr_index % len(self.aprs_queues)]
+                self.rr_index += 1
+                try:
+                    aprs_queue.put_nowait(aprsd_packet)
+                except queue.Full:
+                    logger.warning('APRS packet queue full, dropping packet')
+
+                # Weather packets also go to weather processor
+                from aprsd.packets.core import WeatherPacket
+
+                if isinstance(aprsd_packet, WeatherPacket):
                     try:
-                        pq.put_nowait(aprsd_packet)
+                        self.weather_queue.put_nowait(aprsd_packet)
                     except queue.Full:
-                        logger.warning('Packet queue is full, dropping packet')
+                        logger.warning('Weather queue full, dropping packet')
 
             # Periodic stats
             current_time = time.time()

@@ -220,6 +220,17 @@ With `processor_count=4`:
 - ~4x throughput for DB writes (parallel sessions, batched inserts)
 - Better CPU utilization on multi-core systems
 
+## Rollback
+
+To restore single-threaded behavior, set `processor_count=1` in your config:
+
+```ini
+[mqtt]
+processor_count = 1
+```
+
+This immediately reverts to the original single-processor architecture.
+
 ## Future Improvements
 
 If parallel consumers aren't sufficient, next steps:
