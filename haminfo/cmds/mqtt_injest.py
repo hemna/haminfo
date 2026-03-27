@@ -30,8 +30,7 @@ from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 from haminfo.db.models.aprs_packet import APRSPacket
 
 from aprsd.packets import core
-from aprsd.packets.core import factory, WeatherPacket
-from aprsd.packets.filter import PacketFilter
+from aprsd.packets.core import WeatherPacket
 
 
 CONF = cfg.CONF
@@ -60,7 +59,7 @@ def get_location(coordinates):
             language='en',
             addressdetails=True,
         )
-    except Exception as ex:
+    except Exception:
         LOG.error(f'Failed to get location for {coordinates}')
         location = None
     return location
@@ -185,15 +184,32 @@ class InjestPacketFilter:
 
 
 class APRSPacketProcessorThread(threads.MyThread):
-    """Thread that processes all APRS packets from a queue."""
+    """Thread that processes all APRS packets from a queue.
 
-    def __init__(self, packet_queue, session, stats, stats_lock):
+    Supports staggered batch saving to reduce DB contention when multiple
+    processor threads run in parallel. Each thread can have a different
+    batch_save_threshold based on its thread_index.
+    """
+
+    # Base batch size - threads will save at BASE + (thread_index * STAGGER)
+    BASE_BATCH_SIZE = 200
+    BATCH_STAGGER = 25  # Stagger by 25 packets per thread
+
+    def __init__(self, packet_queue, session, stats, stats_lock, thread_index=0):
         super().__init__('APRSPacketProcessorThread')
         self.packet_queue = packet_queue
         self.session = session
         self.stats = stats
         self.stats_lock = stats_lock
         self.aprs_packets = []
+        self.thread_index = thread_index
+        # Stagger batch save thresholds: thread 0=200, thread 1=225, thread 2=250, etc.
+        self.batch_save_threshold = self.BASE_BATCH_SIZE + (
+            thread_index * self.BATCH_STAGGER
+        )
+        LOG.info(
+            f'Thread {thread_index}: batch_save_threshold = {self.batch_save_threshold}'
+        )
 
     def loop(self):
         try:
@@ -280,11 +296,17 @@ class APRSPacketProcessorThread(threads.MyThread):
         return True
 
     def _save_packets_if_needed(self):
-        """Save APRSPackets to database if we've accumulated enough."""
-        if len(self.aprs_packets) >= 200:
+        """Save APRSPackets to database if we've accumulated enough.
+
+        Uses staggered threshold based on thread_index to avoid all threads
+        saving simultaneously and causing DB contention.
+        """
+        if len(self.aprs_packets) >= self.batch_save_threshold:
             try:
                 packets_to_save = len(self.aprs_packets)
-                LOG.info(f'Saving {packets_to_save} APRS packets to DB.')
+                LOG.info(
+                    f'[T{self.thread_index}] Saving {packets_to_save} APRS packets to DB.'
+                )
                 tic = time.perf_counter()
                 self.session.bulk_save_objects(self.aprs_packets)
                 self.session.commit()
@@ -295,11 +317,13 @@ class APRSPacketProcessorThread(threads.MyThread):
                         self.stats.get('packets_saved', 0) + packets_to_save
                     )
 
-                LOG.info(f'Time to save APRS packets = {toc - tic:0.4f}')
+                LOG.info(
+                    f'[T{self.thread_index}] Time to save APRS packets = {toc - tic:0.4f}'
+                )
                 self.aprs_packets = []
             except Exception as ex:
                 self.session.rollback()
-                LOG.error(f'Failed to save APRS packets: {ex}')
+                LOG.error(f'[T{self.thread_index}] Failed to save APRS packets: {ex}')
                 LOG.exception(ex)
                 # Drop the packets to avoid memory issues
                 self.aprs_packets = []
@@ -374,7 +398,7 @@ class APRSPacketProcessorThread(threads.MyThread):
             try:
                 packets_to_save = len(self.aprs_packets)
                 LOG.info(
-                    f'Saving {packets_to_save} remaining APRS packets before shutdown.'
+                    f'[T{self.thread_index}] Saving {packets_to_save} remaining APRS packets before shutdown.'
                 )
                 self.session.bulk_save_objects(self.aprs_packets)
                 self.session.commit()
@@ -387,7 +411,9 @@ class APRSPacketProcessorThread(threads.MyThread):
                 self.aprs_packets = []
             except Exception as ex:
                 self.session.rollback()
-                LOG.error(f'Failed to save remaining APRS packets: {ex}')
+                LOG.error(
+                    f'[T{self.thread_index}] Failed to save remaining APRS packets: {ex}'
+                )
                 LOG.exception(ex)
 
 
@@ -410,8 +436,8 @@ class WeatherPacketProcessorThread(threads.MyThread):
             # Get aprsd packet object from queue with timeout
             aprsd_packet = self.packet_queue.get(timeout=1.0)
 
-            # Process weather packet through filter
-            result = self.weather_filter.filter(aprsd_packet)
+            # Process weather packet through filter (result ignored, filter modifies self.reports)
+            self.weather_filter.filter(aprsd_packet)
 
             # Save reports periodically
             if len(self.reports) >= 200:
@@ -936,8 +962,10 @@ def wx_mqtt_injest(ctx):
         'unique_callsigns': set(),
     }
 
-    # Create processor threads
-    aprs_processor = APRSPacketProcessorThread(packet_queue, session, stats, stats_lock)
+    # Create processor threads (single-threaded legacy mode, uses thread_index=0)
+    aprs_processor = APRSPacketProcessorThread(
+        packet_queue, session, stats, stats_lock, thread_index=0
+    )
 
     weather_processor = WeatherPacketProcessorThread(
         packet_queue, session, stats, stats_lock

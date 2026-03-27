@@ -9,12 +9,11 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from aprsd.packets import core
 
 from haminfo import threads
 from haminfo.db.models.aprs_packet import APRSPacket
@@ -31,7 +30,14 @@ class APRSPacketProcessorThread(threads.MyThread):
 
     Accumulates packets and saves them in batches to the database
     for better write performance.
+
+    Supports staggered batch saving to reduce DB contention when multiple
+    processor threads run in parallel. Each thread can have a different
+    batch_save_threshold based on its thread_index.
     """
+
+    # Stagger increment per thread (e.g., thread 0=500, thread 1=525, etc.)
+    BATCH_STAGGER = 25
 
     def __init__(
         self,
@@ -39,6 +45,7 @@ class APRSPacketProcessorThread(threads.MyThread):
         session_factory: Any,
         stats: dict,
         stats_lock: threading.Lock,
+        thread_index: int = 0,
     ):
         super().__init__('APRSPacketProcessorThread')
         self.packet_queue = packet_queue
@@ -46,6 +53,13 @@ class APRSPacketProcessorThread(threads.MyThread):
         self.stats = stats
         self.stats_lock = stats_lock
         self.aprs_packets: list[APRSPacket] = []
+        self.thread_index = thread_index
+        # Stagger batch save thresholds: thread 0=500, thread 1=525, thread 2=550, etc.
+        self.batch_save_threshold = BATCH_SIZE + (thread_index * self.BATCH_STAGGER)
+        logger.info(
+            f'[T{thread_index}] APRSPacketProcessorThread initialized with '
+            f'batch_save_threshold={self.batch_save_threshold}'
+        )
 
     def loop(self) -> bool:
         try:
@@ -118,15 +132,20 @@ class APRSPacketProcessorThread(threads.MyThread):
         (from_call, timestamp) keys gracefully.
         Gets a fresh session from the factory for each batch to avoid
         stale connection issues.
+
+        Uses staggered threshold based on thread_index to avoid all threads
+        saving simultaneously and causing DB contention.
         """
-        if len(self.aprs_packets) < BATCH_SIZE:
+        if len(self.aprs_packets) < self.batch_save_threshold:
             return
 
         # Get a fresh session for this batch
         session = self.session_factory()
         try:
             packets_to_save = len(self.aprs_packets)
-            logger.info(f'Saving {packets_to_save} APRS packets to DB.')
+            logger.info(
+                f'[T{self.thread_index}] Saving {packets_to_save} APRS packets to DB.'
+            )
             tic = time.perf_counter()
 
             # Convert ORM objects to dicts for bulk insert
@@ -172,17 +191,19 @@ class APRSPacketProcessorThread(threads.MyThread):
 
             if actual_inserted < packets_to_save:
                 logger.info(
-                    f'Inserted {actual_inserted}/{packets_to_save} packets '
+                    f'[T{self.thread_index}] Inserted {actual_inserted}/{packets_to_save} packets '
                     f'({packets_to_save - actual_inserted} duplicates skipped) '
                     f'in {toc - tic:0.4f}s'
                 )
             else:
-                logger.info(f'Time to save APRS packets = {toc - tic:0.4f}s')
+                logger.info(
+                    f'[T{self.thread_index}] Time to save APRS packets = {toc - tic:0.4f}s'
+                )
             # Only clear on success — failed batches will be retried
             self.aprs_packets = []
         except Exception as ex:
             session.rollback()
-            logger.error(f'Failed to save APRS packets: {ex}')
+            logger.error(f'[T{self.thread_index}] Failed to save APRS packets: {ex}')
             logger.exception(ex)
         finally:
             # Always close the session to return connection to pool
@@ -258,7 +279,7 @@ class APRSPacketProcessorThread(threads.MyThread):
         try:
             packets_to_save = len(self.aprs_packets)
             logger.info(
-                f'Saving {packets_to_save} remaining APRS packets before shutdown.'
+                f'[T{self.thread_index}] Saving {packets_to_save} remaining APRS packets before shutdown.'
             )
             session.bulk_save_objects(self.aprs_packets)
             session.commit()
@@ -269,7 +290,9 @@ class APRSPacketProcessorThread(threads.MyThread):
             self.aprs_packets = []
         except Exception as ex:
             session.rollback()
-            logger.error(f'Failed to save remaining APRS packets: {ex}')
+            logger.error(
+                f'[T{self.thread_index}] Failed to save remaining APRS packets: {ex}'
+            )
             logger.exception(ex)
         finally:
             session.close()

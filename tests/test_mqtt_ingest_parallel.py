@@ -44,6 +44,7 @@ class TestParallelProcessorSetup:
                 session_factory,
                 stats,
                 stats_lock,
+                thread_index=i,
             )
             processor.name = f'APRSPacketProcessorThread-{i}'
             aprs_processors.append(processor)
@@ -51,6 +52,11 @@ class TestParallelProcessorSetup:
         assert len(aprs_processors) == 4
         assert aprs_processors[0].name == 'APRSPacketProcessorThread-0'
         assert aprs_processors[3].name == 'APRSPacketProcessorThread-3'
+        # Verify staggered batch thresholds (base=500, stagger=25)
+        assert aprs_processors[0].batch_save_threshold == 500  # 500 + 0*25
+        assert aprs_processors[1].batch_save_threshold == 525  # 500 + 1*25
+        assert aprs_processors[2].batch_save_threshold == 550  # 500 + 2*25
+        assert aprs_processors[3].batch_save_threshold == 575  # 500 + 3*25
 
     @patch('haminfo.cmds.mqtt_ingest.CONF')
     def test_mqtt_thread_receives_all_queues(self, mock_conf):

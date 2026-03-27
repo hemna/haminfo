@@ -77,7 +77,7 @@ def wx_mqtt_ingest(ctx):
         'unique_callsigns': set(),
     }
 
-    # Create N APRS processor threads
+    # Create N APRS processor threads with staggered batch thresholds
     aprs_processors = []
     for i in range(processor_count):
         processor = APRSPacketProcessorThread(
@@ -85,6 +85,7 @@ def wx_mqtt_ingest(ctx):
             session_factory,
             stats,
             stats_lock,
+            thread_index=i,  # Pass index for staggered batch saves
         )
         processor.name = f'APRSPacketProcessorThread-{i}'
         aprs_processors.append(processor)
