@@ -102,7 +102,6 @@ dependencies = [
     "geopy>=2.4.1",
     "loguru>=0.7.3",
     "mapbox>=0.18.1",
-    "orjson>=3.10.0",
     "mcp>=1.9.2",
     "opencage>=3.2.0",
     "oslo-config>=9.8.0",

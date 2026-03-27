@@ -7,12 +7,12 @@ packets to processing queues.
 from __future__ import annotations
 
 import datetime
+import json
 import queue
 import threading
 import time
 from typing import Any, Optional
 
-import orjson
 from loguru import logger
 from oslo_config import cfg
 import paho.mqtt.client as mqtt
@@ -424,7 +424,7 @@ class MQTTThread(threads.MyThread):
             self.last_message_time = time.time()
 
             raw_payload = msg.payload.decode('utf-8').replace('\x00', '')
-            aprs_data_raw = orjson.loads(raw_payload)
+            aprs_data_raw = json.loads(raw_payload)
 
             try:
                 aprsd_packet = core.factory(aprs_data_raw)

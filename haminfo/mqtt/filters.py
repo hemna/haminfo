@@ -6,10 +6,10 @@ for database storage.
 
 from __future__ import annotations
 
+import json
 import threading
 from typing import Any, Optional
 
-import orjson
 from cachetools import cached, TTLCache
 from geopy.geocoders import Nominatim
 from loguru import logger
@@ -60,7 +60,7 @@ def _convert_packet_to_dict(packet: core.Packet) -> Optional[dict]:
         else:
             aprs_data_json = packet.to_json()
             if isinstance(aprs_data_json, str):
-                return orjson.loads(aprs_data_json)
+                return json.loads(aprs_data_json)
             return aprs_data_json
     except Exception as ex:
         logger.error(f'Failed to convert aprsd packet to dict: {ex}')
