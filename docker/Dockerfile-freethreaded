@@ -2,7 +2,7 @@
 # Uses uv to install Python 3.13t (no-GIL experimental build) for better
 # multi-threaded performance with parallel APRS packet processors.
 
-FROM ghcr.io/astral-sh/uv:bookworm-slim AS prepare
+FROM ghcr.io/astral-sh/uv:bookworm AS prepare
 
 ARG BRANCH
 ARG COMMIT_SHA
@@ -15,9 +15,9 @@ ENV APP_COMMIT_SHA=${COMMIT_SHA:-}
 ENV UID=${UID:-1000}
 ENV GID=${GID:-1000}
 
-# Install build dependencies
+# Install build dependencies (ca-certificates needed for git clone over https)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git sudo cron libmemcached-dev build-essential postgresql-client \
+    git sudo cron libmemcached-dev build-essential postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
