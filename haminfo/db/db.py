@@ -587,7 +587,7 @@ def get_aprs_packet_stats(session: Session) -> dict[str, Any]:
     type_counts = (
         session.query(
             APRSPacket.packet_type,
-            func.count(APRSPacket.id),
+            func.count(APRSPacket.from_call),
         )
         .group_by(APRSPacket.packet_type)
         .all()
