@@ -36,21 +36,14 @@ class APRSPacket(ModelBase):
 
     __tablename__ = 'aprs_packet'
 
-    # Use Integer here for SQLite test compatibility
-    # PostgreSQL migration explicitly uses BIGINT for production scale
-    id = sa.Column(
-        sa.Integer,
-        sa.Sequence('aprs_packet_id_seq'),
-        primary_key=True,
-    )
-
     # Core APRS packet fields - use constrained string lengths
-    from_call = sa.Column(sa.String(9), nullable=False, index=True)
+    # Primary key is (from_call, timestamp) for TimescaleDB hypertable
+    from_call = sa.Column(sa.String(9), nullable=False, primary_key=True, index=True)
     to_call = sa.Column(sa.String(9), index=True)
     path = sa.Column(sa.String(100))  # Digipeater path
 
-    # Timestamps
-    timestamp = sa.Column(sa.DateTime, nullable=False, index=True)
+    # Timestamps - timestamp is part of composite primary key for hypertable
+    timestamp = sa.Column(sa.DateTime, nullable=False, primary_key=True, index=True)
     received_at = sa.Column(
         sa.DateTime,
         nullable=False,
@@ -81,7 +74,7 @@ class APRSPacket(ModelBase):
 
     def __repr__(self):
         return (
-            f"<APRSPacket(id={self.id}, from_call='{self.from_call}', "
+            f"<APRSPacket(from_call='{self.from_call}', "
             f"to_call='{self.to_call}', packet_type='{self.packet_type}', "
             f"timestamp='{self.timestamp}')>"
         )
