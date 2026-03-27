@@ -25,9 +25,11 @@ CONF = cfg.CONF
 
 # Connection health check settings
 CONNECTION_CHECK_INTERVAL = 5  # seconds
-MESSAGE_TIMEOUT = 300  # seconds (5 minutes)
+MESSAGE_TIMEOUT = 120  # seconds (2 minutes) - reduced for faster detection
 MAX_RECONNECT_DELAY = 60  # seconds
 INITIAL_RECONNECT_DELAY = 1  # seconds
+SUBSCRIPTION_CHECK_INTERVAL = 30  # seconds - verify subscription is active
+PING_INTERVAL = 60  # seconds - send MQTT ping to verify connection
 
 
 class MQTTThread(threads.MyThread):
@@ -62,12 +64,16 @@ class MQTTThread(threads.MyThread):
 
         # Connection state
         self.connected: bool = False
+        self.subscribed: bool = False
         self.connection_attempts: int = 0
         self.last_connection_check: float = 0
         self.reconnect_delay: float = INITIAL_RECONNECT_DELAY
         self.last_message_time: float = time.time()
+        self.last_ping_time: float = 0
+        self.last_subscription_check: float = 0
         self.reconnecting: bool = False
         self.reconnect_lock = threading.Lock()
+        self.consecutive_empty_checks: int = 0  # Track periods with no messages
 
         # KeepAliveThread compatibility attributes
         self.packet_counter: int = 0
@@ -97,6 +103,13 @@ class MQTTThread(threads.MyThread):
             self.client.on_message = self.on_message
             self.client.on_disconnect = self.on_disconnect
             self.client.on_connect_fail = self.on_connect_fail
+            self.client.on_subscribe = self.on_subscribe
+
+            # Enable automatic reconnection with exponential backoff
+            self.client.reconnect_delay_set(
+                min_delay=INITIAL_RECONNECT_DELAY,
+                max_delay=MAX_RECONNECT_DELAY,
+            )
 
             if CONF.mqtt.user:
                 self.client.username_pw_set(
@@ -122,10 +135,12 @@ class MQTTThread(threads.MyThread):
         except (ConnectionError, OSError) as ex:
             logger.error(f'Network error connecting to MQTT broker: {ex}')
             self.connected = False
+            self.subscribed = False
             self.client = None
         except Exception as ex:
             logger.error(f'Failed to create/connect MQTT client: {ex}')
             self.connected = False
+            self.subscribed = False
             self.client = None
 
     def _reconnect(self) -> None:
@@ -151,6 +166,8 @@ class MQTTThread(threads.MyThread):
                     self.client = None
 
             self.connected = False
+            self.subscribed = False
+            self.consecutive_empty_checks = 0
 
             delay = min(self.reconnect_delay, MAX_RECONNECT_DELAY)
             logger.info(
@@ -194,6 +211,11 @@ class MQTTThread(threads.MyThread):
             self._reconnect()
             return
 
+        if not self.subscribed:
+            logger.warning('MQTT client not subscribed, reconnecting...')
+            self._reconnect()
+            return
+
         # Check if the network loop thread is alive
         try:
             if (
@@ -211,9 +233,37 @@ class MQTTThread(threads.MyThread):
             self._reconnect()
             return
 
+        # Check if connection is closed (paho internal state)
+        try:
+            if (
+                hasattr(self.client, '_connection_closed')
+                and self.client._connection_closed()
+            ):
+                logger.warning(
+                    'MQTT connection closed (internal state), reconnecting...'
+                )
+                self._reconnect()
+                return
+        except Exception:
+            pass
+
+        # Check socket state
+        try:
+            if hasattr(self.client, '_sock') and self.client._sock is None:
+                logger.warning('MQTT socket is None, reconnecting...')
+                self._reconnect()
+                return
+        except Exception:
+            pass
+
+        # Periodic ping to verify connection is truly alive
+        if current_time - self.last_ping_time > PING_INTERVAL:
+            self._send_ping()
+            self.last_ping_time = current_time
+
         # Check for message timeout (stale connection)
         time_since_start = current_time - self.start_time
-        if time_since_start > 60:  # Only check after 1 minute of runtime
+        if time_since_start > 30:  # Only check after 30 seconds of runtime
             time_since_last = current_time - self.last_message_time
             if time_since_last > MESSAGE_TIMEOUT:
                 logger.warning(
@@ -221,6 +271,34 @@ class MQTTThread(threads.MyThread):
                     f'(timeout: {MESSAGE_TIMEOUT}s), reconnecting...'
                 )
                 self._reconnect()
+                return
+
+            # Track consecutive periods with no new messages (early warning)
+            # If we've had 3 consecutive 30-second periods with no messages, reconnect
+            if time_since_last > 30:
+                self.consecutive_empty_checks += 1
+                if self.consecutive_empty_checks >= 3:
+                    logger.warning(
+                        f'No messages for {self.consecutive_empty_checks} consecutive checks '
+                        f'({time_since_last:.0f}s), reconnecting proactively...'
+                    )
+                    self._reconnect()
+                    return
+            else:
+                self.consecutive_empty_checks = 0
+
+    def _send_ping(self) -> None:
+        """Send MQTT ping to verify connection is alive."""
+        try:
+            if self.client and self.connected:
+                # paho-mqtt handles ping internally, but we can force a check
+                # by calling loop_misc which processes keepalives
+                rc = self.client._loop_misc()
+                if rc != mqtt.MQTT_ERR_SUCCESS:
+                    logger.warning(f'MQTT ping failed with rc={rc}')
+                    # Don't reconnect immediately, let the next health check handle it
+        except Exception as ex:
+            logger.warning(f'Error sending MQTT ping: {ex}')
 
     # --- MQTT Callbacks ---
 
@@ -228,6 +306,40 @@ class MQTTThread(threads.MyThread):
         """Called when connection attempt fails."""
         logger.error('MQTT connection failed')
         self.connected = False
+        self.subscribed = False
+
+    def on_subscribe(
+        self,
+        client: Any,
+        userdata: Any,
+        mid: int,
+        reason_codes: Any,
+        properties: Any = None,
+    ) -> None:
+        """Called when subscription is confirmed by broker."""
+        # reason_codes can be a list or a single ReasonCode
+        if hasattr(reason_codes, '__iter__') and not isinstance(reason_codes, str):
+            # It's a list
+            success = all(
+                rc == mqtt.MQTT_ERR_SUCCESS
+                or (hasattr(rc, 'is_failure') and not rc.is_failure)
+                for rc in reason_codes
+            )
+        else:
+            # Single reason code
+            success = reason_codes == mqtt.MQTT_ERR_SUCCESS or (
+                hasattr(reason_codes, 'is_failure') and not reason_codes.is_failure
+            )
+
+        if success:
+            logger.info(f'Subscription confirmed (mid={mid})')
+            self.subscribed = True
+            self.last_message_time = (
+                time.time()
+            )  # Reset timeout on successful subscribe
+        else:
+            logger.error(f'Subscription failed (mid={mid}, rc={reason_codes})')
+            self.subscribed = False
 
     def on_disconnect(
         self,
@@ -245,6 +357,7 @@ class MQTTThread(threads.MyThread):
                 f'MQTT client disconnected unexpectedly (rc={rc}, flags={flags})'
             )
         self.connected = False
+        self.subscribed = False
         if rc != 0:
             self.reconnect_delay = INITIAL_RECONNECT_DELAY
 
@@ -263,18 +376,27 @@ class MQTTThread(threads.MyThread):
                 f'/{CONF.mqtt.topic} (rc={rc})'
             )
             self.connected = True
+            self.subscribed = False  # Will be set true after subscribe succeeds
             self.connection_attempts = 0
             self.reconnect_delay = INITIAL_RECONNECT_DELAY
             self.last_message_time = time.time()
+            self.consecutive_empty_checks = 0
             try:
-                client.subscribe(CONF.mqtt.topic)
-                logger.info(f'Subscribed to topic: {CONF.mqtt.topic}')
+                result, mid = client.subscribe(CONF.mqtt.topic, qos=1)
+                if result == mqtt.MQTT_ERR_SUCCESS:
+                    logger.info(f'Subscribed to topic: {CONF.mqtt.topic} (mid={mid})')
+                    self.subscribed = True
+                else:
+                    logger.error(f'Subscribe failed with rc={result}')
+                    self.subscribed = False
             except Exception as ex:
                 logger.error(f'Failed to subscribe to {CONF.mqtt.topic}: {ex}')
                 self.connected = False
+                self.subscribed = False
         else:
             logger.error(f'Failed to connect to MQTT broker (rc={rc})')
             self.connected = False
+            self.subscribed = False
 
     def on_message(
         self,
