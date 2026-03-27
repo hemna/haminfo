@@ -8,6 +8,13 @@ from datetime import datetime, timedelta
 import pytest
 from unittest.mock import patch
 
+# Import aprsd early to register its config options before haminfo
+# This prevents DuplicateOptError when both try to register 'logging' group
+try:
+    import aprsd.conf  # noqa: F401
+except ImportError:
+    pass  # aprsd may not be installed in all test environments
+
 from oslo_config import cfg
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, scoped_session, sessionmaker

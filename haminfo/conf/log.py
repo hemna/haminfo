@@ -1,70 +1,79 @@
 """
 The options for log setup
 """
+
 import logging
 
 from oslo_config import cfg
 
 
 LOG_LEVELS = {
-    "CRITICAL": logging.CRITICAL,
-    "ERROR": logging.ERROR,
-    "WARNING": logging.WARNING,
-    "INFO": logging.INFO,
-    "DEBUG": logging.DEBUG,
+    'CRITICAL': logging.CRITICAL,
+    'ERROR': logging.ERROR,
+    'WARNING': logging.WARNING,
+    'INFO': logging.INFO,
+    'DEBUG': logging.DEBUG,
 }
 
-DEFAULT_DATE_FORMAT = "%m/%d/%Y %I:%M:%S %p"
+DEFAULT_DATE_FORMAT = '%m/%d/%Y %I:%M:%S %p'
 DEFAULT_LOG_FORMAT = (
-    "[%(asctime)s] [%(threadName)-20.20s] [%(levelname)-5.5s]"
-    " %(message)s - [%(pathname)s:%(lineno)d]"
+    '[%(asctime)s] [%(threadName)-20.20s] [%(levelname)-5.5s]'
+    ' %(message)s - [%(pathname)s:%(lineno)d]'
 )
 
 DEFAULT_LOG_FORMAT = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-    "<yellow>{thread.name: <18}</yellow> | "
-    "<level>{level: <8}</level> | "
-    "<level>{message}</level> | "
-    "<cyan>{name}</cyan>:<cyan>{function:}</cyan>:<magenta>{line:}</magenta>"
+    '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
+    '<yellow>{thread.name: <18}</yellow> | '
+    '<level>{level: <8}</level> | '
+    '<level>{message}</level> | '
+    '<cyan>{name}</cyan>:<cyan>{function:}</cyan>:<magenta>{line:}</magenta>'
 )
 
 logging_group = cfg.OptGroup(
-    name="logging",
-    title="Logging options",
+    name='logging',
+    title='Logging options',
 )
 logging_opts = [
     cfg.StrOpt(
-        "logfile",
+        'logfile',
         default=None,
-        help="File to log to",
+        help='File to log to',
     ),
     cfg.StrOpt(
-        "logformat",
+        'logformat',
         default=DEFAULT_LOG_FORMAT,
-        help="Log file format, unless rich_logging enabled.",
+        help='Log file format, unless rich_logging enabled.',
     ),
     cfg.StrOpt(
-        "log_level",
-        default="INFO",
+        'log_level',
+        default='INFO',
         choices=LOG_LEVELS.keys(),
-        help="Log level for logging of events.",
+        help='Log level for logging of events.',
     ),
     cfg.BoolOpt(
-        "enable_console_stdout",
+        'enable_console_stdout',
         default=True,
-        help="Enable console stdout logging.",
+        help='Enable console stdout logging.',
     ),
 ]
 
 
 def register_opts(config):
-    config.register_group(logging_group)
-    config.register_opts(logging_opts, group=logging_group)
+    # Check if the logging group already exists (e.g., registered by aprsd)
+    try:
+        config.register_group(logging_group)
+    except cfg.DuplicateOptError:
+        pass
+
+    # Register only options that aren't already registered
+    for opt in logging_opts:
+        try:
+            config.register_opt(opt, group=logging_group)
+        except cfg.DuplicateOptError:
+            pass
 
 
 def list_opts():
     return {
-        logging_group.name: (
-            logging_opts
-        ),
+        logging_group.name: (logging_opts),
     }
