@@ -22,7 +22,7 @@ from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.mqtt.filters import WeatherPacketFilter, _convert_packet_to_dict
 
 # Batch size for bulk database operations
-BATCH_SIZE = 200
+BATCH_SIZE = 500
 # How often to print stats (every N packets)
 STATS_INTERVAL = 500
 
