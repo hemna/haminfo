@@ -13,6 +13,7 @@ import time
 from typing import Any, Optional
 
 from loguru import logger
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from aprsd.packets import core
 
@@ -112,7 +113,11 @@ class APRSPacketProcessorThread(threads.MyThread):
         return True
 
     def _save_packets_if_needed(self) -> None:
-        """Save APRSPackets to database if we've accumulated enough."""
+        """Save APRSPackets to database if we've accumulated enough.
+
+        Uses INSERT ... ON CONFLICT DO NOTHING to handle duplicate
+        (from_call, timestamp) keys gracefully.
+        """
         if len(self.aprs_packets) < BATCH_SIZE:
             return
 
@@ -120,16 +125,56 @@ class APRSPacketProcessorThread(threads.MyThread):
             packets_to_save = len(self.aprs_packets)
             logger.info(f'Saving {packets_to_save} APRS packets to DB.')
             tic = time.perf_counter()
-            self.session.bulk_save_objects(self.aprs_packets)
+
+            # Convert ORM objects to dicts for bulk insert
+            packet_dicts = []
+            for pkt in self.aprs_packets:
+                packet_dicts.append(
+                    {
+                        'from_call': pkt.from_call,
+                        'to_call': pkt.to_call,
+                        'path': pkt.path,
+                        'timestamp': pkt.timestamp,
+                        'received_at': pkt.received_at,
+                        'raw': pkt.raw,
+                        'packet_type': pkt.packet_type,
+                        'latitude': pkt.latitude,
+                        'longitude': pkt.longitude,
+                        'location': pkt.location,
+                        'altitude': pkt.altitude,
+                        'course': pkt.course,
+                        'speed': pkt.speed,
+                        'symbol': pkt.symbol,
+                        'symbol_table': pkt.symbol_table,
+                        'comment': pkt.comment,
+                    }
+                )
+
+            # Use PostgreSQL INSERT ... ON CONFLICT DO NOTHING
+            stmt = pg_insert(APRSPacket).values(packet_dicts)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=['from_call', 'timestamp']
+            )
+            result = self.session.execute(stmt)
             self.session.commit()
+
+            # rowcount shows how many were actually inserted (not duplicates)
+            actual_inserted = result.rowcount
             toc = time.perf_counter()
 
             with self.stats_lock:
                 self.stats['packets_saved'] = (
-                    self.stats.get('packets_saved', 0) + packets_to_save
+                    self.stats.get('packets_saved', 0) + actual_inserted
                 )
 
-            logger.info(f'Time to save APRS packets = {toc - tic:0.4f}s')
+            if actual_inserted < packets_to_save:
+                logger.info(
+                    f'Inserted {actual_inserted}/{packets_to_save} packets '
+                    f'({packets_to_save - actual_inserted} duplicates skipped) '
+                    f'in {toc - tic:0.4f}s'
+                )
+            else:
+                logger.info(f'Time to save APRS packets = {toc - tic:0.4f}s')
         except Exception as ex:
             self.session.rollback()
             logger.error(f'Failed to save APRS packets: {ex}')
