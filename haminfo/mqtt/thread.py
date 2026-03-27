@@ -288,17 +288,18 @@ class MQTTThread(threads.MyThread):
                 self.consecutive_empty_checks = 0
 
     def _send_ping(self) -> None:
-        """Send MQTT ping to verify connection is alive."""
-        try:
-            if self.client and self.connected:
-                # paho-mqtt handles ping internally, but we can force a check
-                # by calling loop_misc which processes keepalives
-                rc = self.client._loop_misc()
-                if rc != mqtt.MQTT_ERR_SUCCESS:
-                    logger.warning(f'MQTT ping failed with rc={rc}')
-                    # Don't reconnect immediately, let the next health check handle it
-        except Exception as ex:
-            logger.warning(f'Error sending MQTT ping: {ex}')
+        """Send MQTT ping to verify connection is alive.
+
+        Note: paho-mqtt v2 handles keepalive internally via loop_start().
+        This method is a no-op but kept for potential future use.
+        The connection health is verified through other means:
+        - on_disconnect callback
+        - message timeout tracking
+        - socket state checking
+        """
+        # paho-mqtt v2 with loop_start() handles keepalive automatically
+        # No manual ping needed
+        pass
 
     # --- MQTT Callbacks ---
 
