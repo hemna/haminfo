@@ -1,0 +1,21 @@
+# MQTT Ingest Configuration for Development
+# Matching haminfo.conf settings
+
+[mqtt]
+host = "mqtt-home.hemna.com"
+port = 1883
+topic = "aprs/#"
+qos = 0
+username = "hemna"
+password = "ass"
+
+[database]
+url = "postgres://haminfo:haminfo@docker-haminfo.hemna.com:5432/haminfo"
+max_connections = 10
+min_connections = 2
+
+[ingest]
+batch_size = 500
+batch_timeout_ms = 1000
+stats_interval_secs = 10
+stats_only = true  # Start with stats-only to compare throughput

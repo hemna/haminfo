@@ -1,0 +1,68 @@
+<h2>Dashboard Sections</h2>
+<p class="subtitle">Which sections should appear on the main dashboard? Select all that apply.</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="stats" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>Summary Stats Cards</h3>
+      <p>Total packets, unique stations, weather stations, countries - big numbers at a glance</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="live-feed" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>Live Traffic Feed</h3>
+      <p>Scrolling list of incoming APRS packets with callsign, type, timestamp</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="map" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Interactive Map</h3>
+      <p>Leaflet/OpenStreetMap showing station locations with clickable markers</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="charts" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>Activity Charts</h3>
+      <p>Hourly distribution, weekly trends, packet types breakdown (like aprsmy)</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="top-stations" onclick="toggleSelect(this)">
+    <div class="letter">5</div>
+    <div class="content">
+      <h3>Top Stations Leaderboard</h3>
+      <p>Most active callsigns ranked by packet count with device info</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="weather" onclick="toggleSelect(this)">
+    <div class="letter">6</div>
+    <div class="content">
+      <h3>Weather Dashboard</h3>
+      <p>Weather station reports - temperature, humidity, wind, rain data</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="search" onclick="toggleSelect(this)">
+    <div class="letter">7</div>
+    <div class="content">
+      <h3>Station Search/Lookup</h3>
+      <p>Search by callsign to see detailed station info, history, location</p>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="countries" onclick="toggleSelect(this)">
+    <div class="letter">8</div>
+    <div class="content">
+      <h3>Country Statistics</h3>
+      <p>Breakdown by country - station counts, packet volumes per region</p>
+    </div>
+  </div>
+</div>

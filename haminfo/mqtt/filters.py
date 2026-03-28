@@ -154,9 +154,10 @@ class WeatherPacketFilter:
             WeatherStation or None on failure.
         """
         from_call = aprs_data.get('from_call', 'unknown')
-        session = self.session_factory()
+        session = None
 
         try:
+            session = self.session_factory()
             station = WeatherStation.find_station_by_callsign(session, from_call)
             if station:
                 return station
@@ -183,11 +184,13 @@ class WeatherPacketFilter:
             session.commit()
             return station
         except Exception as ex:
-            session.rollback()
+            if session is not None:
+                session.rollback()
             logger.error(f'Failed to find/create station {from_call}: {ex}')
             return None
         finally:
-            session.close()
+            if session is not None:
+                session.close()
 
     def _create_report(
         self, aprs_data: dict, station: WeatherStation

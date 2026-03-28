@@ -132,18 +132,18 @@ def get_engine() -> Any:
     """Create and return a SQLAlchemy engine.
 
     Configures connection pooling with:
-    - pool_pre_ping: Validates connections before use (detects stale connections)
+    - pool_pre_ping: Disabled for throughput (handle stale connections via exception)
     - pool_recycle: Recycles connections after 30 minutes (avoids server-side timeouts)
-    - pool_size: Number of connections to keep open (default 5)
+    - pool_size: Number of connections to keep open (12 for 8 processor threads + buffer)
     - max_overflow: Additional connections allowed beyond pool_size (default 10)
     """
     engine = create_engine(
         CONF.database.connection,
         echo=CONF.database.debug,
-        pool_pre_ping=True,  # Verify connections are alive before using
+        pool_pre_ping=False,  # Disabled for better throughput
         pool_recycle=1800,  # Recycle connections after 30 minutes
-        pool_size=5,  # Keep 5 connections in the pool
-        max_overflow=10,  # Allow up to 10 additional connections
+        pool_size=12,  # Keep 12 connections in the pool (8 processors + buffer)
+        max_overflow=20,  # Allow up to 20 additional connections
     )
     return engine
 

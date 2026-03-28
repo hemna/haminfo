@@ -45,19 +45,19 @@ def _load_haminfo_config(config_file: str) -> None:
     """Load haminfo oslo.config configuration.
 
     This sets up the database connection string used by haminfo.db.
+    Opts are registered at module import time in haminfo.db.db.
 
     Args:
         config_file: Path to haminfo config file.
     """
     from oslo_config import cfg
-    from haminfo import opts
+
+    # Import db module to trigger opt registration at module level
+    from haminfo.db import db  # noqa: F401
 
     CONF = cfg.CONF
 
-    # Register haminfo options
-    opts.register_opts(CONF)
-
-    # Load config file
+    # Load config file (opts already registered by db module import)
     CONF(
         args=[],
         default_config_files=[config_file],

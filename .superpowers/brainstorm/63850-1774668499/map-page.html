@@ -1,0 +1,91 @@
+<h2>Map Page Layout</h2>
+<p class="subtitle">Proposed layout for /map</p>
+
+<div class="mockup">
+  <div class="mockup-header">Station Map - /map</div>
+  <div class="mockup-body" style="background:#1a1a2e;padding:0;">
+    <!-- Header -->
+    <div style="background:#16213e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a4e;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="color:#0f0;font-weight:bold;font-size:16px;">📡 APRS Dashboard</div>
+        <div style="display:flex;gap:8px;font-size:11px;">
+          <span style="color:#888;">Home</span>
+          <span style="color:#888;">Weather</span>
+          <span style="color:#fff;background:#0f0;padding:2px 8px;border-radius:4px;">Map</span>
+          <span style="color:#888;">Lookup</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select style="background:#2a2a4e;color:#888;border:none;padding:4px 8px;border-radius:4px;font-size:10px;">
+          <option>All Station Types</option>
+          <option>Position Only</option>
+          <option>Weather</option>
+          <option>Digipeaters</option>
+        </select>
+        <span style="color:#0f0;font-size:10px;">342 stations</span>
+      </div>
+    </div>
+    
+    <!-- Map Area -->
+    <div style="position:relative;height:280px;background:linear-gradient(135deg,#1e3a5f 0%,#0d253f 100%);">
+      <!-- Simulated map with markers -->
+      <div style="position:absolute;inset:0;opacity:0.3;background-image:url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 50\"><path d=\"M10,25 Q30,10 50,25 T90,25\" fill=\"none\" stroke=\"%23446\" stroke-width=\"0.5\"/><path d=\"M5,35 Q25,20 45,35 T85,35\" fill=\"none\" stroke=\"%23446\" stroke-width=\"0.5\"/></svg>');background-size:cover;"></div>
+      
+      <!-- Station markers -->
+      <div style="position:absolute;top:30%;left:20%;width:8px;height:8px;background:#0f0;border-radius:50%;box-shadow:0 0 8px #0f0;"></div>
+      <div style="position:absolute;top:45%;left:25%;width:8px;height:8px;background:#0f0;border-radius:50%;box-shadow:0 0 8px #0f0;"></div>
+      <div style="position:absolute;top:35%;left:70%;width:8px;height:8px;background:#0ff;border-radius:50%;box-shadow:0 0 8px #0ff;"></div>
+      <div style="position:absolute;top:55%;left:75%;width:8px;height:8px;background:#0f0;border-radius:50%;box-shadow:0 0 8px #0f0;"></div>
+      <div style="position:absolute;top:60%;left:55%;width:8px;height:8px;background:#ff0;border-radius:50%;box-shadow:0 0 8px #ff0;"></div>
+      <div style="position:absolute;top:40%;left:45%;width:8px;height:8px;background:#0f0;border-radius:50%;box-shadow:0 0 8px #0f0;"></div>
+      
+      <!-- Popup example -->
+      <div style="position:absolute;top:20%;left:65%;background:#16213e;border:1px solid #0f0;border-radius:6px;padding:10px;font-size:10px;min-width:140px;">
+        <div style="color:#0f0;font-weight:bold;margin-bottom:6px;">9M2PJU-9</div>
+        <div style="color:#888;">Position: 3.12°N, 101.45°E</div>
+        <div style="color:#888;">Speed: 45 km/h</div>
+        <div style="color:#888;">Last: 2 min ago</div>
+        <div style="margin-top:6px;"><a href="#" style="color:#0ff;font-size:9px;">View details →</a></div>
+      </div>
+      
+      <!-- Legend -->
+      <div style="position:absolute;bottom:10px;left:10px;background:rgba(22,33,62,0.9);border-radius:4px;padding:8px 12px;font-size:9px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <div style="width:8px;height:8px;background:#0f0;border-radius:50%;"></div>
+          <span style="color:#888;">Position</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <div style="width:8px;height:8px;background:#0ff;border-radius:50%;"></div>
+          <span style="color:#888;">Weather</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;background:#ff0;border-radius:50%;"></div>
+          <span style="color:#888;">Digipeater</span>
+        </div>
+      </div>
+      
+      <!-- Zoom controls -->
+      <div style="position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:2px;">
+        <div style="background:#16213e;color:#fff;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;">+</div>
+        <div style="background:#16213e;color:#fff;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;">−</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks Good</h3>
+      <p>Map page layout works</p>
+    </div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs Changes</h3>
+      <p>I'll describe adjustments</p>
+    </div>
+  </div>
+</div>

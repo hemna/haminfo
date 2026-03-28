@@ -1,0 +1,534 @@
+{
+  "title": "Stations Dashboard",
+  "tags": [
+    "haminfo",
+    "stations",
+    "repeaters"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Stations",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT COUNT(*) as value FROM station",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Stations by Frequency Band",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT freq_band, COUNT(*) as count FROM station WHERE freq_band IS NOT NULL GROUP BY freq_band ORDER BY count DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "pieType": "pie",
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Stations by State",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state, COUNT(*) as count FROM station WHERE state IS NOT NULL AND country = 'United States' GROUP BY state ORDER BY count DESC LIMIT 20",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      }
+    },
+    {
+      "id": 4,
+      "title": "Stations by Operational Status",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT operational_status, COUNT(*) as count FROM station WHERE operational_status IS NOT NULL GROUP BY operational_status",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "pieType": "pie"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Stations Added Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT last_update as time, COUNT(*) as count FROM station WHERE last_update IS NOT NULL GROUP BY last_update ORDER BY last_update",
+          "format": "time_series",
+          "timeColumn": "time",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Feature Distribution",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT 'ARES' as feature, COUNT(*) as count FROM station WHERE ares = 1 UNION ALL SELECT 'RACES', COUNT(*) FROM station WHERE races = 1 UNION ALL SELECT 'SKYWARN', COUNT(*) FROM station WHERE skywarn = 1 UNION ALL SELECT 'AllStar', COUNT(*) FROM station WHERE allstar_node = 1 UNION ALL SELECT 'EchoLink', COUNT(*) FROM station WHERE echolink_node = 1 UNION ALL SELECT 'IRLP', COUNT(*) FROM station WHERE irlp_node = 1 UNION ALL SELECT 'DMR', COUNT(*) FROM station WHERE dmr = 1 UNION ALL SELECT 'D-Star', COUNT(*) FROM station WHERE dstar = 1 UNION ALL SELECT 'FM Analog', COUNT(*) FROM station WHERE fm_analog = 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Stations by Use Type",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT use, COUNT(*) as count FROM station WHERE use IS NOT NULL GROUP BY use ORDER BY count DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        },
+        "pieType": "pie"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Stations by Country",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT country, COUNT(*) as count FROM station WHERE country IS NOT NULL GROUP BY country ORDER BY count DESC LIMIT 15",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Frequency Distribution",
+      "type": "histogram",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT frequency FROM station WHERE frequency IS NOT NULL ORDER BY frequency",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "bucketOffset": 0,
+        "bucketSize": 1
+      }
+    },
+    {
+      "id": 10,
+      "title": "US States Breakdown - Detailed",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state as \"State\", COUNT(*) as \"Total Stations\", COUNT(DISTINCT county) as \"Counties\", COUNT(DISTINCT callsign) as \"Unique Callsigns\", COUNT(CASE WHEN operational_status = 'On-the-air' THEN 1 END) as \"On Air\", COUNT(CASE WHEN ares = true THEN 1 END) as \"ARES\", COUNT(CASE WHEN skywarn = true THEN 1 END) as \"SKYWARN\" FROM station WHERE state IS NOT NULL AND country = 'United States' GROUP BY state ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Total Stations"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "Stations by US State",
+      "type": "barchart",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state as \"State\", COUNT(*) as \"Count\" FROM station WHERE state IS NOT NULL AND country = 'United States' GROUP BY state ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "US States by Frequency Band",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state as \"State\", freq_band as \"Band\", COUNT(*) as \"Count\" FROM station WHERE state IS NOT NULL AND country = 'United States' AND freq_band IS NOT NULL GROUP BY state, freq_band ORDER BY state, COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "Top US States by Feature",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state as \"State\", COUNT(CASE WHEN ares = true THEN 1 END) as \"ARES\", COUNT(CASE WHEN races = true THEN 1 END) as \"RACES\", COUNT(CASE WHEN skywarn = true THEN 1 END) as \"SKYWARN\", COUNT(CASE WHEN allstar_node = true THEN 1 END) as \"AllStar\", COUNT(CASE WHEN echolink_node = true THEN 1 END) as \"EchoLink\", COUNT(CASE WHEN dmr = true THEN 1 END) as \"DMR\", COUNT(CASE WHEN dstar = true THEN 1 END) as \"D-Star\" FROM station WHERE state IS NOT NULL AND country = 'United States' GROUP BY state ORDER BY COUNT(*) DESC LIMIT 20",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "ARES"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "US States Operational Status",
+      "type": "table",
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "rawSql": "SELECT state as \"State\", operational_status as \"Status\", COUNT(*) as \"Count\" FROM station WHERE state IS NOT NULL AND country = 'United States' AND operational_status IS NOT NULL GROUP BY state, operational_status ORDER BY state, COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ],
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "weekStart": "",
+  "uid": "stations"
+}

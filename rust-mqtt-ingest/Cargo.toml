@@ -1,0 +1,45 @@
+[package]
+name = "mqtt-ingest"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance MQTT APRS packet ingest service for haminfo"
+authors = ["haminfo team"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# MQTT client
+rumqttc = "0.24"
+
+# PostgreSQL with async support
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono"] }
+
+# JSON parsing
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Configuration
+config = "0.14"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Graceful shutdown
+tokio-util = "0.7"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

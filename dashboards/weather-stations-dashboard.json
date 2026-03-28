@@ -1,0 +1,558 @@
+{
+  "title": "Weather Stations Dashboard",
+  "tags": [
+    "haminfo",
+    "weather",
+    "stations"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Weather Stations",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT COUNT(*) as value FROM weather_station"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Weather Stations by Country",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT country_code as \"Country Code\", COUNT(*) as \"Count\" FROM weather_station WHERE country_code IS NOT NULL GROUP BY country_code ORDER BY COUNT(*) DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Top Weather Stations by Report Count",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT ws.callsign as \"Callsign\", COUNT(wr.id) as \"Count\" FROM weather_station ws LEFT JOIN weather_report wr ON ws.id = wr.weather_station_id GROUP BY ws.id, ws.callsign ORDER BY COUNT(wr.id) DESC LIMIT 20"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Weather Reports Over Time",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "time_series",
+          "timeColumn": "time",
+          "refId": "A",
+          "rawSql": "SELECT date_trunc('day', time) as time, COUNT(*) as value \n                      FROM weather_report \n                      WHERE time IS NOT NULL \n                      GROUP BY date_trunc('day', time) \n                      ORDER BY time"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Average Temperature by Station",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "time_series",
+          "timeColumn": "time",
+          "refId": "A",
+          "rawSql": "SELECT date_trunc('day', wr.time) as time, ws.callsign, AVG(wr.temperature) as value FROM weather_report wr JOIN weather_station ws ON wr.weather_station_id = ws.id WHERE wr.temperature IS NOT NULL AND wr.time IS NOT NULL GROUP BY date_trunc('day', wr.time), ws.callsign ORDER BY time LIMIT 1000"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Weather Station Symbols",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT symbol as \"Symbol\", COUNT(*) as \"Count\" FROM weather_station WHERE symbol IS NOT NULL GROUP BY symbol ORDER BY COUNT(*) DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Recent Weather Reports Count",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT COUNT(*) as value FROM weather_report WHERE time >= NOW() - INTERVAL '24 hours'"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Average Humidity by Station",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT ws.callsign as \"Callsign\", AVG(wr.humidity) as \"Avg Humidity\" FROM weather_report wr JOIN weather_station ws ON wr.weather_station_id = ws.id WHERE wr.humidity IS NOT NULL GROUP BY ws.id, ws.callsign ORDER BY AVG(wr.humidity) DESC LIMIT 20"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Avg Humidity"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "US Weather Stations Summary",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT 'US Weather Stations' as \"Category\", COUNT(DISTINCT ws.id) as \"Total Stations\", COUNT(DISTINCT ws.callsign) as \"Unique Callsigns\", COUNT(wr.id) as \"Total Reports\", COUNT(DISTINCT date_trunc('day', wr.time)) as \"Days with Reports\", ROUND(AVG(wr.temperature), 1) as \"Avg Temp (°C)\", ROUND(AVG(wr.humidity), 0) as \"Avg Humidity (%)\" FROM weather_station ws LEFT JOIN weather_report wr ON ws.id = wr.weather_station_id WHERE ws.latitude IS NOT NULL AND ws.longitude IS NOT NULL AND ws.latitude BETWEEN 24.5 AND 71.5 AND ws.longitude BETWEEN -180.0 AND -66.9"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Total Stations"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "US Weather Stations by Geographic Region",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT CASE WHEN latitude BETWEEN 24.5 AND 49.4 AND longitude BETWEEN -125.0 AND -66.9 THEN 'Continental US' WHEN latitude BETWEEN 18.9 AND 22.2 AND longitude BETWEEN -160.3 AND -154.8 THEN 'Hawaii' WHEN latitude BETWEEN 51.2 AND 71.5 AND longitude BETWEEN -180.0 AND -130.0 THEN 'Alaska' ELSE 'Other US Region' END as \"Region\", COUNT(*) as \"Stations\", ROUND(AVG(latitude), 2) as \"Avg Latitude\", ROUND(AVG(longitude), 2) as \"Avg Longitude\", COUNT(wr.id) as \"Total Reports\" FROM weather_station ws LEFT JOIN weather_report wr ON ws.id = wr.weather_station_id WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND (latitude BETWEEN 24.5 AND 71.5 AND longitude BETWEEN -180.0 AND -66.9) GROUP BY CASE WHEN latitude BETWEEN 24.5 AND 49.4 AND longitude BETWEEN -125.0 AND -66.9 THEN 'Continental US' WHEN latitude BETWEEN 18.9 AND 22.2 AND longitude BETWEEN -160.3 AND -154.8 THEN 'Hawaii' WHEN latitude BETWEEN 51.2 AND 71.5 AND longitude BETWEEN -180.0 AND -130.0 THEN 'Alaska' ELSE 'Other US Region' END ORDER BY COUNT(*) DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Stations"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "US Weather Stations by Latitude Band",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT CASE WHEN latitude < 25 THEN '< 25°N' WHEN latitude < 30 THEN '25-30°N' WHEN latitude < 35 THEN '30-35°N' WHEN latitude < 40 THEN '35-40°N' WHEN latitude < 45 THEN '40-45°N' WHEN latitude < 50 THEN '45-50°N' ELSE '50+°N' END as \"Latitude Band\", COUNT(*) as \"Count\" FROM weather_station WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN 24.5 AND 71.5 AND longitude BETWEEN -180.0 AND -66.9 GROUP BY CASE WHEN latitude < 25 THEN '< 25°N' WHEN latitude < 30 THEN '25-30°N' WHEN latitude < 35 THEN '30-35°N' WHEN latitude < 40 THEN '35-40°N' WHEN latitude < 45 THEN '40-45°N' WHEN latitude < 50 THEN '45-50°N' ELSE '50+°N' END ORDER BY MIN(latitude)"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "Top US Weather Stations by Activity",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "haminfo"
+          },
+          "format": "table",
+          "refId": "A",
+          "rawSql": "SELECT ws.callsign as \"Callsign\", COALESCE(ws.country_code, 'Unknown') as \"Country\", ROUND(ws.latitude, 2) as \"Latitude\", ROUND(ws.longitude, 2) as \"Longitude\", COUNT(wr.id) as \"Report Count\", ROUND(AVG(wr.temperature), 1) as \"Avg Temp (°C)\", ROUND(AVG(wr.humidity), 0) as \"Avg Humidity (%)\", MAX(wr.time) as \"Last Report\" FROM weather_station ws LEFT JOIN weather_report wr ON ws.id = wr.weather_station_id WHERE ws.latitude IS NOT NULL AND ws.longitude IS NOT NULL AND ws.latitude BETWEEN 24.5 AND 71.5 AND ws.longitude BETWEEN -180.0 AND -66.9 GROUP BY ws.id, ws.callsign, ws.country_code, ws.latitude, ws.longitude ORDER BY COUNT(wr.id) DESC LIMIT 30"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Report Count"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ],
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "weekStart": "",
+  "uid": "weather-stations"
+}

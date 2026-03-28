@@ -1,0 +1,118 @@
+<h2>Weather Page Layout</h2>
+<p class="subtitle">Proposed layout for /weather</p>
+
+<div class="mockup">
+  <div class="mockup-header">Weather Stations - /weather</div>
+  <div class="mockup-body" style="background:#1a1a2e;padding:0;">
+    <!-- Header (same as main) -->
+    <div style="background:#16213e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a4e;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="color:#0f0;font-weight:bold;font-size:16px;">📡 APRS Dashboard</div>
+        <div style="display:flex;gap:8px;font-size:11px;">
+          <span style="color:#888;">Home</span>
+          <span style="color:#fff;background:#0f0;padding:2px 8px;border-radius:4px;">Weather</span>
+          <span style="color:#888;">Map</span>
+          <span style="color:#888;">Lookup</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="text" placeholder="Search station..." style="background:#2a2a4e;color:#fff;border:none;padding:6px 12px;border-radius:4px;font-size:11px;width:150px;">
+      </div>
+    </div>
+    
+    <!-- Weather Stats -->
+    <div style="display:flex;gap:12px;padding:16px 20px;">
+      <div style="background:#16213e;border-radius:8px;padding:14px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#0ff;font-size:24px;font-weight:bold;">28</div>
+        <div style="color:#666;font-size:10px;">Active Stations</div>
+      </div>
+      <div style="background:#16213e;border-radius:8px;padding:14px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#ff0;font-size:24px;font-weight:bold;">1,247</div>
+        <div style="color:#666;font-size:10px;">Reports (24h)</div>
+      </div>
+      <div style="background:#16213e;border-radius:8px;padding:14px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#0f0;font-size:24px;font-weight:bold;">23°C</div>
+        <div style="color:#666;font-size:10px;">Avg Temperature</div>
+      </div>
+    </div>
+    
+    <!-- Weather Station Grid -->
+    <div style="padding:0 20px 20px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        <!-- Station Card 1 -->
+        <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="color:#0f0;font-weight:bold;font-size:13px;">9M2PJU-WX</span>
+            <span style="color:#666;font-size:9px;">5 min ago</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px;">
+            <div><span style="color:#666;">Temp:</span> <span style="color:#ff0;">28°C</span></div>
+            <div><span style="color:#666;">Humid:</span> <span style="color:#0ff;">78%</span></div>
+            <div><span style="color:#666;">Wind:</span> <span style="color:#fff;">12 km/h NE</span></div>
+            <div><span style="color:#666;">Press:</span> <span style="color:#fff;">1013 hPa</span></div>
+            <div><span style="color:#666;">Rain 1h:</span> <span style="color:#0af;">0.0 mm</span></div>
+            <div><span style="color:#666;">Rain 24h:</span> <span style="color:#0af;">2.4 mm</span></div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a4e;font-size:9px;color:#666;">
+            📍 Kuala Lumpur, Malaysia
+          </div>
+        </div>
+        
+        <!-- Station Card 2 -->
+        <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="color:#0f0;font-weight:bold;font-size:13px;">VK3RWX</span>
+            <span style="color:#666;font-size:9px;">12 min ago</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px;">
+            <div><span style="color:#666;">Temp:</span> <span style="color:#ff0;">15°C</span></div>
+            <div><span style="color:#666;">Humid:</span> <span style="color:#0ff;">65%</span></div>
+            <div><span style="color:#666;">Wind:</span> <span style="color:#fff;">8 km/h SW</span></div>
+            <div><span style="color:#666;">Press:</span> <span style="color:#fff;">1018 hPa</span></div>
+            <div><span style="color:#666;">Rain 1h:</span> <span style="color:#0af;">0.0 mm</span></div>
+            <div><span style="color:#666;">Rain 24h:</span> <span style="color:#0af;">0.0 mm</span></div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a4e;font-size:9px;color:#666;">
+            📍 Melbourne, Australia
+          </div>
+        </div>
+        
+        <!-- Station Card 3 -->
+        <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="color:#0f0;font-weight:bold;font-size:13px;">W1AW-WX</span>
+            <span style="color:#666;font-size:9px;">3 min ago</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px;">
+            <div><span style="color:#666;">Temp:</span> <span style="color:#ff0;">22°C</span></div>
+            <div><span style="color:#666;">Humid:</span> <span style="color:#0ff;">55%</span></div>
+            <div><span style="color:#666;">Wind:</span> <span style="color:#fff;">5 km/h N</span></div>
+            <div><span style="color:#666;">Press:</span> <span style="color:#fff;">1015 hPa</span></div>
+            <div><span style="color:#666;">Rain 1h:</span> <span style="color:#0af;">0.0 mm</span></div>
+            <div><span style="color:#666;">Rain 24h:</span> <span style="color:#0af;">0.0 mm</span></div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a4e;font-size:9px;color:#666;">
+            📍 Connecticut, USA
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks Good</h3>
+      <p>Weather page layout works</p>
+    </div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs Changes</h3>
+      <p>I'll describe adjustments</p>
+    </div>
+  </div>
+</div>

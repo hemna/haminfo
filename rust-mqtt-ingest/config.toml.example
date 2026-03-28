@@ -1,0 +1,42 @@
+# MQTT Ingest Configuration
+# 
+# This file can be placed at:
+# - ./config.toml (current directory)
+# - Specified via --config CLI argument
+#
+# Environment variables override file settings using MQTT_INGEST_ prefix:
+# e.g., MQTT_INGEST_MQTT__HOST=localhost
+
+[mqtt]
+# MQTT broker host
+host = "localhost"
+# MQTT broker port
+port = 1883
+# Unique client ID (defaults to "mqtt-ingest-{pid}")
+# client_id = "mqtt-ingest-prod"
+# Topic to subscribe to (APRSD publishes packets here)
+topic = "aprs/packet"
+# QoS level: 0 = at most once, 1 = at least once, 2 = exactly once
+qos = 0
+# Authentication (optional)
+# username = "user"
+# password = "secret"
+
+[database]
+# PostgreSQL connection URL
+# Format: postgres://user:password@host:port/database
+url = "postgres://haminfo:haminfo@localhost:5432/haminfo"
+# Maximum connections in pool
+max_connections = 10
+# Minimum connections to maintain
+min_connections = 2
+
+[ingest]
+# Number of packets to batch before inserting
+batch_size = 500
+# Maximum time to wait before flushing batch (milliseconds)
+batch_timeout_ms = 1000
+# How often to report statistics (seconds)
+stats_interval_secs = 10
+# Stats-only mode: count packets without writing to DB (for benchmarking)
+stats_only = false

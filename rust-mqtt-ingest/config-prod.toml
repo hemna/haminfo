@@ -1,0 +1,23 @@
+# MQTT Ingest Configuration for Production
+# Rust high-performance APRS packet ingest service
+
+[mqtt]
+host = "10.0.0.33"
+port = 1883
+topic = "aprs/weather"
+qos = 0
+username = "hemna"
+password = "a55wip3r"
+
+[database]
+# Use Docker network hostname for haminfo_db container
+url = "postgres://haminfo:haminfo@haminfo_db:5432/haminfo"
+max_connections = 10
+min_connections = 2
+
+[ingest]
+batch_size = 500
+batch_timeout_ms = 1000
+stats_interval_secs = 10
+# Start with stats_only to compare throughput before enabling writes
+stats_only = true

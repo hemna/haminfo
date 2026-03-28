@@ -1,0 +1,7 @@
+debug=true
+insecure-entitlements = ["harbor.hemna.com", "security.insecure"]
+
+[registry."harbor.hemna.com"]
+mirrors = ["hub.docker.io"]
+http = true
+insecure = true

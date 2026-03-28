@@ -1,0 +1,138 @@
+<h2>Station Lookup Page</h2>
+<p class="subtitle">Proposed layout for /station/&lt;callsign&gt;</p>
+
+<div class="mockup">
+  <div class="mockup-header">Station Lookup - /station/9M2PJU-9</div>
+  <div class="mockup-body" style="background:#1a1a2e;padding:0;">
+    <!-- Header -->
+    <div style="background:#16213e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a4e;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="color:#0f0;font-weight:bold;font-size:16px;">📡 APRS Dashboard</div>
+        <div style="display:flex;gap:8px;font-size:11px;">
+          <span style="color:#888;">Home</span>
+          <span style="color:#888;">Weather</span>
+          <span style="color:#888;">Map</span>
+          <span style="color:#fff;background:#0f0;padding:2px 8px;border-radius:4px;">Lookup</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="text" placeholder="Search callsign..." value="9M2PJU-9" style="background:#2a2a4e;color:#0f0;border:1px solid #0f0;padding:6px 12px;border-radius:4px;font-size:11px;width:150px;">
+        <button style="background:#0f0;color:#000;border:none;padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;">Search</button>
+      </div>
+    </div>
+    
+    <!-- Station Header -->
+    <div style="padding:20px;border-bottom:1px solid #2a2a4e;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="color:#0f0;font-size:28px;font-weight:bold;margin-bottom:4px;">9M2PJU-9</div>
+          <div style="color:#888;font-size:12px;">Mobile Station • Malaysia 🇲🇾</div>
+          <div style="color:#666;font-size:11px;margin-top:4px;">Symbol: Car 🚗 • SSID: -9</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="color:#0f0;font-size:11px;">● Last seen: 2 min ago</div>
+          <div style="color:#666;font-size:10px;margin-top:4px;">First seen: 2024-01-15</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Content Grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px;">
+      <!-- Current Position -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;">
+        <div style="color:#fff;font-size:12px;font-weight:bold;margin-bottom:12px;">Current Position</div>
+        <div style="font-size:11px;display:grid;gap:8px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Latitude:</span>
+            <span style="color:#0ff;">3.1234° N</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Longitude:</span>
+            <span style="color:#0ff;">101.4567° E</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Altitude:</span>
+            <span style="color:#fff;">45 m</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Speed:</span>
+            <span style="color:#ff0;">48 km/h</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Course:</span>
+            <span style="color:#fff;">127° SE</span>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a2a4e;">
+          <a href="#" style="color:#0f0;font-size:10px;">View on map →</a>
+        </div>
+      </div>
+      
+      <!-- Statistics -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;">
+        <div style="color:#fff;font-size:12px;font-weight:bold;margin-bottom:12px;">Statistics</div>
+        <div style="font-size:11px;display:grid;gap:8px;">
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Packets (24h):</span>
+            <span style="color:#0f0;">487</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Packets (7d):</span>
+            <span style="color:#0f0;">2,341</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Packets (total):</span>
+            <span style="color:#0f0;">15,892</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Device:</span>
+            <span style="color:#fff;">APRSdroid</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="color:#666;">Path:</span>
+            <span style="color:#888;font-size:9px;">WIDE1-1,WIDE2-1</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recent Packets -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;padding:16px;grid-column:span 2;">
+        <div style="color:#fff;font-size:12px;font-weight:bold;margin-bottom:12px;">Recent Packets</div>
+        <div style="font-family:monospace;font-size:10px;max-height:100px;overflow:hidden;">
+          <div style="padding:6px 0;border-bottom:1px solid #2a2a4e;display:flex;justify-content:space-between;">
+            <span style="color:#0f0;">Position</span>
+            <span style="color:#888;">3.1234, 101.4567 @ 48km/h</span>
+            <span style="color:#666;">2 min ago</span>
+          </div>
+          <div style="padding:6px 0;border-bottom:1px solid #2a2a4e;display:flex;justify-content:space-between;">
+            <span style="color:#0f0;">Position</span>
+            <span style="color:#888;">3.1230, 101.4560 @ 52km/h</span>
+            <span style="color:#666;">7 min ago</span>
+          </div>
+          <div style="padding:6px 0;border-bottom:1px solid #2a2a4e;display:flex;justify-content:space-between;">
+            <span style="color:#ff0;">Status</span>
+            <span style="color:#888;">"QRV via APRSdroid"</span>
+            <span style="color:#666;">15 min ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks Good</h3>
+      <p>Station lookup page works</p>
+    </div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs Changes</h3>
+      <p>I'll describe adjustments</p>
+    </div>
+  </div>
+</div>

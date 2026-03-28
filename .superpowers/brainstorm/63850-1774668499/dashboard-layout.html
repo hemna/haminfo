@@ -1,0 +1,133 @@
+<h2>Main Dashboard Layout</h2>
+<p class="subtitle">Proposed layout for the home page at /</p>
+
+<div class="mockup">
+  <div class="mockup-header">APRS Dashboard - Desktop View</div>
+  <div class="mockup-body" style="background:#1a1a2e;padding:0;">
+    <!-- Header -->
+    <div style="background:#16213e;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a4e;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="color:#0f0;font-weight:bold;font-size:16px;">📡 APRS Dashboard</div>
+        <div style="display:flex;gap:8px;font-size:11px;">
+          <span style="color:#fff;background:#0f0;padding:2px 8px;border-radius:4px;">Home</span>
+          <span style="color:#888;">Weather</span>
+          <span style="color:#888;">Map</span>
+          <span style="color:#888;">Lookup</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <select style="background:#2a2a4e;color:#888;border:none;padding:4px 8px;border-radius:4px;font-size:10px;">
+          <option>All Countries</option>
+        </select>
+        <div style="color:#0f0;font-size:10px;">● LIVE</div>
+      </div>
+    </div>
+    
+    <!-- Stats Row -->
+    <div style="display:flex;gap:12px;padding:16px 20px;">
+      <div style="background:#16213e;border-radius:8px;padding:16px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#0f0;font-size:28px;font-weight:bold;">12,847</div>
+        <div style="color:#666;font-size:11px;">Total Packets (24h)</div>
+      </div>
+      <div style="background:#16213e;border-radius:8px;padding:16px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#0ff;font-size:28px;font-weight:bold;">342</div>
+        <div style="color:#666;font-size:11px;">Unique Stations</div>
+      </div>
+      <div style="background:#16213e;border-radius:8px;padding:16px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#ff0;font-size:28px;font-weight:bold;">47</div>
+        <div style="color:#666;font-size:11px;">Countries</div>
+      </div>
+      <div style="background:#16213e;border-radius:8px;padding:16px;flex:1;text-align:center;border:1px solid #2a2a4e;">
+        <div style="color:#f0f;font-size:28px;font-weight:bold;">28</div>
+        <div style="color:#666;font-size:11px;">Weather Stations</div>
+      </div>
+    </div>
+    
+    <!-- Main Content Grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 20px 20px;">
+      <!-- Live Feed -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;">
+        <div style="padding:12px 16px;border-bottom:1px solid #2a2a4e;display:flex;justify-content:space-between;">
+          <span style="color:#fff;font-size:12px;font-weight:bold;">Live Traffic</span>
+          <span style="color:#0f0;font-size:10px;">● streaming</span>
+        </div>
+        <div style="padding:8px;font-size:10px;font-family:monospace;max-height:120px;overflow:hidden;">
+          <div style="color:#0f0;padding:4px;">9M2PJU-9 → APRS Position 3.1234, 101.456</div>
+          <div style="color:#0ff;padding:4px;">VK3ABC → WX Temp:25°C Humid:78%</div>
+          <div style="color:#ff0;padding:4px;">W1AW-1 → Status "QRV on 144.390"</div>
+          <div style="color:#fff;padding:4px;">JA1ABC → Message to JA2XYZ</div>
+        </div>
+      </div>
+      
+      <!-- Hourly Chart -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;">
+        <div style="padding:12px 16px;border-bottom:1px solid #2a2a4e;">
+          <span style="color:#fff;font-size:12px;font-weight:bold;">Hourly Distribution</span>
+        </div>
+        <div style="padding:16px;display:flex;align-items:flex-end;gap:4px;height:100px;">
+          <div style="background:#0f0;width:12px;height:30%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:45%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:60%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:80%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:100%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:85%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:70%;border-radius:2px;"></div>
+          <div style="background:#0f0;width:12px;height:50%;border-radius:2px;"></div>
+        </div>
+      </div>
+      
+      <!-- Top Stations -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;">
+        <div style="padding:12px 16px;border-bottom:1px solid #2a2a4e;">
+          <span style="color:#fff;font-size:12px;font-weight:bold;">Top Stations (24h)</span>
+        </div>
+        <div style="padding:8px;font-size:10px;">
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#0f0;">
+            <span>1. 9M2PJU-9</span><span>487 pkts</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#0ff;">
+            <span>2. VK3ABC</span><span>342 pkts</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#ff0;">
+            <span>3. W1AW-1</span><span>298 pkts</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Countries -->
+      <div style="background:#16213e;border-radius:8px;border:1px solid #2a2a4e;">
+        <div style="padding:12px 16px;border-bottom:1px solid #2a2a4e;">
+          <span style="color:#fff;font-size:12px;font-weight:bold;">Countries</span>
+        </div>
+        <div style="padding:8px;font-size:10px;">
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#fff;">
+            <span>🇺🇸 United States</span><span>4,521</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#fff;">
+            <span>🇲🇾 Malaysia</span><span>1,234</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 8px;color:#fff;">
+            <span>🇦🇺 Australia</span><span>892</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks Good</h3>
+      <p>This layout works for the main dashboard</p>
+    </div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs Changes</h3>
+      <p>I'll describe what to adjust in the terminal</p>
+    </div>
+  </div>
+</div>

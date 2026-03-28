@@ -35,9 +35,9 @@ class MyThreadList:
     def stop_all(self):
         """Iterate over all threads and call stop on them."""
         for th in self.threads_list:
-            LOG.info(f"Stopping Thread {th.name}")
-            if hasattr(th, "packet"):
-                LOG.info(F"{th.name} packet {th.packet}")
+            LOG.info(f'Stopping Thread {th.name}')
+            if hasattr(th, 'packet'):
+                LOG.info(f'{th.name} packet {th.packet}')
             th.stop()
 
     @wrapt.synchronized(lock)
@@ -46,16 +46,14 @@ class MyThreadList:
 
 
 class MyThread(threading.Thread, metaclass=abc.ABCMeta):
-
     def __init__(self, name):
         super().__init__(name=name)
         self.thread_stop = False
         MyThreadList().add(self)
 
     def _should_quit(self):
-        """ see if we have a quit message from the global queue."""
-        if self.thread_stop:
-            return True
+        """See if we have a quit message from the global queue."""
+        return self.thread_stop
 
     def stop(self):
         self.thread_stop = True
@@ -68,15 +66,22 @@ class MyThread(threading.Thread, metaclass=abc.ABCMeta):
         """Add code to subclass to do any cleanup"""
 
     def __str__(self):
-        out = f"Thread <{self.__class__.__name__}({self.name}) Alive? {self.is_alive()}>"
+        out = (
+            f'Thread <{self.__class__.__name__}({self.name}) Alive? {self.is_alive()}>'
+        )
         return out
 
     def run(self):
-        LOG.debug("Starting")
-        while not self._should_quit():
-            can_loop = self.loop()
-            if not can_loop:
-                self.stop()
-        self._cleanup()
-        MyThreadList().remove(self)
-        LOG.debug("Exiting")
+        LOG.debug('Starting')
+        try:
+            while not self._should_quit():
+                can_loop = self.loop()
+                if not can_loop:
+                    self.stop()
+            self._cleanup()
+        except Exception as ex:
+            LOG.error(f'Thread {self.name} crashed with exception: {ex}')
+            LOG.exception(ex)
+        finally:
+            MyThreadList().remove(self)
+            LOG.debug('Exiting')
