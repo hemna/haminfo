@@ -1,7 +1,7 @@
 # haminfo/dashboard/routes.py
 """Dashboard page routes."""
 
-from flask import render_template
+from flask import render_template, request, redirect, url_for
 from haminfo.dashboard import dashboard_bp
 
 
@@ -26,4 +26,9 @@ def map_view():
 @dashboard_bp.route('/station/<callsign>')
 def station(callsign: str):
     """Station lookup page."""
+    # Handle search redirect
+    search_query = request.args.get('q')
+    if search_query:
+        return redirect(url_for('dashboard.station', callsign=search_query))
+
     return render_template('station.html', callsign=callsign)
