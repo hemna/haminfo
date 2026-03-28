@@ -84,7 +84,7 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
 def _format_gps_info(packet: dict) -> str:
     """Format GPS/position packet info like APRSD.
     
-    Format: Lat:XX.XXX Lon:XX.XXX [Altitude XXX] [Speed XXXMPH] [Course XXX]
+    Format: Lat:XX.XXX Lon:XX.XXX [Alt:XXXft] [Spd:XXXMPH] [Crs:XXX]
     """
     parts = []
     lat = packet.get('latitude')
@@ -115,7 +115,7 @@ def _format_gps_info(packet: dict) -> str:
 def _format_weather_info(packet: dict) -> str:
     """Format weather packet info like APRSD.
     
-    Format: Temp XXXF Humidity X% Wind XXXMPH@XXX Pressure XXXmb Rain X.XXin/24hr
+    Format: Temp:XXXF Hum:XX% Wind:XXXMPH@XXX Press:XXXmb Rain:X.XXin/24h
     """
     parts = []
     
@@ -148,17 +148,6 @@ def _format_weather_info(packet: dict) -> str:
     return ' '.join(parts) if parts else None
 
 
-def _format_message_info(packet: dict) -> str:
-    """Format message packet info."""
-    to_call = packet.get('to_call', '')
-    comment = packet.get('comment', '')
-    
-    # Clean up comment - remove raw APRS if it looks like garbage
-    if comment and not _is_raw_aprs(comment):
-        return f'Msg to {to_call}: {comment[:50]}'
-    return f'Msg to {to_call}'
-
-
 def _is_raw_aprs(text: str) -> bool:
     """Check if text looks like raw APRS packet data (garbage to users)."""
     if not text:
@@ -187,7 +176,7 @@ def format_packet_summary(packet: dict) -> str:
     """Format packet data for live feed display.
     
     Uses APRSD-style formatting for human-readable output.
-    Format: FROM -> TO : PacketType : human_info
+    Format: FROM -> TO : Type : human_info
     """
     from_call = packet.get('from_call', '?')
     to_call = packet.get('to_call', '?')
@@ -206,7 +195,10 @@ def format_packet_summary(packet: dict) -> str:
         type_label = 'WX'
         
     elif packet_type == 'message':
-        human_info = _format_message_info(packet)
+        # Message: just show the message text, to_call is already in header
+        comment = packet.get('comment', '')
+        if comment and not _is_raw_aprs(comment):
+            human_info = comment[:60]
         type_label = 'Msg'
         
     elif packet_type == 'status':
