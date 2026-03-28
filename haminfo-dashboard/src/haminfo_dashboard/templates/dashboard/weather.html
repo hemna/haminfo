@@ -9,20 +9,20 @@
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
             <label style="color:var(--text-muted);font-size:12px;">Country:</label>
-            <select id="country-filter" style="width:180px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
+            <select id="wx-country-filter" style="width:180px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
                 <option value="">All Countries</option>
             </select>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <input type="checkbox" id="recent-filter" style="width:16px;height:16px;accent-color:var(--accent-green);">
+                <input type="checkbox" id="wx-recent-filter" style="width:16px;height:16px;accent-color:var(--accent-green);">
                 <span style="color:var(--text-muted);font-size:12px;">Has recent data (24h)</span>
             </label>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-            <input type="text" id="weather-search" placeholder="Search callsign..." style="width:160px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
+            <input type="text" id="wx-search" placeholder="Search callsign..." style="width:160px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
         </div>
-        <div style="color:var(--text-muted);font-size:12px;" id="result-count"></div>
+        <div style="color:var(--text-muted);font-size:12px;" id="wx-result-count"></div>
     </div>
 </div>
 
@@ -37,36 +37,27 @@
 
 {% block scripts %}
 <script>
-    const countrySelect = document.getElementById('country-filter');
-    const recentCheckbox = document.getElementById('recent-filter');
-    const searchInput = document.getElementById('weather-search');
+    const countrySelect = document.getElementById('wx-country-filter');
+    const recentCheckbox = document.getElementById('wx-recent-filter');
+    const searchInput = document.getElementById('wx-search');
     const weatherGrid = document.getElementById('weather-grid');
-    const resultCount = document.getElementById('result-count');
+    const resultCount = document.getElementById('wx-result-count');
 
     // Load countries for dropdown
-    console.log('Fetching countries...');
     fetch('{{ url_for("dashboard.api_weather_countries") }}')
-        .then(r => {
-            console.log('Countries response status:', r.status);
-            return r.json();
-        })
-        .then(countries => {
-            console.log('Countries received:', countries.length);
-            countries.forEach(c => {
-                const opt = document.createElement('option');
+        .then(function(r) { return r.json(); })
+        .then(function(countries) {
+            countries.forEach(function(c) {
+                var opt = document.createElement('option');
                 opt.value = c.country_code;
                 opt.textContent = c.country_name + ' (' + c.count + ')';
                 countrySelect.appendChild(opt);
             });
-            console.log('Dropdown now has', countrySelect.options.length, 'options');
-        })
-        .catch(err => {
-            console.error('Error fetching countries:', err);
         });
 
     // Build URL with filters
     function buildUrl() {
-        const params = new URLSearchParams();
+        var params = new URLSearchParams();
         params.set('limit', '100');
         if (countrySelect.value) params.set('country', countrySelect.value);
         if (recentCheckbox.checked) params.set('has_recent_data', 'true');
@@ -84,14 +75,14 @@
 
     // Client-side search (filters already-loaded cards)
     searchInput.addEventListener('input', function(e) {
-        const search = e.target.value.toLowerCase();
-        let visible = 0;
-        let total = 0;
+        var search = e.target.value.toLowerCase();
+        var visible = 0;
+        var total = 0;
         document.querySelectorAll('#weather-grid .card').forEach(function(card) {
             total++;
-            const link = card.querySelector('a');
-            const callsign = link ? link.textContent.toLowerCase() : '';
-            const match = callsign.includes(search);
+            var link = card.querySelector('a');
+            var callsign = link ? link.textContent.toLowerCase() : '';
+            var match = callsign.indexOf(search) >= 0;
             card.style.display = match ? '' : 'none';
             if (match) visible++;
         });
@@ -101,7 +92,7 @@
     // Update count after HTMX swap
     document.body.addEventListener('htmx:afterSwap', function(e) {
         if (e.detail.target.id === 'weather-grid') {
-            const count = document.querySelectorAll('#weather-grid .card').length;
+            var count = document.querySelectorAll('#weather-grid .card').length;
             resultCount.textContent = count + ' stations';
             // Re-apply search filter if active
             if (searchInput.value) {
