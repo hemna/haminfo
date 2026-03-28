@@ -1,0 +1,314 @@
+<!-- haminfo/templates/dashboard/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}APRS Dashboard{% endblock %}</title>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    {% block head_extra %}{% endblock %}
+    
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-card-hover: #1a2744;
+            --border-color: #2a2a4e;
+            --text-primary: #fff;
+            --text-secondary: #888;
+            --text-muted: #666;
+            --accent-green: #0f0;
+            --accent-cyan: #0ff;
+            --accent-yellow: #ff0;
+            --accent-magenta: #f0f;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-card);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .logo {
+            color: var(--accent-green);
+            font-weight: bold;
+            font-size: 18px;
+            text-decoration: none;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .nav a:hover {
+            color: var(--text-primary);
+            background: var(--bg-card-hover);
+        }
+        
+        .nav a.active {
+            color: #000;
+            background: var(--accent-green);
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .live-indicator {
+            color: var(--accent-green);
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .live-indicator::before {
+            content: '';
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Content */
+        .content {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            padding: 16px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        
+        .stat-card.green .stat-value { color: var(--accent-green); }
+        .stat-card.cyan .stat-value { color: var(--accent-cyan); }
+        .stat-card.yellow .stat-value { color: var(--accent-yellow); }
+        .stat-card.magenta .stat-value { color: var(--accent-magenta); }
+        
+        /* Grid layouts */
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        
+        /* Form elements */
+        select, input[type="text"] {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+        
+        button {
+            background: var(--accent-green);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+        }
+        
+        /* Live feed */
+        .live-feed {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .live-feed-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .live-feed-item:last-child {
+            border-bottom: none;
+        }
+        
+        .live-feed-item.position { color: var(--accent-green); }
+        .live-feed-item.weather { color: var(--accent-cyan); }
+        .live-feed-item.status { color: var(--accent-yellow); }
+        .live-feed-item.message { color: var(--text-primary); }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .grid-2x2 { grid-template-columns: 1fr; }
+            .grid-3 { grid-template-columns: 1fr; }
+        }
+        
+        @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 12px; }
+            .header-left { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a href="{{ url_for('dashboard.index') }}" class="logo">APRS Dashboard</a>
+            <nav class="nav">
+                <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if request.endpoint == 'dashboard.index' else '' }}">Home</a>
+                <a href="{{ url_for('dashboard.weather') }}" class="{{ 'active' if request.endpoint == 'dashboard.weather' else '' }}">Weather</a>
+                <a href="{{ url_for('dashboard.map_view') }}" class="{{ 'active' if request.endpoint == 'dashboard.map_view' else '' }}">Map</a>
+                <a href="{{ url_for('dashboard.station', callsign='lookup') }}" class="{{ 'active' if request.endpoint == 'dashboard.station' else '' }}">Lookup</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            {% block header_right %}
+            <select id="country-filter">
+                <option value="">All Countries</option>
+            </select>
+            <div class="live-indicator">LIVE</div>
+            {% endblock %}
+        </div>
+    </header>
+    
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to live feed');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from live feed');
+        });
+        
+        socket.on('packet', (data) => {
+            // Handle incoming packet - override in page-specific JS
+            if (typeof handlePacket === 'function') {
+                handlePacket(data);
+            }
+        });
+        
+        // Country filter handler
+        document.getElementById('country-filter')?.addEventListener('change', (e) => {
+            socket.emit('filter', { country: e.target.value });
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
