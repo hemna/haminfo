@@ -79,8 +79,31 @@
 
 {% block scripts %}
 <script>
-    // Initialize map
-    const map = L.map('map').setView([3.14, 101.69], 5);  // Default to Malaysia
+    // Default center (US) - will be overridden by geolocation
+    const defaultCenter = [39.8283, -98.5795];  // Geographic center of US
+    const defaultZoom = 4;
+    
+    // Initialize map with default center
+    const map = L.map('map').setView(defaultCenter, defaultZoom);
+    
+    // Try to get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                // Success - center map on user's location
+                map.setView([position.coords.latitude, position.coords.longitude], 8);
+            },
+            (error) => {
+                // Geolocation denied or failed - keep default center
+                console.log('Geolocation not available:', error.message);
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 5000,
+                maximumAge: 300000  // Cache for 5 minutes
+            }
+        );
+    }
     
     // Dark tile layer
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
