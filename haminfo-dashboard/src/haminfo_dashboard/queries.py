@@ -44,18 +44,15 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
         or 0
     )
 
-    # Count unique countries from callsigns
-    callsigns = (
-        session.query(distinct(APRSPacket.from_call))
+    # Count unique countries - use substring matching on callsign prefixes
+    # This is an approximation but much faster than fetching all callsigns
+    # We count distinct first characters as a proxy for country diversity
+    countries = (
+        session.query(func.count(distinct(func.substring(APRSPacket.from_call, 1, 2))))
         .filter(APRSPacket.received_at >= last_24h)
-        .all()
+        .scalar()
+        or 0
     )
-    countries_set = set()
-    for (callsign,) in callsigns:
-        country_info = get_country_from_callsign(callsign)
-        if country_info:
-            countries_set.add(country_info[0])
-    countries = len(countries_set)
 
     # Count weather stations
     weather_stations = session.query(func.count(WeatherStation.id)).scalar() or 0
@@ -121,23 +118,33 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
-    # Get all callsigns with their counts
-    callsign_counts = (
+    # Get counts grouped by first 1-2 characters of callsign (prefix)
+    # This is done in DB for performance - we then map prefixes to countries
+    prefix_counts = (
         session.query(
-            APRSPacket.from_call,
+            func.substring(APRSPacket.from_call, 1, 2).label('prefix'),
             func.count(APRSPacket.from_call).label('count'),
         )
         .filter(APRSPacket.received_at >= last_24h)
-        .group_by(APRSPacket.from_call)
+        .group_by(func.substring(APRSPacket.from_call, 1, 2))
         .all()
     )
 
-    # Aggregate by country
+    # Aggregate by country using prefix mapping
     country_counts: dict[tuple[str, str], int] = {}
     unknown_count = 0
 
-    for callsign, count in callsign_counts:
-        country_info = get_country_from_callsign(callsign)
+    for prefix, count in prefix_counts:
+        if not prefix:
+            unknown_count += count
+            continue
+        # Try 2-char prefix first, then 1-char
+        country_info = None
+        if len(prefix) >= 2:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:2])
+        if not country_info and len(prefix) >= 1:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:1])
+
         if country_info:
             key = country_info
             country_counts[key] = country_counts.get(key, 0) + count
@@ -155,17 +162,11 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     ]
     result.sort(key=lambda x: x['count'], reverse=True)
 
-    # Add unknown if any
-    if unknown_count > 0:
-        result.append(
-            {
-                'country_code': '??',
-                'country_name': 'Unknown',
-                'count': unknown_count,
-            }
-        )
-
     return result[:limit]
+
+
+# Import the prefix mapping for use in get_country_breakdown
+from haminfo_dashboard.utils import CALLSIGN_PREFIXES
 
 
 def get_hourly_distribution(session: Session) -> dict[str, list]:
