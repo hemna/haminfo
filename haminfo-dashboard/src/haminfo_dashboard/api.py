@@ -14,6 +14,7 @@ from haminfo_dashboard.queries import (
     get_hourly_distribution,
     get_recent_packets,
     get_weather_stations,
+    get_weather_countries,
     get_station_detail,
     get_map_stations,
 )
@@ -142,7 +143,16 @@ def api_weather_stations():
     try:
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        stations = get_weather_stations(session, limit=limit, offset=offset)
+        country = request.args.get('country')
+        has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
+        
+        stations = get_weather_stations(
+            session,
+            limit=limit,
+            offset=offset,
+            country=country if country else None,
+            has_recent_data=has_recent_data,
+        )
         return render_template(
             'dashboard/partials/weather_grid.html', stations=stations
         )
@@ -157,8 +167,28 @@ def api_weather_stations_json():
     try:
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
-        stations = get_weather_stations(session, limit=limit, offset=offset)
+        country = request.args.get('country')
+        has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
+        
+        stations = get_weather_stations(
+            session,
+            limit=limit,
+            offset=offset,
+            country=country if country else None,
+            has_recent_data=has_recent_data,
+        )
         return jsonify(stations)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/weather/countries')
+def api_weather_countries():
+    """Get list of countries with weather stations - returns JSON."""
+    session = _get_session()
+    try:
+        countries = get_weather_countries(session)
+        return jsonify(countries)
     finally:
         session.close()
 

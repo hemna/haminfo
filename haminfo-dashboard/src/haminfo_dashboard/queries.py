@@ -349,6 +349,8 @@ def get_weather_stations(
     session: Session,
     limit: int = 50,
     offset: int = 0,
+    country: Optional[str] = None,
+    has_recent_data: bool = False,
 ) -> list[dict[str, Any]]:
     """Get weather stations with their latest reports.
 
@@ -356,29 +358,42 @@ def get_weather_stations(
         session: Database session.
         limit: Maximum number of stations to return.
         offset: Number of stations to skip.
+        country: Filter by country code.
+        has_recent_data: Only return stations with reports in last 24h.
 
     Returns:
         List of weather station dicts with latest report data.
     """
-    stations = (
-        session.query(WeatherStation)
-        .order_by(WeatherStation.callsign)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    now = datetime.now(timezone.utc)
+    last_24h = now - timedelta(hours=24)
+
+    # Base query
+    query = session.query(WeatherStation).order_by(WeatherStation.callsign)
+
+    stations_list = query.all()
 
     result = []
-    for station in stations:
+    for station in stations_list:
         # Get latest report for this station
-        latest_report = (
-            session.query(WeatherReport)
-            .filter(WeatherReport.weather_station_id == station.id)
-            .order_by(WeatherReport.time.desc())
-            .first()
+        report_query = session.query(WeatherReport).filter(
+            WeatherReport.weather_station_id == station.id
         )
+        
+        if has_recent_data:
+            report_query = report_query.filter(WeatherReport.time >= last_24h)
+        
+        latest_report = report_query.order_by(WeatherReport.time.desc()).first()
+
+        # Skip if has_recent_data filter and no recent report
+        if has_recent_data and not latest_report:
+            continue
 
         country_info = get_country_from_callsign(station.callsign)
+
+        # Apply country filter
+        if country:
+            if not country_info or country_info[0] != country:
+                continue
 
         station_dict = {
             'id': station.id,
@@ -403,6 +418,46 @@ def get_weather_stations(
             station_dict['latest_report'] = None
 
         result.append(station_dict)
+
+        # Apply limit after filtering
+        if len(result) >= limit + offset:
+            break
+
+    # Apply offset and limit
+    return result[offset:offset + limit]
+
+
+def get_weather_countries(session: Session) -> list[dict[str, Any]]:
+    """Get list of countries that have weather stations.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        List of dicts with country_code, country_name, count.
+    """
+    stations = session.query(WeatherStation.callsign).all()
+
+    country_counts: dict[tuple[str, str], int] = {}
+    unknown_count = 0
+
+    for (callsign,) in stations:
+        country_info = get_country_from_callsign(callsign)
+        if country_info:
+            key = country_info
+            country_counts[key] = country_counts.get(key, 0) + 1
+        else:
+            unknown_count += 1
+
+    result = [
+        {
+            'country_code': code,
+            'country_name': name,
+            'count': cnt,
+        }
+        for (code, name), cnt in country_counts.items()
+    ]
+    result.sort(key=lambda x: x['count'], reverse=True)
 
     return result
 
