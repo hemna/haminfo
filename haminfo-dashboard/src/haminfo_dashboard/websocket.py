@@ -65,14 +65,13 @@ def poll_packets():
         try:
             session = session_factory()
             try:
-                query = (
-                    session.query(APRSPacket)
-                    .order_by(APRSPacket.received_at.desc())
-                    .limit(10)
-                )
+                # Build query - apply filter BEFORE limit
+                query = session.query(APRSPacket)
 
                 if _last_packet_time:
                     query = query.filter(APRSPacket.received_at > _last_packet_time)
+
+                query = query.order_by(APRSPacket.received_at.desc()).limit(10)
 
                 packets = query.all()
 

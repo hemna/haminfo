@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional
+import time
 
 from sqlalchemy import func, distinct
 
@@ -16,8 +18,23 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
+# Simple time-based cache for expensive queries
+_stats_cache: dict[str, Any] = {}
+_stats_cache_time: float = 0
+_countries_cache: list[dict[str, Any]] = []
+_countries_cache_time: float = 0
+_top_stations_cache: list[dict[str, Any]] = []
+_top_stations_cache_time: float = 0
+_hourly_cache: dict[str, list] = {}
+_hourly_cache_time: float = 0
+
+CACHE_TTL = 30  # seconds
+
+
 def get_dashboard_stats(session: Session) -> dict[str, Any]:
     """Get summary statistics for dashboard.
+
+    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -25,6 +42,12 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     Returns:
         Dict with total_packets_24h, unique_stations, countries, weather_stations.
     """
+    global _stats_cache, _stats_cache_time
+
+    # Return cached result if fresh
+    if _stats_cache and (time.time() - _stats_cache_time) < CACHE_TTL:
+        return _stats_cache
+
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -57,16 +80,24 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     # Count weather stations
     weather_stations = session.query(func.count(WeatherStation.id)).scalar() or 0
 
-    return {
+    result = {
         'total_packets_24h': total_packets,
         'unique_stations': unique_stations,
         'countries': countries,
         'weather_stations': weather_stations,
     }
 
+    # Update cache
+    _stats_cache = result
+    _stats_cache_time = time.time()
+
+    return result
+
 
 def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     """Get top stations by packet count in the last 24 hours.
+
+    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -75,6 +106,12 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     Returns:
         List of dicts with callsign, count, and country info.
     """
+    global _top_stations_cache, _top_stations_cache_time
+
+    # Return cached result if fresh
+    if _top_stations_cache and (time.time() - _top_stations_cache_time) < CACHE_TTL:
+        return _top_stations_cache[:limit]
+
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -102,11 +139,17 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
             }
         )
 
+    # Update cache
+    _top_stations_cache = stations
+    _top_stations_cache_time = time.time()
+
     return stations
 
 
 def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     """Get packet count breakdown by country.
+
+    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -115,6 +158,12 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     Returns:
         List of dicts with country_code, country_name, count.
     """
+    global _countries_cache, _countries_cache_time
+
+    # Return cached result if fresh
+    if _countries_cache and (time.time() - _countries_cache_time) < CACHE_TTL:
+        return _countries_cache[:limit]
+
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -162,6 +211,10 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     ]
     result.sort(key=lambda x: x['count'], reverse=True)
 
+    # Update cache
+    _countries_cache = result
+    _countries_cache_time = time.time()
+
     return result[:limit]
 
 
@@ -172,12 +225,20 @@ from haminfo_dashboard.utils import CALLSIGN_PREFIXES
 def get_hourly_distribution(session: Session) -> dict[str, list]:
     """Get packet count distribution by hour of day.
 
+    Results are cached for 30 seconds.
+
     Args:
         session: Database session.
 
     Returns:
         Dict with 'labels' (hour strings) and 'values' (counts) arrays.
     """
+    global _hourly_cache, _hourly_cache_time
+
+    # Return cached result if fresh
+    if _hourly_cache and (time.time() - _hourly_cache_time) < CACHE_TTL:
+        return _hourly_cache
+
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -211,10 +272,16 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     labels = [f'{h:02d}:00' for h in range(24)]
     values = [hour_map.get(h, 0) for h in range(24)]
 
-    return {
+    result = {
         'labels': labels,
         'values': values,
     }
+
+    # Update cache
+    _hourly_cache = result
+    _hourly_cache_time = time.time()
+
+    return result
 
 
 def get_recent_packets(
