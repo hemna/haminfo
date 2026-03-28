@@ -1,0 +1,57 @@
+/* Additional dashboard styles beyond base template */
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.live-feed-item {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Leaderboard */
+.leaderboard-item:hover {
+    background: var(--bg-card-hover);
+    margin: 0 -8px;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* Weather cards */
+.weather-card:hover {
+    border-color: var(--accent-green);
+    transform: translateY(-2px);
+    transition: all 0.2s;
+}
+
+/* Map markers pulse */
+.leaflet-marker-icon {
+    animation: markerPulse 2s infinite;
+}
+
+@keyframes markerPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 12px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+    }
+}
+
+/* HTMX loading indicator */
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
