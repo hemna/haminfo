@@ -1,0 +1,178 @@
+<!-- haminfo/templates/dashboard/map.html -->
+{% extends "base.html" %}
+
+{% block title %}APRS Dashboard - Map{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+    #map {
+        height: calc(100vh - 120px);
+        width: 100%;
+        border-radius: 8px;
+        background: var(--bg-card);
+    }
+    .leaflet-popup-content-wrapper {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+    .leaflet-popup-tip {
+        background: var(--bg-card);
+    }
+    .map-legend {
+        position: absolute;
+        bottom: 30px;
+        left: 10px;
+        background: rgba(22,33,62,0.95);
+        border-radius: 6px;
+        padding: 12px;
+        z-index: 1000;
+        font-size: 11px;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .legend-item:last-child {
+        margin-bottom: 0;
+    }
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+</style>
+{% endblock %}
+
+{% block header_right %}
+<select id="station-type-filter">
+    <option value="">All Station Types</option>
+    <option value="position">Position Only</option>
+    <option value="weather">Weather</option>
+</select>
+<span id="station-count" style="color:var(--accent-green);font-size:12px;">-- stations</span>
+{% endblock %}
+
+{% block content %}
+<div style="position:relative;">
+    <div id="map"></div>
+    <div class="map-legend">
+        <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></div>
+            <span style="color:var(--text-secondary);">Position</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent-cyan);box-shadow:0 0 6px var(--accent-cyan);"></div>
+            <span style="color:var(--text-secondary);">Weather</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent-yellow);box-shadow:0 0 6px var(--accent-yellow);"></div>
+            <span style="color:var(--text-secondary);">Digipeater</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize map
+    const map = L.map('map').setView([3.14, 101.69], 5);  // Default to Malaysia
+    
+    // Dark tile layer
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        maxZoom: 19,
+    }).addTo(map);
+    
+    // Marker colors
+    const markerColors = {
+        'position': '#0f0',
+        'weather': '#0ff',
+        'digipeater': '#ff0',
+        'default': '#0f0',
+    };
+    
+    // Store markers for filtering
+    let markers = [];
+    
+    function createMarker(feature) {
+        const props = feature.properties;
+        const coords = feature.geometry.coordinates;
+        const color = markerColors[props.packet_type] || markerColors.default;
+        
+        const marker = L.circleMarker([coords[1], coords[0]], {
+            radius: 6,
+            fillColor: color,
+            color: color,
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8,
+        });
+        
+        marker.bindPopup(`
+            <div style="min-width:150px;">
+                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:8px;">${props.callsign}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">
+                    <div>Position: ${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</div>
+                    ${props.speed ? `<div>Speed: ${props.speed} km/h</div>` : ''}
+                    <div>Last: ${props.last_seen || '--'}</div>
+                </div>
+                <div style="margin-top:8px;">
+                    <a href="/station/${props.callsign}" style="color:var(--accent-cyan);font-size:11px;">View details →</a>
+                </div>
+            </div>
+        `);
+        
+        marker.stationType = props.packet_type;
+        return marker;
+    }
+    
+    function loadStations(type = '') {
+        const url = new URL('{{ url_for("dashboard.api_map_stations") }}', window.location.origin);
+        if (type) url.searchParams.set('type', type);
+        
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                // Clear existing markers
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+                
+                // Add new markers
+                data.features.forEach(feature => {
+                    const marker = createMarker(feature);
+                    marker.addTo(map);
+                    markers.push(marker);
+                });
+                
+                document.getElementById('station-count').textContent = `${markers.length} stations`;
+            });
+    }
+    
+    // Initial load
+    loadStations();
+    
+    // Filter handler
+    document.getElementById('station-type-filter').addEventListener('change', (e) => {
+        loadStations(e.target.value);
+    });
+    
+    // Handle callsign from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const callsign = urlParams.get('callsign');
+    if (callsign) {
+        // Zoom to specific station
+        fetch(`/api/dashboard/station/${callsign}/json`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.latitude && data.longitude) {
+                    map.setView([data.latitude, data.longitude], 12);
+                }
+            });
+    }
+</script>
+{% endblock %}
