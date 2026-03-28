@@ -44,15 +44,24 @@
     const resultCount = document.getElementById('result-count');
 
     // Load countries for dropdown
+    console.log('Fetching countries...');
     fetch('{{ url_for("dashboard.api_weather_countries") }}')
-        .then(r => r.json())
+        .then(r => {
+            console.log('Countries response status:', r.status);
+            return r.json();
+        })
         .then(countries => {
+            console.log('Countries received:', countries.length);
             countries.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.country_code;
-                opt.textContent = `${c.country_name} (${c.count})`;
+                opt.textContent = c.country_name + ' (' + c.count + ')';
                 countrySelect.appendChild(opt);
             });
+            console.log('Dropdown now has', countrySelect.options.length, 'options');
+        })
+        .catch(err => {
+            console.error('Error fetching countries:', err);
         });
 
     // Build URL with filters
@@ -74,25 +83,26 @@
     recentCheckbox.addEventListener('change', reloadGrid);
 
     // Client-side search (filters already-loaded cards)
-    searchInput.addEventListener('input', (e) => {
+    searchInput.addEventListener('input', function(e) {
         const search = e.target.value.toLowerCase();
         let visible = 0;
         let total = 0;
-        document.querySelectorAll('#weather-grid .card').forEach(card => {
+        document.querySelectorAll('#weather-grid .card').forEach(function(card) {
             total++;
-            const callsign = card.querySelector('a')?.textContent.toLowerCase() || '';
+            const link = card.querySelector('a');
+            const callsign = link ? link.textContent.toLowerCase() : '';
             const match = callsign.includes(search);
             card.style.display = match ? '' : 'none';
             if (match) visible++;
         });
-        resultCount.textContent = search ? `${visible} of ${total}` : '';
+        resultCount.textContent = search ? visible + ' of ' + total : '';
     });
 
     // Update count after HTMX swap
-    document.body.addEventListener('htmx:afterSwap', (e) => {
+    document.body.addEventListener('htmx:afterSwap', function(e) {
         if (e.detail.target.id === 'weather-grid') {
             const count = document.querySelectorAll('#weather-grid .card').length;
-            resultCount.textContent = `${count} stations`;
+            resultCount.textContent = count + ' stations';
             // Re-apply search filter if active
             if (searchInput.value) {
                 searchInput.dispatchEvent(new Event('input'));
