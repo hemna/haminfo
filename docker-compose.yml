@@ -101,6 +101,28 @@ services:
     ports:
       - 8066:8080
 
+  haminfo-dashboard:
+    image: hemna6969/haminfo-dashboard:latest
+    build:
+      context: ./docker
+      dockerfile: Dockerfile-dashboard
+      args:
+        BRANCH: ${BRANCH:-master}
+        COMMIT_SHA: ${COMMIT_SHA:-}
+    restart: unless-stopped
+    container_name: haminfo-dashboard
+    depends_on:
+      db_upgrade:
+        condition: service_completed_successfully
+      haminfo-db:
+        condition: service_started
+    ports:
+      - 5001:5001
+    volumes:
+      - ./data/config:/config
+    environment:
+      - COLUMNS=160
+
 networks:
   default:
     name: aprsd

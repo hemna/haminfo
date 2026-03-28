@@ -33,8 +33,6 @@ from haminfo import utils, trace, cli_helper
 from haminfo.db import db
 from haminfo.db.db import WX_FIELD_MAPPING
 from haminfo.conf import log as log_conf
-from haminfo.dashboard import dashboard_bp
-from haminfo.dashboard.websocket import init_socketio
 
 if TYPE_CHECKING:
     from haminfo.db.models.aprs_packet import APRSPacket
@@ -1380,12 +1378,6 @@ def create_app(ctx):
         )
 
     LOG.info(f'Number of repeaters in DB: {db.get_num_repeaters_in_db(session)}')
-
-    # Register dashboard blueprint
-    app.register_blueprint(dashboard_bp)
-
-    # Initialize SocketIO for live feed
-    socketio = init_socketio(app)
 
     server = HaminfoFlask()
     server.app = app

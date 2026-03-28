@@ -1,0 +1,57 @@
+# Dockerfile for haminfo-dashboard
+# Based on the haminfo Dockerfile pattern
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm AS prepare
+
+ARG BRANCH
+ARG COMMIT_SHA
+
+ENV APP_GIT=https://github.com/hemna/haminfo.git
+ENV APP_BRANCH=${BRANCH:-master}
+ENV APP_COMMIT_SHA=${COMMIT_SHA:-}
+ENV VIRTUAL_ENV=/root/.venv
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+# Stage 2: Install
+FROM prepare AS install
+ARG CACHEBUST
+
+WORKDIR /app
+RUN uv venv
+RUN uv pip install -U "pip>=26.0" wheel
+
+# Clone the repo
+RUN echo "Cache bust: $CACHEBUST" && \
+    git clone -b $APP_BRANCH $APP_GIT && \
+    cd /app/haminfo && \
+    if [ -n "$APP_COMMIT_SHA" ]; then \
+        git fetch --unshallow 2>/dev/null || true; \
+        git checkout $APP_COMMIT_SHA 2>/dev/null || echo "SHA not found, using branch HEAD"; \
+    fi
+
+# Install haminfo (dependency for DB models)
+RUN echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
+    uv pip install --override /tmp/overrides.txt /app/haminfo
+
+# Install haminfo-dashboard
+RUN uv pip install /app/haminfo/haminfo-dashboard
+
+### Final stage
+FROM install AS final
+
+ENV CONF=default
+VOLUME ["/config"]
+EXPOSE 5001/tcp
+
+COPY ./bin/dashboard_entry.sh /app/
+ENTRYPOINT ["/app/dashboard_entry.sh"]

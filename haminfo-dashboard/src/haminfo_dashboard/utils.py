@@ -1,4 +1,4 @@
-# haminfo/dashboard/utils.py
+# haminfo_dashboard/utils.py
 """Utility functions for dashboard."""
 
 from __future__ import annotations

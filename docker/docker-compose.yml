@@ -68,6 +68,24 @@ services:
     profiles:
       - freethreaded  # Only start when explicitly requested
 
+  # High-performance Rust MQTT ingest service
+  # Build with: docker build -t hemna6969/haminfo:mqtt-ingest-rust ./rust-mqtt-ingest
+  # This is designed to handle higher packet throughput than the Python version
+  mqtt_ingest_rust:
+    image: hemna6969/haminfo:mqtt-ingest-rust
+    restart: on-failure
+    depends_on:
+        - "db_upgrade"
+    volumes:
+      - ./data/config/mqtt-ingest.toml:/app/config.toml:ro
+    environment:
+      # Can also configure via environment variables:
+      # - MQTT_INGEST_MQTT__HOST=mqtt
+      # - MQTT_INGEST_DATABASE__URL=postgres://...
+      - RUST_LOG=mqtt_ingest=info
+    profiles:
+      - rust  # Only start when explicitly requested with --profile rust
+
   haminfo_memcached:
     image: ubuntu/memcached:latest
     restart: unless-stopped
@@ -117,6 +135,26 @@ services:
         - "haminfo_db"
     ports:
       - 8066:8080
+
+  haminfo_dashboard:
+    image: hemna6969/haminfo-dashboard:latest
+    build:
+      context: .
+      dockerfile: Dockerfile-dashboard
+      args:
+        BRANCH: ${BRANCH:-master}
+        COMMIT_SHA: ${COMMIT_SHA:-}
+    restart: unless-stopped
+    container_name: haminfo_dashboard
+    depends_on:
+        - "db_upgrade"
+        - "haminfo_db"
+    ports:
+      - 5001:5001
+    volumes:
+      - ./data/config:/config
+    environment:
+      - COLUMNS=160
 
 networks:
   default:

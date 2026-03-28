@@ -1,16 +1,16 @@
-# haminfo/dashboard/queries.py
+# haminfo_dashboard/queries.py
 """Database query helpers for dashboard."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import func, distinct
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
-from haminfo.dashboard.utils import get_country_from_callsign
+from haminfo_dashboard.utils import get_country_from_callsign
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     Returns:
         Dict with total_packets_24h, unique_stations, countries, weather_stations.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Count packets in last 24 hours
@@ -78,7 +78,7 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     Returns:
         List of dicts with callsign, count, and country info.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     results = (
@@ -118,7 +118,7 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     Returns:
         List of dicts with country_code, country_name, count.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Get all callsigns with their counts
@@ -177,7 +177,7 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     Returns:
         Dict with 'labels' (hour strings) and 'values' (counts) arrays.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Get dialect to use appropriate function
@@ -360,7 +360,7 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     if not latest_packet:
         return None
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Get packet count in last 24h
@@ -428,7 +428,7 @@ def get_map_stations(
     Returns:
         List of station dicts with position data.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Subquery to get latest packet per callsign

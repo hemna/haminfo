@@ -1,13 +1,14 @@
+# haminfo_dashboard/websocket.py
 """WebSocket event handlers for live feed."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
 
-from haminfo.dashboard.utils import format_packet_summary
+from haminfo_dashboard.utils import format_packet_summary
 
 socketio: SocketIO | None = None
 _poll_greenlet = None
@@ -55,12 +56,14 @@ def poll_packets():
     """Poll database for new packets and broadcast."""
     global _last_packet_time
 
-    from haminfo.db.models.db_session import get_session
+    from haminfo.db.db import setup_session
     from haminfo.db.models.aprs_packet import APRSPacket
+
+    session_factory = setup_session()
 
     while True:
         try:
-            session = get_session()
+            session = session_factory()
             try:
                 query = (
                     session.query(APRSPacket)

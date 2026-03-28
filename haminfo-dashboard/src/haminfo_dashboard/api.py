@@ -1,4 +1,4 @@
-# haminfo/dashboard/api.py
+# haminfo_dashboard/api.py
 """Dashboard JSON API endpoints."""
 
 from __future__ import annotations
@@ -6,8 +6,8 @@ from __future__ import annotations
 from flask import jsonify, request, render_template
 
 from haminfo.db.db import setup_session
-from haminfo.dashboard import dashboard_bp
-from haminfo.dashboard.queries import (
+from haminfo_dashboard.routes import dashboard_bp
+from haminfo_dashboard.queries import (
     get_dashboard_stats,
     get_top_stations,
     get_country_breakdown,
@@ -32,7 +32,7 @@ def api_stats():
     session = _get_session()
     try:
         stats = get_dashboard_stats(session)
-        return render_template('partials/stats.html', stats=stats)
+        return render_template('dashboard/partials/stats_cards.html', stats=stats)
     finally:
         session.close()
 
@@ -56,7 +56,9 @@ def api_top_stations():
     try:
         limit = request.args.get('limit', 10, type=int)
         stations = get_top_stations(session, limit=limit)
-        return render_template('partials/top_stations.html', stations=stations)
+        return render_template(
+            'dashboard/partials/top_stations.html', stations=stations
+        )
     finally:
         session.close()
 
@@ -81,7 +83,7 @@ def api_countries():
     try:
         limit = request.args.get('limit', 10, type=int)
         countries = get_country_breakdown(session, limit=limit)
-        return render_template('partials/countries.html', countries=countries)
+        return render_template('dashboard/partials/countries.html', countries=countries)
     finally:
         session.close()
 
@@ -141,7 +143,9 @@ def api_weather_stations():
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         stations = get_weather_stations(session, limit=limit, offset=offset)
-        return render_template('partials/weather_stations.html', stations=stations)
+        return render_template(
+            'dashboard/partials/weather_grid.html', stations=stations
+        )
     finally:
         session.close()
 
@@ -168,9 +172,11 @@ def api_station_detail(callsign: str):
         station = get_station_detail(session, callsign)
         if not station:
             return render_template(
-                'partials/station_not_found.html', callsign=callsign
+                'dashboard/partials/station_not_found.html', callsign=callsign
             ), 404
-        return render_template('partials/station_detail.html', station=station)
+        return render_template(
+            'dashboard/partials/station_detail.html', station=station
+        )
     finally:
         session.close()
 
@@ -200,7 +206,7 @@ def api_station_packets(callsign: str):
             session, limit=limit, offset=offset, callsign=callsign
         )
         return render_template(
-            'partials/station_packets.html', packets=packets, callsign=callsign
+            'dashboard/partials/packets_table.html', packets=packets, callsign=callsign
         )
     finally:
         session.close()
