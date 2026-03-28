@@ -1,0 +1,47 @@
+<!-- haminfo/templates/dashboard/weather.html -->
+{% extends "base.html" %}
+
+{% block title %}APRS Dashboard - Weather{% endblock %}
+
+{% block header_right %}
+<input type="text" id="weather-search" placeholder="Search station..." style="width:180px;">
+{% endblock %}
+
+{% block content %}
+<!-- Weather Stats -->
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="stat-card cyan">
+        <div class="stat-value" id="wx-station-count">--</div>
+        <div class="stat-label">Active Stations</div>
+    </div>
+    <div class="stat-card yellow">
+        <div class="stat-value" id="wx-report-count">--</div>
+        <div class="stat-label">Reports (24h)</div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-value" id="wx-avg-temp">--</div>
+        <div class="stat-label">Avg Temperature</div>
+    </div>
+</div>
+
+<!-- Weather Stations Grid -->
+<div id="weather-grid"
+     hx-get="{{ url_for('dashboard.api_weather_stations') }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div style="color:var(--text-muted);text-align:center;padding:40px;">Loading weather stations...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Search functionality
+    document.getElementById('weather-search')?.addEventListener('input', (e) => {
+        const search = e.target.value.toLowerCase();
+        document.querySelectorAll('#weather-grid .card').forEach(card => {
+            const callsign = card.querySelector('a')?.textContent.toLowerCase() || '';
+            card.style.display = callsign.includes(search) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}
