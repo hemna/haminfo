@@ -41,10 +41,7 @@ RUN echo "Cache bust: $CACHEBUST" && \
 
 # Install haminfo (dependency for DB models)
 RUN echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
-    uv pip install --override /tmp/overrides.txt /app/haminfo
-
-# Install haminfo-dashboard
-RUN uv pip install /app/haminfo/haminfo-dashboard
+    uv pip install --override /tmp/overrides.txt /app/haminfo /app/haminfo/haminfo-dashboard
 
 ### Final stage
 FROM install AS final
