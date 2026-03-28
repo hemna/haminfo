@@ -148,30 +148,6 @@ def _format_weather_info(packet: dict) -> str:
     return ' '.join(parts) if parts else None
 
 
-def _is_raw_aprs(text: str) -> bool:
-    """Check if text looks like raw APRS packet data (garbage to users)."""
-    if not text:
-        return False
-    # Raw APRS often starts with special chars or has path info
-    raw_indicators = [
-        text.startswith('!'),
-        text.startswith('/'),
-        text.startswith('@'),
-        text.startswith('='),
-        text.startswith(';'),
-        text.startswith(')'),
-        text.startswith('`'),
-        text.startswith("'"),
-        text.startswith('_'),
-        text.startswith('$GP'),  # GPS NMEA
-        '>APR' in text,  # Path info
-        'WIDE' in text and ',' in text,  # Digipeater path
-        'qA' in text,    # APRS-IS path
-        text.count('>') > 1,  # Multiple path hops
-    ]
-    return any(raw_indicators)
-
-
 def format_packet_summary(packet: dict) -> str:
     """Format packet data for live feed display.
     
@@ -181,10 +157,11 @@ def format_packet_summary(packet: dict) -> str:
     from_call = packet.get('from_call', '?')
     to_call = packet.get('to_call', '?')
     packet_type = packet.get('packet_type') or 'unknown'
+    comment = packet.get('comment', '')
     
     # Build human info based on packet type
     human_info = None
-    type_label = packet_type.title() if packet_type != 'unknown' else 'Packet'
+    type_label = packet_type.title() if packet_type != 'unknown' else 'Raw'
     
     if packet_type == 'position':
         human_info = _format_gps_info(packet)
@@ -196,30 +173,31 @@ def format_packet_summary(packet: dict) -> str:
         
     elif packet_type == 'message':
         # Message: just show the message text, to_call is already in header
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
+        if comment:
             human_info = comment[:60]
         type_label = 'Msg'
         
     elif packet_type == 'status':
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
+        if comment:
             human_info = comment[:60]
         type_label = 'Status'
         
     elif packet_type == 'telemetry':
-        # For telemetry, show GPS info if available
+        # For telemetry, show GPS info if available, or raw comment
         human_info = _format_gps_info(packet)
+        if not human_info and comment:
+            human_info = comment[:50]
         type_label = 'Telem'
         
     elif packet_type == 'object':
         gps_info = _format_gps_info(packet)
-        comment = packet.get('comment', '')
         if gps_info:
-            if comment and not _is_raw_aprs(comment):
+            if comment:
                 human_info = f'{gps_info} {comment[:30]}'
             else:
                 human_info = gps_info
+        elif comment:
+            human_info = comment[:50]
         type_label = 'Obj'
         
     elif packet_type == 'mic-e':
@@ -227,14 +205,15 @@ def format_packet_summary(packet: dict) -> str:
         type_label = 'MicE'
         
     else:
-        # Unknown type - try to extract something useful
+        # Unknown type - show GPS info if available, otherwise raw comment
         gps_info = _format_gps_info(packet)
         if gps_info:
             human_info = gps_info
-        else:
-            comment = packet.get('comment', '')
-            if comment and not _is_raw_aprs(comment):
-                human_info = comment[:50]
+            type_label = 'GPS'
+        elif comment:
+            # Show raw comment for unknown packets
+            human_info = comment[:60]
+            type_label = 'Raw'
     
     # Build final string
     if human_info:
