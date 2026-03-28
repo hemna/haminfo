@@ -1,0 +1,93 @@
+<!-- haminfo/templates/dashboard/station.html -->
+{% extends "base.html" %}
+
+{% block title %}APRS Dashboard - {{ callsign }}{% endblock %}
+
+{% block header_right %}
+<form action="{{ url_for('dashboard.station', callsign='_') }}" method="get" id="search-form" style="display:flex;gap:8px;">
+    <input type="text" name="q" id="callsign-search" placeholder="Search callsign..." value="{{ callsign if callsign != 'lookup' else '' }}" style="width:180px;">
+    <button type="submit">Search</button>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if callsign and callsign != 'lookup' %}
+<!-- Station Header -->
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+            <div style="color:var(--accent-green);font-size:32px;font-weight:bold;margin-bottom:4px;">{{ callsign }}</div>
+            <div id="station-meta" style="color:var(--text-secondary);font-size:13px;">Loading...</div>
+        </div>
+        <div id="station-status" style="text-align:right;">
+            <div style="color:var(--accent-green);font-size:12px;">● Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Station Detail (loaded via HTMX) -->
+<div id="station-detail"
+     hx-get="{{ url_for('dashboard.api_station_detail', callsign=callsign) }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div style="color:var(--text-muted);text-align:center;padding:40px;">Loading station data...</div>
+</div>
+
+<!-- Recent Packets -->
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span class="card-title">Recent Packets</span>
+    </div>
+    <div class="card-body"
+         hx-get="{{ url_for('dashboard.api_station_packets', callsign=callsign) }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div style="color:var(--text-muted);">Loading packets...</div>
+    </div>
+</div>
+
+{% else %}
+<!-- Search Landing -->
+<div style="text-align:center;padding:60px 20px;">
+    <div style="font-size:48px;margin-bottom:20px;">🔍</div>
+    <h2 style="color:var(--text-primary);margin-bottom:12px;">Station Lookup</h2>
+    <p style="color:var(--text-secondary);margin-bottom:24px;">Enter a callsign to view station details, location, and packet history.</p>
+    <form action="{{ url_for('dashboard.station', callsign='_') }}" method="get" style="display:flex;gap:8px;justify-content:center;">
+        <input type="text" name="q" placeholder="Enter callsign (e.g., 9M2PJU-9)" style="width:280px;font-size:16px;padding:12px;">
+        <button type="submit" style="padding:12px 24px;font-size:16px;">Search</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Handle search form
+    document.getElementById('search-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const callsign = document.getElementById('callsign-search').value.trim();
+        if (callsign) {
+            window.location.href = `/station/${encodeURIComponent(callsign)}`;
+        }
+    });
+    
+    {% if callsign and callsign != 'lookup' %}
+    // Load station metadata
+    fetch('/api/dashboard/station/{{ callsign }}/json')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('station-meta').textContent = 'Station not found';
+                document.getElementById('station-status').innerHTML = '<div style="color:var(--accent-yellow);">Not found</div>';
+            } else {
+                const country = data.country_name ? `${data.country_name}` : 'Unknown';
+                document.getElementById('station-meta').textContent = `${country}`;
+                document.getElementById('station-status').innerHTML = `
+                    <div style="color:var(--accent-green);font-size:12px;">● Last seen: ${data.last_seen || '--'}</div>
+                    <div style="color:var(--text-muted);font-size:11px;margin-top:4px;">First seen: ${data.first_seen || '--'}</div>
+                `;
+            }
+        });
+    {% endif %}
+</script>
+{% endblock %}
