@@ -1,0 +1,17 @@
+<!-- haminfo/templates/dashboard/partials/stats_cards.html -->
+<div class="stat-card green">
+    <div class="stat-value">{{ stats.total_packets_24h | default(0) | int | format_number }}</div>
+    <div class="stat-label">Total Packets (24h)</div>
+</div>
+<div class="stat-card cyan">
+    <div class="stat-value">{{ stats.unique_stations | default(0) | int | format_number }}</div>
+    <div class="stat-label">Unique Stations</div>
+</div>
+<div class="stat-card yellow">
+    <div class="stat-value">{{ stats.countries | default(0) | int }}</div>
+    <div class="stat-label">Countries</div>
+</div>
+<div class="stat-card magenta">
+    <div class="stat-value">{{ stats.weather_stations | default(0) | int }}</div>
+    <div class="stat-label">Weather Stations</div>
+</div>
