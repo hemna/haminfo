@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
