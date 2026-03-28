@@ -1,0 +1,140 @@
+<!-- haminfo/templates/dashboard/index.html -->
+{% extends "base.html" %}
+
+{% block title %}APRS Dashboard - Home{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="stats-grid" 
+     hx-get="{{ url_for('dashboard.api_stats') }}" 
+     hx-trigger="load, every 30s"
+     hx-swap="innerHTML">
+    <div class="stat-card green">
+        <div class="stat-value">--</div>
+        <div class="stat-label">Total Packets (24h)</div>
+    </div>
+    <div class="stat-card cyan">
+        <div class="stat-value">--</div>
+        <div class="stat-label">Unique Stations</div>
+    </div>
+    <div class="stat-card yellow">
+        <div class="stat-value">--</div>
+        <div class="stat-label">Countries</div>
+    </div>
+    <div class="stat-card magenta">
+        <div class="stat-value">--</div>
+        <div class="stat-label">Weather Stations</div>
+    </div>
+</div>
+
+<!-- Main Grid -->
+<div class="grid-2x2">
+    <!-- Live Feed -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Live Traffic</span>
+            <span class="live-indicator">streaming</span>
+        </div>
+        <div class="card-body">
+            <div id="live-feed" class="live-feed">
+                <div class="live-feed-item" style="color: var(--text-muted);">
+                    Waiting for packets...
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hourly Chart -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Hourly Distribution</span>
+        </div>
+        <div class="card-body">
+            <canvas id="hourly-chart" height="200"></canvas>
+        </div>
+    </div>
+    
+    <!-- Top Stations -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Top Stations (24h)</span>
+        </div>
+        <div class="card-body"
+             hx-get="{{ url_for('dashboard.api_top_stations') }}"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML">
+            <div style="color: var(--text-muted);">Loading...</div>
+        </div>
+    </div>
+    
+    <!-- Countries -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Countries</span>
+        </div>
+        <div class="card-body"
+             hx-get="{{ url_for('dashboard.api_countries') }}"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML">
+            <div style="color: var(--text-muted);">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const MAX_FEED_ITEMS = 50;
+    const feedContainer = document.getElementById('live-feed');
+    
+    function handlePacket(packet) {
+        const item = document.createElement('div');
+        item.className = 'live-feed-item ' + (packet.packet_type || 'unknown');
+        item.textContent = packet.summary || JSON.stringify(packet);
+        
+        // Remove "waiting" message if present
+        const waiting = feedContainer.querySelector('[style*="text-muted"]');
+        if (waiting) waiting.remove();
+        
+        // Add to top
+        feedContainer.insertBefore(item, feedContainer.firstChild);
+        
+        // Trim old items
+        while (feedContainer.children.length > MAX_FEED_ITEMS) {
+            feedContainer.removeChild(feedContainer.lastChild);
+        }
+    }
+    
+    // Initialize hourly chart
+    fetch('{{ url_for("dashboard.api_hourly") }}')
+        .then(r => r.json())
+        .then(data => {
+            new Chart(document.getElementById('hourly-chart'), {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.values,
+                        backgroundColor: '#0f0',
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { 
+                            grid: { color: '#2a2a4e' },
+                            ticks: { color: '#888' }
+                        },
+                        y: { 
+                            grid: { color: '#2a2a4e' },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        });
+</script>
+{% endblock %}
