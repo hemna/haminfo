@@ -30,6 +30,7 @@ dependencies = [
     "gevent-websocket>=0.10.1",
     "gunicorn>=21.0.0",
     "haminfo",  # For DB models
+    "pylibmc>=1.6.0",  # For memcached caching
 ]
 
 [project.optional-dependencies]

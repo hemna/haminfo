@@ -4,37 +4,22 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Optional
-import time
 
 from sqlalchemy import func, distinct
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
-from haminfo_dashboard.utils import get_country_from_callsign
+from haminfo_dashboard.utils import get_country_from_callsign, CALLSIGN_PREFIXES
+from haminfo_dashboard.cache import cached
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-# Simple time-based cache for expensive queries
-_stats_cache: dict[str, Any] = {}
-_stats_cache_time: float = 0
-_countries_cache: list[dict[str, Any]] = []
-_countries_cache_time: float = 0
-_top_stations_cache: list[dict[str, Any]] = []
-_top_stations_cache_time: float = 0
-_hourly_cache: dict[str, list] = {}
-_hourly_cache_time: float = 0
-
-CACHE_TTL = 30  # seconds
-
-
+@cached('dashboard:stats')
 def get_dashboard_stats(session: Session) -> dict[str, Any]:
     """Get summary statistics for dashboard.
-
-    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -42,12 +27,6 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     Returns:
         Dict with total_packets_24h, unique_stations, countries, weather_stations.
     """
-    global _stats_cache, _stats_cache_time
-
-    # Return cached result if fresh
-    if _stats_cache and (time.time() - _stats_cache_time) < CACHE_TTL:
-        return _stats_cache
-
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -68,8 +47,6 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     )
 
     # Count unique countries - use substring matching on callsign prefixes
-    # This is an approximation but much faster than fetching all callsigns
-    # We count distinct first characters as a proxy for country diversity
     countries = (
         session.query(func.count(distinct(func.substring(APRSPacket.from_call, 1, 2))))
         .filter(APRSPacket.received_at >= last_24h)
@@ -80,24 +57,17 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     # Count weather stations
     weather_stations = session.query(func.count(WeatherStation.id)).scalar() or 0
 
-    result = {
+    return {
         'total_packets_24h': total_packets,
         'unique_stations': unique_stations,
         'countries': countries,
         'weather_stations': weather_stations,
     }
 
-    # Update cache
-    _stats_cache = result
-    _stats_cache_time = time.time()
 
-    return result
-
-
+@cached('dashboard:top_stations:{limit}')
 def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     """Get top stations by packet count in the last 24 hours.
-
-    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -106,12 +76,6 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     Returns:
         List of dicts with callsign, count, and country info.
     """
-    global _top_stations_cache, _top_stations_cache_time
-
-    # Return cached result if fresh
-    if _top_stations_cache and (time.time() - _top_stations_cache_time) < CACHE_TTL:
-        return _top_stations_cache[:limit]
-
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -139,17 +103,12 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
             }
         )
 
-    # Update cache
-    _top_stations_cache = stations
-    _top_stations_cache_time = time.time()
-
     return stations
 
 
+@cached('dashboard:countries:{limit}')
 def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     """Get packet count breakdown by country.
-
-    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -158,17 +117,10 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     Returns:
         List of dicts with country_code, country_name, count.
     """
-    global _countries_cache, _countries_cache_time
-
-    # Return cached result if fresh
-    if _countries_cache and (time.time() - _countries_cache_time) < CACHE_TTL:
-        return _countries_cache[:limit]
-
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     # Get counts grouped by first 1-2 characters of callsign (prefix)
-    # This is done in DB for performance - we then map prefixes to countries
     prefix_counts = (
         session.query(
             func.substring(APRSPacket.from_call, 1, 2).label('prefix'),
@@ -211,21 +163,12 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     ]
     result.sort(key=lambda x: x['count'], reverse=True)
 
-    # Update cache
-    _countries_cache = result
-    _countries_cache_time = time.time()
-
     return result[:limit]
 
 
-# Import the prefix mapping for use in get_country_breakdown
-from haminfo_dashboard.utils import CALLSIGN_PREFIXES
-
-
+@cached('dashboard:hourly')
 def get_hourly_distribution(session: Session) -> dict[str, list]:
     """Get packet count distribution by hour of day.
-
-    Results are cached for 30 seconds.
 
     Args:
         session: Database session.
@@ -233,12 +176,6 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     Returns:
         Dict with 'labels' (hour strings) and 'values' (counts) arrays.
     """
-    global _hourly_cache, _hourly_cache_time
-
-    # Return cached result if fresh
-    if _hourly_cache and (time.time() - _hourly_cache_time) < CACHE_TTL:
-        return _hourly_cache
-
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -246,10 +183,8 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     dialect = session.bind.dialect.name if session.bind else 'postgresql'
 
     if dialect == 'sqlite':
-        # SQLite: use strftime to get hour as string
         hour_expr = func.strftime('%H', APRSPacket.received_at)
     else:
-        # PostgreSQL: extract hour from timestamp
         hour_expr = func.extract('hour', APRSPacket.received_at)
 
     hourly_counts = (
@@ -262,7 +197,7 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
         .all()
     )
 
-    # Create dict from results - handle both string (SQLite) and int (PostgreSQL) hours
+    # Create dict from results
     hour_map = {}
     for hour, count in hourly_counts:
         if hour is not None:
@@ -272,16 +207,10 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     labels = [f'{h:02d}:00' for h in range(24)]
     values = [hour_map.get(h, 0) for h in range(24)]
 
-    result = {
+    return {
         'labels': labels,
         'values': values,
     }
-
-    # Update cache
-    _hourly_cache = result
-    _hourly_cache_time = time.time()
-
-    return result
 
 
 def get_recent_packets(
@@ -292,6 +221,8 @@ def get_recent_packets(
     country: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Get recent packets with optional filters.
+
+    Note: Not cached because it's used for live data and has many param combinations.
 
     Args:
         session: Database session.
@@ -308,8 +239,6 @@ def get_recent_packets(
     if callsign:
         query = query.filter(APRSPacket.from_call.ilike(f'%{callsign}%'))
 
-    # Country filtering would require post-filtering since it's derived from callsign
-    # For now, we'll handle it in Python if needed
     packets = query.offset(offset).limit(limit if not country else limit * 3).all()
 
     result = []
@@ -345,6 +274,7 @@ def get_recent_packets(
     return result
 
 
+@cached('dashboard:wx_stations:{limit}:{offset}:{country}:{has_recent_data}')
 def get_weather_stations(
     session: Session,
     limit: int = 50,
@@ -367,30 +297,25 @@ def get_weather_stations(
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
-    # Base query
     query = session.query(WeatherStation).order_by(WeatherStation.callsign)
-
     stations_list = query.all()
 
     result = []
     for station in stations_list:
-        # Get latest report for this station
         report_query = session.query(WeatherReport).filter(
             WeatherReport.weather_station_id == station.id
         )
-        
+
         if has_recent_data:
             report_query = report_query.filter(WeatherReport.time >= last_24h)
-        
+
         latest_report = report_query.order_by(WeatherReport.time.desc()).first()
 
-        # Skip if has_recent_data filter and no recent report
         if has_recent_data and not latest_report:
             continue
 
         country_info = get_country_from_callsign(station.callsign)
 
-        # Apply country filter
         if country:
             if not country_info or country_info[0] != country:
                 continue
@@ -419,14 +344,13 @@ def get_weather_stations(
 
         result.append(station_dict)
 
-        # Apply limit after filtering
         if len(result) >= limit + offset:
             break
 
-    # Apply offset and limit
     return result[offset:offset + limit]
 
 
+@cached('dashboard:wx_countries')
 def get_weather_countries(session: Session) -> list[dict[str, Any]]:
     """Get list of countries that have weather stations.
 
@@ -462,6 +386,7 @@ def get_weather_countries(session: Session) -> list[dict[str, Any]]:
     return result
 
 
+@cached('dashboard:station:{callsign}')
 def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, Any]]:
     """Get detailed information about a station.
 
@@ -472,7 +397,6 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     Returns:
         Dict with station details or None if not found.
     """
-    # Get latest packet from this callsign
     latest_packet = (
         session.query(APRSPacket)
         .filter(APRSPacket.from_call == callsign.upper())
@@ -486,7 +410,6 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
-    # Get packet count in last 24h
     packet_count = (
         session.query(func.count(APRSPacket.from_call))
         .filter(
@@ -497,7 +420,6 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         or 0
     )
 
-    # Get packet type breakdown
     type_counts = (
         session.query(
             APRSPacket.packet_type,
@@ -534,6 +456,7 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     }
 
 
+@cached('dashboard:map:{bbox}:{station_type}:{limit}')
 def get_map_stations(
     session: Session,
     bbox: Optional[tuple[float, float, float, float]] = None,
@@ -554,7 +477,6 @@ def get_map_stations(
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
-    # Subquery to get latest packet per callsign
     latest_subq = (
         session.query(
             APRSPacket.from_call,
@@ -575,7 +497,6 @@ def get_map_stations(
         & (APRSPacket.received_at == latest_subq.c.max_received),
     )
 
-    # Apply bbox filter if provided
     if bbox:
         min_lon, min_lat, max_lon, max_lat = bbox
         query = query.filter(
@@ -585,7 +506,6 @@ def get_map_stations(
             APRSPacket.latitude <= max_lat,
         )
 
-    # Apply type filter if provided
     if station_type:
         query = query.filter(APRSPacket.packet_type == station_type)
 

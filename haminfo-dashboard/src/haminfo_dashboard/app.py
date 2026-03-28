@@ -9,6 +9,7 @@ from flask import Flask
 from haminfo_dashboard.routes import dashboard_bp
 from haminfo_dashboard import api  # noqa: F401 - Import to register API routes on blueprint
 from haminfo_dashboard.websocket import init_socketio
+from haminfo_dashboard import cache
 
 
 def create_app(config_file: str | None = None) -> Flask:
@@ -32,6 +33,7 @@ def create_app(config_file: str | None = None) -> Flask:
     # Load haminfo config for database if provided
     if config_file:
         _load_haminfo_config(config_file)
+        _init_cache()
 
     # Register blueprint at root (dashboard is the main app)
     app.register_blueprint(dashboard_bp)
@@ -63,3 +65,14 @@ def _load_haminfo_config(config_file: str) -> None:
         args=[],
         default_config_files=[config_file],
     )
+
+
+def _init_cache() -> None:
+    """Initialize memcached connection using config."""
+    from oslo_config import cfg
+    CONF = cfg.CONF
+
+    memcached_url = getattr(CONF.memcached, 'url', None)
+    expire_time = getattr(CONF.memcached, 'expire_time', 300)
+
+    cache.init_cache(memcached_url, ttl=expire_time)

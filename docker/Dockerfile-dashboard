@@ -11,7 +11,7 @@ ENV APP_COMMIT_SHA=${COMMIT_SHA:-}
 ENV VIRTUAL_ENV=/root/.venv
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git build-essential libpq-dev \
+    git build-essential libpq-dev libmemcached-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DEFAULT_TIMEOUT=100 \
@@ -39,7 +39,7 @@ RUN echo "Cache bust: $CACHEBUST" && \
         git checkout $APP_COMMIT_SHA 2>/dev/null || echo "SHA not found, using branch HEAD"; \
     fi
 
-# Install haminfo (dependency for DB models)
+# Install haminfo (dependency for DB models) and dashboard with pylibmc
 RUN echo "typing-extensions>=4.15.0" > /tmp/overrides.txt && \
     uv pip install --override /tmp/overrides.txt /app/haminfo /app/haminfo/haminfo-dashboard
 
