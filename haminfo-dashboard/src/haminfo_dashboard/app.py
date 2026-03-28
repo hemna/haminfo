@@ -7,6 +7,7 @@ import os
 from flask import Flask
 
 from haminfo_dashboard.routes import dashboard_bp
+from haminfo_dashboard import api  # noqa: F401 - Import to register API routes on blueprint
 from haminfo_dashboard.websocket import init_socketio
 
 
