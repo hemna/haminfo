@@ -84,6 +84,7 @@ def poll_packets():
                         'latitude': packet.latitude,
                         'longitude': packet.longitude,
                         'speed': packet.speed,
+                        'comment': packet.comment,
                         'received_at': packet.received_at.isoformat()
                         if packet.received_at
                         else None,

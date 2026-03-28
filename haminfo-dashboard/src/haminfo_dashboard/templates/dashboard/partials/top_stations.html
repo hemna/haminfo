@@ -1,13 +1,17 @@
 <!-- haminfo/templates/dashboard/partials/top_stations.html -->
 {% if stations %}
 <div class="leaderboard">
+    <div class="leaderboard-header" style="display:flex;justify-content:space-between;padding:4px 0 8px 0;border-bottom:1px solid var(--border-color);color:var(--text-muted);font-size:0.85em;">
+        <span>Station</span>
+        <span>Packets (24h)</span>
+    </div>
     {% for station in stations %}
     <div class="leaderboard-item" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
         <span>
             <span style="color:var(--accent-green);margin-right:8px;">{{ loop.index }}.</span>
             <a href="{{ url_for('dashboard.station', callsign=station.callsign) }}" style="color:var(--accent-cyan);text-decoration:none;">{{ station.callsign }}</a>
         </span>
-        <span style="color:var(--text-secondary);">{{ station.count }} pkts</span>
+        <span style="color:var(--text-secondary);">{{ station.count | format_number }}</span>
     </div>
     {% endfor %}
 </div>

@@ -8,10 +8,14 @@
 } %}
 {% if countries %}
 <div class="country-list">
+    <div class="country-header" style="display:flex;justify-content:space-between;padding:4px 0 8px 0;border-bottom:1px solid var(--border-color);color:var(--text-muted);font-size:0.85em;">
+        <span>Country</span>
+        <span>Packets (24h)</span>
+    </div>
     {% for country in countries %}
     <div class="country-item" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
         <span>{{ country_flags.get(country.country_code, '🏳️') }} {{ country.country_name }}</span>
-        <span style="color:var(--text-secondary);">{{ country.count }}</span>
+        <span style="color:var(--text-secondary);">{{ country.count | format_number }}</span>
     </div>
     {% endfor %}
 </div>

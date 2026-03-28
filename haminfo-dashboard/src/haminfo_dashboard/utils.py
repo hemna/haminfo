@@ -83,25 +83,68 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
 
 def format_packet_summary(packet: dict) -> str:
     """Format packet data for live feed display."""
-    packet_type = packet.get('packet_type', 'unknown')
+    packet_type = packet.get('packet_type') or 'unknown'
     from_call = packet.get('from_call', '?')
+    to_call = packet.get('to_call', '?')
 
     if packet_type == 'position':
-        lat = packet.get('latitude', 0)
-        lon = packet.get('longitude', 0)
-        speed = packet.get('speed')
-        if speed:
-            return f'{from_call} -> Position {lat:.4f}, {lon:.4f} @ {speed}km/h'
-        return f'{from_call} -> Position {lat:.4f}, {lon:.4f}'
+        lat = packet.get('latitude')
+        lon = packet.get('longitude')
+        if lat is not None and lon is not None:
+            speed = packet.get('speed')
+            if speed:
+                return f'Position {lat:.4f}, {lon:.4f} @ {speed:.0f}km/h'
+            return f'Position {lat:.4f}, {lon:.4f}'
+        # Has position type but no coords - show comment if available
+        comment = packet.get('comment', '')
+        if comment:
+            return f'Position: {comment[:40]}'
+        return 'Position (no coords)'
+
     elif packet_type == 'weather':
+        parts = []
         temp = packet.get('temperature')
         humid = packet.get('humidity')
-        return f'{from_call} -> WX Temp:{temp}C Humid:{humid}%'
+        if temp is not None:
+            parts.append(f'{temp:.1f}C')
+        if humid is not None:
+            parts.append(f'{humid:.0f}%')
+        if parts:
+            return f'Weather: {", ".join(parts)}'
+        return 'Weather report'
+
     elif packet_type == 'status':
-        status = packet.get('status', '')[:50]
-        return f'{from_call} -> Status "{status}"'
+        comment = packet.get('comment', '')
+        if comment:
+            return f'Status: {comment[:45]}'
+        return 'Status'
+
     elif packet_type == 'message':
-        to_call = packet.get('to_call', '?')
-        return f'{from_call} -> Message to {to_call}'
+        return f'Message to {to_call}'
+
+    elif packet_type == 'telemetry':
+        return 'Telemetry'
+
+    elif packet_type == 'object':
+        comment = packet.get('comment', '')
+        if comment:
+            return f'Object: {comment[:40]}'
+        return 'Object'
+
+    elif packet_type == 'query':
+        return f'Query to {to_call}'
+
     else:
-        return f'{from_call} -> {packet_type}'
+        # Unknown type - try to show something useful
+        comment = packet.get('comment', '')
+        if comment:
+            return comment[:50]
+        # Check if it has position data even though type is unknown
+        lat = packet.get('latitude')
+        lon = packet.get('longitude')
+        if lat is not None and lon is not None:
+            return f'Position {lat:.4f}, {lon:.4f}'
+        # Last resort - show to_call if interesting
+        if to_call and to_call not in ('?', 'APRS', 'AP'):
+            return f'Packet to {to_call}'
+        return 'Packet received'
