@@ -81,66 +81,82 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
     return None
 
 
-def _get_data_summary(packet: dict) -> str:
-    """Extract meaningful data summary from packet, filtering raw APRS garbage."""
-    packet_type = packet.get('packet_type') or 'unknown'
+def _format_gps_info(packet: dict) -> str:
+    """Format GPS/position packet info like APRSD.
+    
+    Format: Lat:XX.XXX Lon:XX.XXX [Altitude XXX] [Speed XXXMPH] [Course XXX]
+    """
+    parts = []
+    lat = packet.get('latitude')
+    lon = packet.get('longitude')
+    
+    if lat is not None:
+        parts.append(f'Lat:{lat:03.3f}')
+    if lon is not None:
+        parts.append(f'Lon:{lon:03.3f}')
+    
+    altitude = packet.get('altitude')
+    if altitude:
+        parts.append(f'Alt:{altitude:.0f}ft')
+    
+    speed = packet.get('speed')
+    if speed:
+        # Convert km/h to MPH for consistency with APRSD
+        mph = speed * 0.621371
+        parts.append(f'Spd:{mph:.0f}MPH')
+    
+    course = packet.get('course')
+    if course:
+        parts.append(f'Crs:{course:.0f}')
+    
+    return ' '.join(parts) if parts else None
 
-    if packet_type == 'position':
-        lat = packet.get('latitude')
-        lon = packet.get('longitude')
-        if lat is not None and lon is not None:
-            speed = packet.get('speed')
-            if speed:
-                return f'{lat:.4f}, {lon:.4f} @ {speed:.0f}km/h'
-            return f'{lat:.4f}, {lon:.4f}'
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
-            return comment[:40]
-        return 'position'
 
-    elif packet_type == 'weather':
-        parts = []
-        temp = packet.get('temperature')
-        humid = packet.get('humidity')
-        if temp is not None:
-            parts.append(f'{temp:.1f}C')
-        if humid is not None:
-            parts.append(f'{humid:.0f}%')
-        if parts:
-            return ', '.join(parts)
-        return 'wx'
+def _format_weather_info(packet: dict) -> str:
+    """Format weather packet info like APRSD.
+    
+    Format: Temp XXXF Humidity X% Wind XXXMPH@XXX Pressure XXXmb Rain X.XXin/24hr
+    """
+    parts = []
+    
+    temp = packet.get('temperature')
+    if temp is not None:
+        # Convert C to F
+        temp_f = temp * 9/5 + 32
+        parts.append(f'Temp:{temp_f:.0f}F')
+    
+    humidity = packet.get('humidity')
+    if humidity is not None:
+        parts.append(f'Hum:{humidity:.0f}%')
+    
+    wind_speed = packet.get('wind_speed')
+    wind_dir = packet.get('wind_direction')
+    if wind_speed is not None:
+        if wind_dir is not None:
+            parts.append(f'Wind:{wind_speed:.0f}MPH@{wind_dir}')
+        else:
+            parts.append(f'Wind:{wind_speed:.0f}MPH')
+    
+    pressure = packet.get('pressure')
+    if pressure:
+        parts.append(f'Press:{pressure:.0f}mb')
+    
+    rain_24h = packet.get('rain_24h')
+    if rain_24h:
+        parts.append(f'Rain:{rain_24h:.2f}in/24h')
+    
+    return ' '.join(parts) if parts else None
 
-    elif packet_type == 'status':
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
-            return comment[:45]
-        return 'status'
 
-    elif packet_type == 'message':
-        return 'message'
-
-    elif packet_type == 'telemetry':
-        return 'telemetry'
-
-    elif packet_type == 'object':
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
-            return comment[:40]
-        return 'object'
-
-    elif packet_type == 'query':
-        return 'query'
-
-    else:
-        # Unknown type - try to show something useful
-        comment = packet.get('comment', '')
-        if comment and not _is_raw_aprs(comment):
-            return comment[:50]
-        lat = packet.get('latitude')
-        lon = packet.get('longitude')
-        if lat is not None and lon is not None:
-            return f'{lat:.4f}, {lon:.4f}'
-        return packet_type
+def _format_message_info(packet: dict) -> str:
+    """Format message packet info."""
+    to_call = packet.get('to_call', '')
+    comment = packet.get('comment', '')
+    
+    # Clean up comment - remove raw APRS if it looks like garbage
+    if comment and not _is_raw_aprs(comment):
+        return f'Msg to {to_call}: {comment[:50]}'
+    return f'Msg to {to_call}'
 
 
 def _is_raw_aprs(text: str) -> bool:
@@ -160,7 +176,7 @@ def _is_raw_aprs(text: str) -> bool:
         text.startswith('_'),
         text.startswith('$GP'),  # GPS NMEA
         '>APR' in text,  # Path info
-        'WIDE' in text,  # Digipeater path
+        'WIDE' in text and ',' in text,  # Digipeater path
         'qA' in text,    # APRS-IS path
         text.count('>') > 1,  # Multiple path hops
     ]
@@ -170,10 +186,66 @@ def _is_raw_aprs(text: str) -> bool:
 def format_packet_summary(packet: dict) -> str:
     """Format packet data for live feed display.
     
-    Returns format: from_call -> to_call : data_summary
+    Uses APRSD-style formatting for human-readable output.
+    Format: FROM -> TO : PacketType : human_info
     """
     from_call = packet.get('from_call', '?')
     to_call = packet.get('to_call', '?')
-    data = _get_data_summary(packet)
+    packet_type = packet.get('packet_type') or 'unknown'
     
-    return f'{from_call} -> {to_call} : {data}'
+    # Build human info based on packet type
+    human_info = None
+    type_label = packet_type.title() if packet_type != 'unknown' else 'Packet'
+    
+    if packet_type == 'position':
+        human_info = _format_gps_info(packet)
+        type_label = 'GPS'
+        
+    elif packet_type == 'weather':
+        human_info = _format_weather_info(packet)
+        type_label = 'WX'
+        
+    elif packet_type == 'message':
+        human_info = _format_message_info(packet)
+        type_label = 'Msg'
+        
+    elif packet_type == 'status':
+        comment = packet.get('comment', '')
+        if comment and not _is_raw_aprs(comment):
+            human_info = comment[:60]
+        type_label = 'Status'
+        
+    elif packet_type == 'telemetry':
+        # For telemetry, show GPS info if available
+        human_info = _format_gps_info(packet)
+        type_label = 'Telem'
+        
+    elif packet_type == 'object':
+        gps_info = _format_gps_info(packet)
+        comment = packet.get('comment', '')
+        if gps_info:
+            if comment and not _is_raw_aprs(comment):
+                human_info = f'{gps_info} {comment[:30]}'
+            else:
+                human_info = gps_info
+        type_label = 'Obj'
+        
+    elif packet_type == 'mic-e':
+        human_info = _format_gps_info(packet)
+        type_label = 'MicE'
+        
+    else:
+        # Unknown type - try to extract something useful
+        gps_info = _format_gps_info(packet)
+        if gps_info:
+            human_info = gps_info
+        else:
+            comment = packet.get('comment', '')
+            if comment and not _is_raw_aprs(comment):
+                human_info = comment[:50]
+    
+    # Build final string
+    if human_info:
+        return f'{from_call} -> {to_call} : {type_label} : {human_info}'
+    else:
+        return f'{from_call} -> {to_call} : {type_label}'
