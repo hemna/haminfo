@@ -1,0 +1,34 @@
+<!-- haminfo/templates/dashboard/partials/packets_table.html -->
+{% if packets %}
+<table style="width:100%;font-size:12px;border-collapse:collapse;">
+    <thead>
+        <tr style="border-bottom:1px solid var(--border-color);">
+            <th style="text-align:left;padding:8px;color:var(--text-muted);">Type</th>
+            <th style="text-align:left;padding:8px;color:var(--text-muted);">Details</th>
+            <th style="text-align:right;padding:8px;color:var(--text-muted);">Time</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for packet in packets %}
+        <tr style="border-bottom:1px solid var(--border-color);">
+            <td style="padding:8px;">
+                <span class="packet-type-{{ packet.packet_type }}" style="color:{% if packet.packet_type == 'position' %}var(--accent-green){% elif packet.packet_type == 'weather' %}var(--accent-cyan){% elif packet.packet_type == 'status' %}var(--accent-yellow){% else %}var(--text-primary){% endif %};">
+                    {{ packet.packet_type | capitalize }}
+                </span>
+            </td>
+            <td style="padding:8px;color:var(--text-secondary);font-family:monospace;">
+                {% if packet.packet_type == 'position' %}
+                {{ "%.4f"|format(packet.latitude) if packet.latitude else '--' }}, {{ "%.4f"|format(packet.longitude) if packet.longitude else '--' }}
+                {% if packet.speed %} @ {{ packet.speed }}km/h{% endif %}
+                {% else %}
+                {{ packet.to_call | default('--') }}
+                {% endif %}
+            </td>
+            <td style="padding:8px;text-align:right;color:var(--text-muted);">{{ packet.received_at | default('--') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="color:var(--text-muted);text-align:center;padding:20px;">No packets found</div>
+{% endif %}

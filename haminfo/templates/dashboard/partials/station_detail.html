@@ -1,0 +1,65 @@
+<!-- haminfo/templates/dashboard/partials/station_detail.html -->
+{% if station %}
+<div class="grid-2x2">
+    <!-- Current Position -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Current Position</span>
+        </div>
+        <div class="card-body" style="font-size:13px;">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Latitude:</span>
+                <span style="color:var(--accent-cyan);">{{ "%.4f"|format(station.latitude) if station.latitude else '--' }}°</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Longitude:</span>
+                <span style="color:var(--accent-cyan);">{{ "%.4f"|format(station.longitude) if station.longitude else '--' }}°</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Altitude:</span>
+                <span>{{ station.altitude | default('--') }} m</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Speed:</span>
+                <span style="color:var(--accent-yellow);">{{ station.speed | default('--') }} km/h</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Course:</span>
+                <span>{{ station.course | default('--') }}°</span>
+            </div>
+            {% if station.latitude and station.longitude %}
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
+                <a href="{{ url_for('dashboard.map_view') }}?callsign={{ station.callsign }}" style="color:var(--accent-green);font-size:12px;">View on map →</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Statistics -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Statistics</span>
+        </div>
+        <div class="card-body" style="font-size:13px;">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Packets (24h):</span>
+                <span style="color:var(--accent-green);">{{ station.packets_24h }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Packets (7d):</span>
+                <span style="color:var(--accent-green);">{{ station.packets_7d }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">Packets (total):</span>
+                <span style="color:var(--accent-green);">{{ station.packets_total }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                <span style="color:var(--text-muted);">First seen:</span>
+                <span>{{ station.first_seen | default('--') }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% elif error %}
+<div style="color:var(--accent-yellow);text-align:center;padding:40px;">{{ error }}</div>
+{% endif %}

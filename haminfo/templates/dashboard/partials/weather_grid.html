@@ -1,0 +1,25 @@
+<!-- haminfo/templates/dashboard/partials/weather_grid.html -->
+{% if stations %}
+<div class="grid-3">
+    {% for station in stations %}
+    <div class="card" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <a href="{{ url_for('dashboard.station', callsign=station.callsign) }}" style="color:var(--accent-green);font-weight:bold;text-decoration:none;">{{ station.callsign }}</a>
+            {% if station.report_time %}
+            <span style="color:var(--text-muted);font-size:11px;">{{ station.report_time | default('--') }}</span>
+            {% endif %}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+            <div><span style="color:var(--text-muted);">Temp:</span> <span style="color:var(--accent-yellow);">{{ station.temperature | default('--') }}°C</span></div>
+            <div><span style="color:var(--text-muted);">Humid:</span> <span style="color:var(--accent-cyan);">{{ station.humidity | default('--') }}%</span></div>
+            <div><span style="color:var(--text-muted);">Wind:</span> {{ station.wind_speed | default('--') }} km/h</div>
+            <div><span style="color:var(--text-muted);">Press:</span> {{ station.pressure | default('--') }} hPa</div>
+            <div><span style="color:var(--text-muted);">Rain 1h:</span> {{ station.rain_1h | default('0.0') }} mm</div>
+            <div><span style="color:var(--text-muted);">Rain 24h:</span> {{ station.rain_24h | default('0.0') }} mm</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="color:var(--text-muted);text-align:center;padding:40px;">No weather stations found</div>
+{% endif %}
