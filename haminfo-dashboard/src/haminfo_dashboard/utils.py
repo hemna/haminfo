@@ -81,11 +81,9 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
     return None
 
 
-def format_packet_summary(packet: dict) -> str:
-    """Format packet data for live feed display."""
+def _get_data_summary(packet: dict) -> str:
+    """Extract meaningful data summary from packet, filtering raw APRS garbage."""
     packet_type = packet.get('packet_type') or 'unknown'
-    from_call = packet.get('from_call', '?')
-    to_call = packet.get('to_call', '?')
 
     if packet_type == 'position':
         lat = packet.get('latitude')
@@ -93,13 +91,12 @@ def format_packet_summary(packet: dict) -> str:
         if lat is not None and lon is not None:
             speed = packet.get('speed')
             if speed:
-                return f'Position {lat:.4f}, {lon:.4f} @ {speed:.0f}km/h'
-            return f'Position {lat:.4f}, {lon:.4f}'
-        # Has position type but no coords - show comment if available
+                return f'{lat:.4f}, {lon:.4f} @ {speed:.0f}km/h'
+            return f'{lat:.4f}, {lon:.4f}'
         comment = packet.get('comment', '')
-        if comment:
-            return f'Position: {comment[:40]}'
-        return 'Position (no coords)'
+        if comment and not _is_raw_aprs(comment):
+            return comment[:40]
+        return 'position'
 
     elif packet_type == 'weather':
         parts = []
@@ -110,41 +107,73 @@ def format_packet_summary(packet: dict) -> str:
         if humid is not None:
             parts.append(f'{humid:.0f}%')
         if parts:
-            return f'Weather: {", ".join(parts)}'
-        return 'Weather report'
+            return ', '.join(parts)
+        return 'wx'
 
     elif packet_type == 'status':
         comment = packet.get('comment', '')
-        if comment:
-            return f'Status: {comment[:45]}'
-        return 'Status'
+        if comment and not _is_raw_aprs(comment):
+            return comment[:45]
+        return 'status'
 
     elif packet_type == 'message':
-        return f'Message to {to_call}'
+        return 'message'
 
     elif packet_type == 'telemetry':
-        return 'Telemetry'
+        return 'telemetry'
 
     elif packet_type == 'object':
         comment = packet.get('comment', '')
-        if comment:
-            return f'Object: {comment[:40]}'
-        return 'Object'
+        if comment and not _is_raw_aprs(comment):
+            return comment[:40]
+        return 'object'
 
     elif packet_type == 'query':
-        return f'Query to {to_call}'
+        return 'query'
 
     else:
         # Unknown type - try to show something useful
         comment = packet.get('comment', '')
-        if comment:
+        if comment and not _is_raw_aprs(comment):
             return comment[:50]
-        # Check if it has position data even though type is unknown
         lat = packet.get('latitude')
         lon = packet.get('longitude')
         if lat is not None and lon is not None:
-            return f'Position {lat:.4f}, {lon:.4f}'
-        # Last resort - show to_call if interesting
-        if to_call and to_call not in ('?', 'APRS', 'AP'):
-            return f'Packet to {to_call}'
-        return 'Packet received'
+            return f'{lat:.4f}, {lon:.4f}'
+        return packet_type
+
+
+def _is_raw_aprs(text: str) -> bool:
+    """Check if text looks like raw APRS packet data (garbage to users)."""
+    if not text:
+        return False
+    # Raw APRS often starts with special chars or has path info
+    raw_indicators = [
+        text.startswith('!'),
+        text.startswith('/'),
+        text.startswith('@'),
+        text.startswith('='),
+        text.startswith(';'),
+        text.startswith(')'),
+        text.startswith('`'),
+        text.startswith("'"),
+        text.startswith('_'),
+        text.startswith('$GP'),  # GPS NMEA
+        '>APR' in text,  # Path info
+        'WIDE' in text,  # Digipeater path
+        'qA' in text,    # APRS-IS path
+        text.count('>') > 1,  # Multiple path hops
+    ]
+    return any(raw_indicators)
+
+
+def format_packet_summary(packet: dict) -> str:
+    """Format packet data for live feed display.
+    
+    Returns format: from_call -> to_call : data_summary
+    """
+    from_call = packet.get('from_call', '?')
+    to_call = packet.get('to_call', '?')
+    data = _get_data_summary(packet)
+    
+    return f'{from_call} -> {to_call} : {data}'
