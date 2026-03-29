@@ -85,18 +85,33 @@
             // Weather data from server (reversed to show oldest first)
             var reports = {{ weather_data.reports | tojson }}.reverse();
             
-            // Function to load a script dynamically and wait for it
-            function loadScript(url) {
+            // Function to load Chart.js dynamically
+            function loadChartJs() {
                 return new Promise(function(resolve, reject) {
-                    var existing = document.querySelector('script[src="' + url + '"]');
-                    if (existing) {
-                        // Already loaded, resolve immediately
+                    if (typeof Chart !== 'undefined') {
                         resolve();
                         return;
                     }
+                    var existing = document.querySelector('script[src*="chart.js"]');
+                    if (existing) {
+                        // Wait for it to finish loading
+                        var checkInterval = setInterval(function() {
+                            if (typeof Chart !== 'undefined') {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 50);
+                        setTimeout(function() {
+                            clearInterval(checkInterval);
+                            reject(new Error('Chart.js load timeout'));
+                        }, 5000);
+                        return;
+                    }
                     var script = document.createElement('script');
-                    script.src = url;
-                    script.onload = resolve;
+                    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+                    script.onload = function() {
+                        resolve();
+                    };
                     script.onerror = reject;
                     document.head.appendChild(script);
                 });
@@ -118,6 +133,17 @@
                     return b * alpha / (a - alpha);
                 }
                 
+                // Format time for display
+                function formatTime(isoString) {
+                    if (!isoString) return '';
+                    var d = new Date(isoString);
+                    var month = d.getMonth() + 1;
+                    var day = d.getDate();
+                    var hours = d.getHours().toString().padStart(2, '0');
+                    var mins = d.getMinutes().toString().padStart(2, '0');
+                    return month + '/' + day + ' ' + hours + ':' + mins;
+                }
+                
                 // Prepare data arrays
                 var labels = [];
                 var temperatures = [];
@@ -126,15 +152,14 @@
                 var pressures = [];
                 
                 reports.forEach(function(r) {
-                    var time = r.time ? new Date(r.time) : null;
-                    labels.push(time);
+                    labels.push(formatTime(r.time));
                     temperatures.push(r.temperature);
                     dewpoints.push(calcDewpoint(r.temperature, r.humidity));
                     humidities.push(r.humidity);
                     pressures.push(r.pressure > 0 ? r.pressure : null);
                 });
                 
-                // Common chart options
+                // Common chart options (using category scale instead of time)
                 var commonOptions = {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -155,10 +180,14 @@
                     },
                     scales: {
                         x: {
-                            type: 'time',
-                            time: { displayFormats: { hour: 'HH:mm', day: 'MMM d' } },
+                            type: 'category',
                             grid: { color: 'rgba(75, 85, 99, 0.3)' },
-                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                            ticks: { 
+                                color: '#9ca3af', 
+                                font: { size: 10 },
+                                maxRotation: 45,
+                                maxTicksLimit: 10
+                            }
                         },
                         y: {
                             grid: { color: 'rgba(75, 85, 99, 0.3)' },
@@ -274,24 +303,15 @@
                 }
             }
             
-            // Load Chart.js and date adapter, then initialize charts
-            if (typeof Chart !== 'undefined') {
-                // Chart.js already loaded, init immediately
-                initCharts();
-            } else {
-                // Load Chart.js first
-                loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js')
-                    .then(function() {
-                        return loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js');
-                    })
-                    .then(function() {
-                        // Small delay to ensure Chart is fully initialized
-                        setTimeout(initCharts, 50);
-                    })
-                    .catch(function(err) {
-                        console.error('Failed to load Chart.js:', err);
-                    });
-            }
+            // Load Chart.js and initialize charts
+            // Using category scale, so no date adapter needed
+            loadChartJs()
+                .then(function() {
+                    initCharts();
+                })
+                .catch(function(err) {
+                    console.error('Failed to load Chart.js:', err);
+                });
         })();
         </script>
 
