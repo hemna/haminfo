@@ -491,16 +491,24 @@ def get_map_stations(
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
+    # Build base filters for the subquery
+    subq_filters = [
+        APRSPacket.received_at >= last_24h,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+    
+    # If filtering by station type, include it in subquery
+    # This ensures we find the latest packet OF THAT TYPE for each station
+    if station_type:
+        subq_filters.append(APRSPacket.packet_type == station_type)
+
     latest_subq = (
         session.query(
             APRSPacket.from_call,
             func.max(APRSPacket.received_at).label('max_received'),
         )
-        .filter(
-            APRSPacket.received_at >= last_24h,
-            APRSPacket.latitude.isnot(None),
-            APRSPacket.longitude.isnot(None),
-        )
+        .filter(*subq_filters)
         .group_by(APRSPacket.from_call)
         .subquery()
     )
@@ -520,6 +528,7 @@ def get_map_stations(
             APRSPacket.latitude <= max_lat,
         )
 
+    # Also filter main query by station_type to match the subquery
     if station_type:
         query = query.filter(APRSPacket.packet_type == station_type)
 
