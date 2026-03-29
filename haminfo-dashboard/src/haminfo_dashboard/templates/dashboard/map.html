@@ -59,7 +59,7 @@
         padding: 8px 12px;
         z-index: 1000;
         font-size: 12px;
-        color: #0066cc;
+        color: #1e88e5;
         display: none;
         border: 1px solid #ccc;
     }
@@ -77,7 +77,7 @@
     }
     .map-loading .progress-fill {
         height: 100%;
-        background: #0066cc;
+        background: #1e88e5;
         transition: width 0.2s ease;
         width: 0%;
     }
@@ -111,30 +111,34 @@
 <div style="position:relative;">
     <div id="map"></div>
     <div class="map-legend">
-        <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">APRS Symbols</div>
+        <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">Station Types</div>
         <div class="legend-item">
-            <img src="https://www.aprsdirect.com/symbol/icon24/s0062.png" width="16" height="16" alt="Car">
-            <span style="color:#555;">Car/Vehicle</span>
+            <div class="legend-dot" style="background:#1e88e5;"></div>
+            <span style="color:#555;">Vehicle/Mobile</span>
         </div>
         <div class="legend-item">
-            <img src="https://www.aprsdirect.com/symbol/icon24/s0045.png" width="16" height="16" alt="House">
-            <span style="color:#555;">House/Home</span>
+            <div class="legend-dot" style="background:#6d4c41;"></div>
+            <span style="color:#555;">House/Fixed</span>
         </div>
         <div class="legend-item">
-            <img src="https://www.aprsdirect.com/symbol/icon24/s0095.png" width="16" height="16" alt="Weather">
+            <div class="legend-dot" style="background:#43a047;"></div>
             <span style="color:#555;">Weather Station</span>
         </div>
         <div class="legend-item">
-            <img src="https://www.aprsdirect.com/symbol/icon24/s0035.png" width="16" height="16" alt="Digipeater">
-            <span style="color:#555;">Digipeater</span>
+            <div class="legend-dot" style="background:#fb8c00;"></div>
+            <span style="color:#555;">Digipeater/IGate</span>
         </div>
         <div class="legend-item">
-            <img src="https://www.aprsdirect.com/symbol/icon24/s0073.png" width="16" height="16" alt="IGate">
-            <span style="color:#555;">IGate</span>
+            <div class="legend-dot" style="background:#8e24aa;"></div>
+            <span style="color:#555;">Aircraft</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:#00897b;"></div>
+            <span style="color:#555;">Marine</span>
         </div>
         <div style="color:#666;font-size:10px;margin-top:10px;margin-bottom:6px;border-top:1px solid #ddd;padding-top:8px;">Trails</div>
         <div class="legend-item">
-            <div style="width:20px;height:3px;background:#0066cc;opacity:0.7;border-radius:2px;"></div>
+            <div style="width:20px;height:3px;background:#1e88e5;opacity:0.7;border-radius:2px;"></div>
             <span style="color:#555;">Movement path</span>
         </div>
     </div>
@@ -179,45 +183,78 @@
         maxZoom: 19,
     }).addTo(map);
     
-    // APRS Symbol URL builder
-    // Uses aprsdirect.com icon service which hosts the standard APRS symbol set
-    // Symbol codes: Primary table (/) = 0-93, Alternate table (\) = 96-189
-    function getAprsSymbolUrl(symbolTable, symbolChar) {
-        // Default to primary table house if no symbol
-        if (!symbolTable || !symbolChar) {
-            return 'https://www.aprsdirect.com/symbol/icon24/s0045.png';
-        }
-        
-        // Calculate symbol index
-        // Primary table (/) symbols are 0-93 (ASCII 33-126 minus 33)
-        // Alternate table (\) symbols are 96-189 (ASCII 33-126 minus 33 + 96)
-        const charCode = symbolChar.charCodeAt(0);
-        let index;
-        
-        if (symbolTable === '/') {
-            // Primary table: index = charCode - 33
-            index = charCode - 33;
-        } else {
-            // Alternate table: index = charCode - 33 + 96
-            index = charCode - 33 + 96;
-        }
-        
-        // Ensure valid range
-        if (index < 0 || index > 189) {
-            index = 45; // Default to house
-        }
-        
-        // Format as 4-digit number with leading zeros
-        const indexStr = index.toString().padStart(4, '0');
-        return `https://www.aprsdirect.com/symbol/icon24/s${indexStr}.png`;
+    // APRS Symbol sprite sheet approach
+    // The standard APRS symbol set has 192 symbols (96 primary + 96 alternate)
+    // We'll use simple colored circle markers with symbol character overlay
+    // This is more reliable than external image hosting
+    
+    // Symbol descriptions for common symbols
+    const symbolNames = {
+        '/>': 'Car',
+        '/-': 'House',
+        '/_': 'WX Station',
+        '/#': 'Digipeater',
+        '/I': 'TCP-IP',
+        '/k': 'Truck',
+        '/b': 'Bicycle',
+        '/v': 'Van',
+        '/^': 'Aircraft',
+        "/\\'": 'Small Aircraft',
+        '/O': 'Balloon',
+        '/s': 'Boat',
+        '/Y': 'Yacht',
+        '/[': 'Jogger',
+        '/<': 'Motorcycle',
+        '/r': 'Repeater',
+        '/y': 'House w/Yagi',
+        '/p': 'Dog',
+        '\\>': 'Car',
+        '\\-': 'House',
+        '\\_': 'WX Station',
+        '\\#': 'Digipeater',
+    };
+    
+    // Colors by symbol type
+    const symbolColors = {
+        // Vehicles - blue
+        '>': '#1e88e5',
+        'k': '#1e88e5', 
+        'b': '#1e88e5',
+        'v': '#1e88e5',
+        '<': '#1e88e5',
+        '[': '#1e88e5',
+        // Aircraft - purple
+        '^': '#8e24aa',
+        "'": '#8e24aa',
+        'O': '#8e24aa',
+        // Marine - teal
+        's': '#00897b',
+        'Y': '#00897b',
+        // Weather - green
+        '_': '#43a047',
+        'W': '#43a047',
+        // Infrastructure - orange  
+        '#': '#fb8c00',
+        'r': '#fb8c00',
+        'I': '#fb8c00',
+        '&': '#fb8c00',
+        // House/Fixed - brown
+        '-': '#6d4c41',
+        'y': '#6d4c41',
+        // Default - gray
+        'default': '#546e7a',
+    };
+    
+    function getSymbolColor(symbolChar) {
+        return symbolColors[symbolChar] || symbolColors['default'];
     }
     
     // Fallback colors by packet type (for circle markers)
     const markerColors = {
-        'position': '#0066cc',
-        'weather': '#009900',
-        'digipeater': '#cc6600',
-        'default': '#0066cc',
+        'position': '#1e88e5',
+        'weather': '#43a047',
+        'digipeater': '#fb8c00',
+        'default': '#546e7a',
     };
     
     // Store markers for filtering
@@ -232,52 +269,39 @@
     const progressFill = document.getElementById('progress-fill');
     
     // Trail colors
-    const trailColor = '#0066cc';
+    const trailColor = '#1e88e5';
     const trailOpacity = 0.7;
-    
-    function getSymbolIcon(symbolTable, symbol) {
-        const url = getAprsSymbolUrl(symbolTable, symbol);
-        
-        return L.icon({
-            iconUrl: url,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12],
-            className: 'aprs-symbol-img'
-        });
-    }
     
     function createMarker(feature) {
         const props = feature.properties;
         const coords = feature.geometry.coordinates;
-        const color = markerColors[props.packet_type] || markerColors.default;
+        const symbolChar = props.symbol || '?';
+        const symbolTable = props.symbol_table || '/';
+        const symbolKey = symbolTable + symbolChar;
         
-        // Get APRS symbol icon
-        const symbolIcon = getSymbolIcon(props.symbol_table, props.symbol);
+        // Get color based on symbol
+        const color = getSymbolColor(symbolChar);
         
-        let marker;
-        if (symbolIcon) {
-            marker = L.marker([coords[1], coords[0]], { icon: symbolIcon });
-        } else {
-            // Fallback to circle marker
-            marker = L.circleMarker([coords[1], coords[0]], {
-                radius: 6,
-                fillColor: color,
-                color: color,
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.8,
-            });
-        }
+        // Create circle marker with symbol character
+        const marker = L.circleMarker([coords[1], coords[0]], {
+            radius: 8,
+            fillColor: color,
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9,
+        });
         
-        // Build popup with symbol image
-        const symbolUrl = getAprsSymbolUrl(props.symbol_table, props.symbol);
+        // Get symbol name for popup
+        const symbolName = symbolNames[symbolKey] || 'Station';
         
         marker.bindPopup(`
             <div style="min-width:150px;">
-                <div style="color:#0066cc;font-weight:bold;margin-bottom:8px;">
-                    <img src="${symbolUrl}" width="20" height="20" style="vertical-align:middle;margin-right:6px;">
+                <div style="color:${color};font-weight:bold;margin-bottom:8px;font-size:14px;">
                     ${props.callsign}
+                </div>
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">
+                    ${symbolName} <span style="color:#999;">(${symbolKey})</span>
                 </div>
                 <div style="font-size:11px;color:#555;">
                     <div>Position: ${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</div>
@@ -286,7 +310,7 @@
                     <div>Last: ${props.last_seen || '--'}</div>
                 </div>
                 <div style="margin-top:8px;">
-                    <a href="/station/${props.callsign}" style="color:#0066cc;font-size:11px;">View details →</a>
+                    <a href="/station/${props.callsign}" style="color:#1e88e5;font-size:11px;">View details →</a>
                 </div>
             </div>
         `);
@@ -350,7 +374,7 @@
                         
                         trail.bindPopup(`
                             <div style="min-width:120px;">
-                                <div style="color:#0066cc;font-weight:bold;margin-bottom:4px;">${props.callsign}</div>
+                                <div style="color:#1e88e5;font-weight:bold;margin-bottom:4px;">${props.callsign}</div>
                                 <div style="font-size:11px;color:#555;">
                                     ${props.trail.length} position reports
                                 </div>
