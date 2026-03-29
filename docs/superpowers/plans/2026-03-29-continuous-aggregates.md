@@ -8,159 +8,39 @@
 
 **Tech Stack:** TimescaleDB, PostgreSQL, Alembic, SQLAlchemy, Python
 
+**Prerequisites verified:** 
+- `aprs_packet` is already a hypertable in production (5 chunks, compression enabled)
+- `weather_report` is already a hypertable in production (5 chunks, compression enabled)
+
 ---
 
-## Chunk 1: Convert aprs_packet to Hypertable
+## ~~Chunk 1: Convert aprs_packet to Hypertable~~ SKIP - Already Done
 
-### Task 1: Create Alembic Migration for aprs_packet Hypertable
-
-**Files:**
-- Create: `haminfo/db/versions/d5e6f7a8b9c0_convert_aprs_packet_hypertable.py`
-
-- [ ] **Step 1: Create migration file**
-
-```python
-"""Convert aprs_packet to TimescaleDB hypertable with compression.
-
-Revision ID: d5e6f7a8b9c0
-Revises: c3d4e5f6a7b8
-Create Date: 2026-03-29
-
-Converts the aprs_packet table to a TimescaleDB hypertable and enables
-compression for data older than 7 days. This is a prerequisite for
-continuous aggregates.
-
-See docs/superpowers/specs/2026-03-29-continuous-aggregates-design.md
-
-IMPORTANT: This migration requires TimescaleDB extension to be installed.
-Run the previous migrations first.
-
-WARNING: This migration will take significant time on production (~25M rows).
-Consider running during low-traffic period.
-"""
-
-from alembic import op
-
-# revision identifiers, used by Alembic.
-revision = 'd5e6f7a8b9c0'
-down_revision = 'c3d4e5f6a7b8'
-branch_labels = None
-depends_on = None
-
-
-def upgrade():
-    # Step 1: Drop existing primary key constraint
-    # TimescaleDB requires the partitioning column (timestamp) to be part of unique constraints
-    op.execute("""
-        ALTER TABLE aprs_packet 
-        DROP CONSTRAINT IF EXISTS aprs_packet_pkey
-    """)
-
-    # Step 2: Create new composite primary key including timestamp column
-    # This matches the model definition: (from_call, timestamp)
-    op.execute("""
-        ALTER TABLE aprs_packet 
-        ADD PRIMARY KEY (from_call, timestamp)
-    """)
-
-    # Step 3: Convert to hypertable with 1-day chunks
-    # migrate_data => true will move existing data into chunks
-    # This may take a while for large tables (~25M rows)
-    op.execute("""
-        SELECT create_hypertable(
-            'aprs_packet', 
-            'timestamp',
-            chunk_time_interval => INTERVAL '1 day',
-            migrate_data => true,
-            if_not_exists => true
-        )
-    """)
-
-    # Step 4: Enable compression on the hypertable
-    # segment by from_call for better query performance when filtering by callsign
-    # order by timestamp DESC for efficient time-range queries
-    op.execute("""
-        ALTER TABLE aprs_packet SET (
-            timescaledb.compress,
-            timescaledb.compress_segmentby = 'from_call',
-            timescaledb.compress_orderby = 'timestamp DESC'
-        )
-    """)
-
-    # Step 5: Add automatic compression policy
-    # Compress chunks older than 7 days
-    op.execute("""
-        SELECT add_compression_policy(
-            'aprs_packet', 
-            INTERVAL '7 days',
-            if_not_exists => true
-        )
-    """)
-
-
-def downgrade():
-    # Remove compression policy first
-    op.execute("""
-        SELECT remove_compression_policy('aprs_packet', if_exists => true)
-    """)
-
-    # Decompress all chunks (required before converting back)
-    op.execute("""
-        DO $$
-        DECLARE
-            chunk REGCLASS;
-        BEGIN
-            FOR chunk IN SELECT show_chunks('aprs_packet')
-            LOOP
-                BEGIN
-                    PERFORM decompress_chunk(chunk, if_compressed => true);
-                EXCEPTION WHEN OTHERS THEN
-                    NULL;
-                END;
-            END LOOP;
-        END $$;
-    """)
-
-    # Disable compression
-    op.execute("""
-        ALTER TABLE aprs_packet SET (
-            timescaledb.compress = false
-        )
-    """)
-
-    # Note: Converting back from hypertable to regular table is complex
-    # and would require creating a new table, copying data, and swapping.
-    # For now, the table remains a hypertable but without compression.
+**VERIFIED:** Production database already has `aprs_packet` as a hypertable:
+```
+ hypertable_schema | hypertable_name | num_chunks | compression_enabled 
+-------------------+-----------------+------------+---------------------
+ public            | aprs_packet     |          5 | t
 ```
 
-- [ ] **Step 2: Verify migration syntax**
-
-Run: `cd haminfo/db && python -c "from versions.d5e6f7a8b9c0_convert_aprs_packet_hypertable import upgrade, downgrade; print('Syntax OK')"`
-Expected: `Syntax OK`
-
-- [ ] **Step 3: Commit migration**
-
-```bash
-git add haminfo/db/versions/d5e6f7a8b9c0_convert_aprs_packet_hypertable.py
-git commit -m "migration: convert aprs_packet to TimescaleDB hypertable"
-```
+No migration needed. Proceed to Chunk 2.
 
 ---
 
 ## Chunk 2: Create Continuous Aggregates Migration
 
-### Task 2: Create Migration for Continuous Aggregates
+### Task 1: Create Migration for Continuous Aggregates
 
 **Files:**
-- Create: `haminfo/db/versions/e6f7a8b9c0d1_create_continuous_aggregates.py`
+- Create: `haminfo/db/versions/d5e6f7a8b9c0_create_continuous_aggregates.py`
 
 - [ ] **Step 1: Create migration file**
 
 ```python
 """Create continuous aggregates for dashboard performance.
 
-Revision ID: e6f7a8b9c0d1
-Revises: d5e6f7a8b9c0
+Revision ID: d5e6f7a8b9c0
+Revises: c3d4e5f6a7b8
 Create Date: 2026-03-29
 
 Creates three continuous aggregates:
@@ -170,14 +50,14 @@ Creates three continuous aggregates:
 
 See docs/superpowers/specs/2026-03-29-continuous-aggregates-design.md
 
-IMPORTANT: Requires aprs_packet to be a hypertable first.
+IMPORTANT: Requires aprs_packet to be a hypertable first (already done in production).
 """
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = 'e6f7a8b9c0d1'
-down_revision = 'd5e6f7a8b9c0'
+revision = 'd5e6f7a8b9c0'
+down_revision = 'c3d4e5f6a7b8'
 branch_labels = None
 depends_on = None
 
@@ -275,13 +155,13 @@ def downgrade():
 
 - [ ] **Step 2: Verify migration syntax**
 
-Run: `cd haminfo/db && python -c "from versions.e6f7a8b9c0d1_create_continuous_aggregates import upgrade, downgrade; print('Syntax OK')"`
+Run: `cd haminfo/db && python -c "from versions.d5e6f7a8b9c0_create_continuous_aggregates import upgrade, downgrade; print('Syntax OK')"`
 Expected: `Syntax OK`
 
 - [ ] **Step 3: Commit migration**
 
 ```bash
-git add haminfo/db/versions/e6f7a8b9c0d1_create_continuous_aggregates.py
+git add haminfo/db/versions/d5e6f7a8b9c0_create_continuous_aggregates.py
 git commit -m "migration: create continuous aggregates for dashboard"
 ```
 
@@ -657,41 +537,35 @@ git commit -m "feat: add continuous aggregate query functions with feature flag"
 
 ## Chunk 4: Production Deployment
 
-### Task 4: Run Migrations on Production
+### Task 2: Run Migrations on Production
 
-**Note:** These steps must be run on the production database server.
+**Note:** These steps must be run on the production database server via SSH.
+
+**Connection:** `ssh waboring@cloud.hemna.com` then `cd ~/docker/haminfo`
 
 - [ ] **Step 1: Backup database before migration**
 
 ```bash
-pg_dump haminfo_db > haminfo_backup_$(date +%Y%m%d_%H%M%S).sql
+docker exec haminfo-db pg_dump -U haminfo haminfo > haminfo_backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
-- [ ] **Step 2: Run hypertable migration**
+- [ ] **Step 2: Run continuous aggregates migration**
 
 ```bash
 cd haminfo/db && alembic upgrade d5e6f7a8b9c0
 ```
 
-Expected: Migration completes (may take several minutes for ~25M rows)
-
-- [ ] **Step 3: Run continuous aggregates migration**
-
-```bash
-cd haminfo/db && alembic upgrade e6f7a8b9c0d1
-```
-
 Expected: Migration completes quickly
 
-- [ ] **Step 4: Verify aggregates were created**
+- [ ] **Step 3: Verify aggregates were created**
 
-```sql
-SELECT * FROM timescaledb_information.continuous_aggregates;
+```bash
+docker exec haminfo-db psql -U haminfo -d haminfo -c "SELECT * FROM timescaledb_information.continuous_aggregates;"
 ```
 
 Expected: 3 rows (aprs_stats_hourly, aprs_station_stats_hourly, aprs_prefix_stats_hourly)
 
-### Task 5: Backfill Historical Data
+### Task 3: Backfill Historical Data
 
 - [ ] **Step 1: Backfill aprs_stats_hourly (30 days)**
 
@@ -730,7 +604,7 @@ SELECT COUNT(*) FROM aprs_prefix_stats_hourly;
 
 Expected: aprs_stats_hourly ~720 rows, station_stats ~millions, prefix_stats ~thousands
 
-### Task 6: Enable Feature Flag and Deploy
+### Task 4: Enable Feature Flag and Deploy
 
 - [ ] **Step 1: Update feature flag**
 

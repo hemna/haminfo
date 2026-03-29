@@ -24,35 +24,17 @@ Use TimescaleDB continuous aggregates to pre-compute dashboard statistics. These
 
 ## Prerequisites
 
-### Convert aprs_packet to Hypertable
+### aprs_packet Hypertable - ALREADY DONE
 
-**Critical**: Continuous aggregates can only be created on TimescaleDB hypertables. The `aprs_packet` table must be converted first.
+**Verified on production (2026-03-29):** The `aprs_packet` table is already a TimescaleDB hypertable with compression enabled:
 
-```sql
--- Create hypertable from existing table
--- This requires recreating the table since we need a different primary key structure
--- The (from_call, timestamp) composite key enables efficient time-series queries
-
--- Migration will:
--- 1. Create new table with composite primary key (from_call, timestamp)
--- 2. Convert to hypertable partitioned by timestamp
--- 3. Add compression policy for older chunks
-
-SELECT create_hypertable('aprs_packet', 'timestamp',
-    chunk_time_interval => INTERVAL '1 day',
-    migrate_data => true);
-
--- Enable compression on chunks older than 7 days
-ALTER TABLE aprs_packet SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'from_call',
-    timescaledb.compress_orderby = 'timestamp DESC'
-);
-
-SELECT add_compression_policy('aprs_packet', INTERVAL '7 days');
+```
+ hypertable_schema | hypertable_name | num_chunks | compression_enabled 
+-------------------+-----------------+------------+---------------------
+ public            | aprs_packet     |          5 | t
 ```
 
-**Note**: The model already defines `(from_call, timestamp)` as the composite primary key (see `haminfo/db/models/aprs_packet.py:40-46`), but the existing migration doesn't implement this. A new migration is needed.
+No migration needed for hypertable conversion.
 
 ## Design
 
@@ -269,14 +251,13 @@ This may take several minutes for the initial backfill.
 
 ## Implementation Steps
 
-1. **Create migration to convert aprs_packet to hypertable** (prerequisite)
-2. **Run hypertable migration** on production database
-3. **Create migration** for continuous aggregates (SQL)
-4. **Run aggregates migration** on production database
-5. **Backfill** historical data
-6. **Update dashboard queries** to use aggregates
-7. **Test** performance improvements
-8. **Deploy** updated dashboard code
+1. ~~**Create migration to convert aprs_packet to hypertable**~~ - ALREADY DONE in production
+2. **Create migration** for continuous aggregates (SQL)
+3. **Run aggregates migration** on production database
+4. **Backfill** historical data
+5. **Update dashboard queries** to use aggregates
+6. **Test** performance improvements
+7. **Deploy** updated dashboard code
 
 ## Rollback Plan
 
