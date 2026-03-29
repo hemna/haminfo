@@ -91,8 +91,8 @@ def _warm_cache() -> None:
     from haminfo_dashboard.queries import (
         get_dashboard_stats,
         get_top_stations,
-        get_country_counts,
-        get_hourly_packet_counts,
+        get_country_breakdown,
+        get_hourly_distribution,
     )
 
     LOG.info('Warming cache with dashboard stats...')
@@ -107,10 +107,10 @@ def _warm_cache() -> None:
         get_top_stations(session, limit=10)
         LOG.info('  - Top stations cached')
         
-        get_country_counts(session, limit=10)
+        get_country_breakdown(session, limit=10)
         LOG.info('  - Country counts cached')
         
-        get_hourly_packet_counts(session)
+        get_hourly_distribution(session)
         LOG.info('  - Hourly packet counts cached')
         
         session.close()
