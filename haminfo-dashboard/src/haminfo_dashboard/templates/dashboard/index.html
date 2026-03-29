@@ -8,10 +8,10 @@
 {% endblock %}
 
 {% block content %}
-<!-- Stats Cards - Pre-loaded from cache, refreshed every 30s -->
+<!-- Stats Cards - Pre-loaded from cache, refreshed immediately then every 30s -->
 <div class="stats-grid" 
      hx-get="{{ url_for('dashboard.api_stats') }}" 
-     hx-trigger="every 30s"
+     hx-trigger="load delay:2s, every 30s"
      hx-swap="innerHTML">
     <div class="stat-card green">
         <div class="stat-value">{{ stats.total_packets_24h|format_number }}</div>
@@ -58,14 +58,14 @@
         </div>
     </div>
     
-    <!-- Top Stations - Pre-loaded, refreshed every 60s -->
+    <!-- Top Stations - Pre-loaded, refreshed immediately then every 60s -->
     <div class="card">
         <div class="card-header">
             <span class="card-title">Top Stations (24h)</span>
         </div>
         <div class="card-body"
              hx-get="{{ url_for('dashboard.api_top_stations') }}"
-             hx-trigger="every 60s"
+             hx-trigger="load delay:2s, every 60s"
              hx-swap="innerHTML">
             {% with stations=top_stations %}
             {% include 'dashboard/partials/top_stations.html' %}
@@ -73,14 +73,14 @@
         </div>
     </div>
     
-    <!-- Countries - Pre-loaded, refreshed every 60s -->
+    <!-- Countries - Pre-loaded, refreshed immediately then every 60s -->
     <div class="card">
         <div class="card-header">
             <span class="card-title">Countries</span>
         </div>
         <div class="card-body"
              hx-get="{{ url_for('dashboard.api_countries') }}"
-             hx-trigger="every 60s"
+             hx-trigger="load delay:2s, every 60s"
              hx-swap="innerHTML">
             {% include 'dashboard/partials/countries.html' %}
         </div>
