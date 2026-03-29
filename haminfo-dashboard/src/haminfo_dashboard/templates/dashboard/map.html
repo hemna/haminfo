@@ -8,12 +8,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
     /* Override content container for full-width map */
-    .content {
-        padding: 0;
-        max-width: none;
-        margin: 0;
-        height: calc(100vh - 52px);  /* Viewport minus header height */
-        overflow: hidden;
+    main.content {
+        padding: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+        margin: 0 !important;
+        height: calc(100vh - 52px) !important;  /* Viewport minus header height */
+        overflow: hidden !important;
     }
     #map {
         height: 100%;
