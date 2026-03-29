@@ -7,10 +7,18 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
+    /* Override content container for full-width map */
+    .content {
+        padding: 0;
+        max-width: none;
+        margin: 0;
+        height: calc(100vh - 52px);  /* Viewport minus header height */
+        overflow: hidden;
+    }
     #map {
-        height: calc(100vh - 120px);
+        height: 100%;
         width: 100%;
-        border-radius: 8px;
+        border-radius: 0;
         background: #f2f2f2;
     }
     .leaflet-popup-content-wrapper {
@@ -118,7 +126,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="position:relative;">
+<div style="position:relative;height:100%;">
     <div id="map"></div>
     <div class="map-legend">
         <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">Common Symbols</div>
