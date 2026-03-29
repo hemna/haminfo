@@ -1,6 +1,28 @@
 <!-- haminfo/templates/dashboard/partials/station_detail.html -->
 {% if station %}
 <div class="grid-2x2">
+    <!-- Station ID with Mini Map -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">{{ station.callsign }}</span>
+        </div>
+        <div class="card-body" style="padding:0;">
+            {% if station.latitude and station.longitude %}
+            <!-- Static map image showing station location at country level (zoom 6) -->
+            <a href="{{ url_for('dashboard.map_view') }}?callsign={{ station.callsign }}" style="display:block;">
+                <img src="https://maps.geoapify.com/v1/staticmap?style=dark-matter-dark-grey&width=400&height=180&center=lonlat:{{ station.longitude }},{{ station.latitude }}&zoom=6&marker=lonlat:{{ station.longitude }},{{ station.latitude }};color:%2300ff00;size:medium&apiKey=a0e50b5c708d4025944c0e6541f26eec"
+                     alt="Station location map"
+                     style="width:100%;height:180px;object-fit:cover;border-radius:0 0 8px 8px;display:block;"
+                     loading="lazy">
+            </a>
+            {% else %}
+            <div style="height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">
+                No position data
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
     <!-- Current Position -->
     <div class="card">
         <div class="card-header">
@@ -29,7 +51,7 @@
             </div>
             {% if station.latitude and station.longitude %}
             <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
-                <a href="{{ url_for('dashboard.map_view') }}?callsign={{ station.callsign }}" style="color:var(--accent-green);font-size:12px;">View on map →</a>
+                <a href="{{ url_for('dashboard.map_view') }}?callsign={{ station.callsign }}" style="color:var(--accent-green);font-size:12px;">View on full map →</a>
             </div>
             {% endif %}
         </div>
