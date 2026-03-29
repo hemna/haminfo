@@ -3,16 +3,14 @@
 
 from __future__ import annotations
 
-import logging
 import os
+import sys
 from flask import Flask
 
 from haminfo_dashboard.routes import dashboard_bp
 from haminfo_dashboard import api  # noqa: F401 - Import to register API routes on blueprint
 from haminfo_dashboard.websocket import init_socketio
 from haminfo_dashboard import cache
-
-LOG = logging.getLogger(__name__)
 
 
 def create_app(config_file: str | None = None) -> Flask:
@@ -95,25 +93,27 @@ def _warm_cache() -> None:
         get_hourly_distribution,
     )
 
-    LOG.info('Warming cache with dashboard stats...')
+    print('Warming cache with dashboard stats...', file=sys.stderr, flush=True)
     
     try:
         session = setup_session()
         
         # Pre-cache the main dashboard queries
         get_dashboard_stats(session)
-        LOG.info('  - Dashboard stats cached')
+        print('  - Dashboard stats cached', file=sys.stderr, flush=True)
         
         get_top_stations(session, limit=10)
-        LOG.info('  - Top stations cached')
+        print('  - Top stations cached', file=sys.stderr, flush=True)
         
         get_country_breakdown(session, limit=10)
-        LOG.info('  - Country counts cached')
+        print('  - Country breakdown cached', file=sys.stderr, flush=True)
         
         get_hourly_distribution(session)
-        LOG.info('  - Hourly packet counts cached')
+        print('  - Hourly distribution cached', file=sys.stderr, flush=True)
         
         session.close()
-        LOG.info('Cache warming complete')
+        print('Cache warming complete', file=sys.stderr, flush=True)
     except Exception as e:
-        LOG.warning(f'Cache warming failed: {e}')
+        print(f'Cache warming failed: {e}', file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
