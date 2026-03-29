@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from flask import Flask
 
@@ -10,6 +11,8 @@ from haminfo_dashboard.routes import dashboard_bp
 from haminfo_dashboard import api  # noqa: F401 - Import to register API routes on blueprint
 from haminfo_dashboard.websocket import init_socketio
 from haminfo_dashboard import cache
+
+LOG = logging.getLogger(__name__)
 
 
 def create_app(config_file: str | None = None) -> Flask:
@@ -34,6 +37,7 @@ def create_app(config_file: str | None = None) -> Flask:
     if config_file:
         _load_haminfo_config(config_file)
         _init_cache()
+        _warm_cache()
 
     # Register blueprint at root (dashboard is the main app)
     app.register_blueprint(dashboard_bp)
@@ -76,3 +80,40 @@ def _init_cache() -> None:
     expire_time = getattr(CONF.memcached, 'expire_time', 300)
 
     cache.init_cache(memcached_url, ttl=expire_time)
+
+
+def _warm_cache() -> None:
+    """Pre-populate cache with expensive queries on startup.
+    
+    This ensures the home page loads quickly on first request.
+    """
+    from haminfo.db.db import setup_session
+    from haminfo_dashboard.queries import (
+        get_dashboard_stats,
+        get_top_stations,
+        get_country_counts,
+        get_hourly_packet_counts,
+    )
+
+    LOG.info('Warming cache with dashboard stats...')
+    
+    try:
+        session = setup_session()
+        
+        # Pre-cache the main dashboard queries
+        get_dashboard_stats(session)
+        LOG.info('  - Dashboard stats cached')
+        
+        get_top_stations(session, limit=10)
+        LOG.info('  - Top stations cached')
+        
+        get_country_counts(session, limit=10)
+        LOG.info('  - Country counts cached')
+        
+        get_hourly_packet_counts(session)
+        LOG.info('  - Hourly packet counts cached')
+        
+        session.close()
+        LOG.info('Cache warming complete')
+    except Exception as e:
+        LOG.warning(f'Cache warming failed: {e}')
