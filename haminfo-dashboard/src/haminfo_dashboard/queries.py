@@ -205,6 +205,7 @@ def query_bbox_from_db(
     max_lat: float,
     hours: int,
     station_type: str,
+    max_rows: int = 20000,
 ) -> list[dict[str, Any]]:
     """Query database for stations within a bounding box.
 
@@ -219,6 +220,9 @@ def query_bbox_from_db(
         max_lat: Northern edge.
         hours: Hours of history to include.
         station_type: Optional packet type filter (empty string for all).
+        max_rows: Maximum rows to fetch from DB. Limits query time for large
+            bboxes. Ordered by received_at DESC so most recent packets are
+            returned. Default 20000 (enough for ~2000+ unique stations).
 
     Returns:
         List of compact station dicts.
@@ -241,10 +245,12 @@ def query_bbox_from_db(
         filters.append(APRSPacket.packet_type == station_type)
 
     # Query with ordering to get most recent per callsign
+    # LIMIT prevents scanning entire table for very large bboxes
     packets = (
         session.query(APRSPacket)
         .filter(and_(*filters))
         .order_by(APRSPacket.received_at.desc())
+        .limit(max_rows)
         .all()
     )
 
