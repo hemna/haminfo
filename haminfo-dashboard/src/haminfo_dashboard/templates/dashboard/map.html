@@ -139,7 +139,7 @@
             <span style="color:#555;">Digipeater</span>
         </div>
         <div class="legend-item">
-            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -144px 0;"></div>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -1464px 0;"></div>
             <span style="color:#555;">Aircraft</span>
         </div>
         <div class="legend-item">
@@ -258,10 +258,11 @@
     function createSymbolIcon(symbolTable, symbolChar) {
         const xPos = getSymbolSpritePosition(symbolChar);
         const isPrimary = symbolTable === '/' || !symbolTable;
-        const spriteClass = isPrimary ? 'aprs-symbol-primary' : 'aprs-symbol-secondary';
+        const spriteUrl = isPrimary ? PRIMARY_SPRITE : SECONDARY_SPRITE;
         
+        // Use inline styles for reliability - ensures icon renders even if CSS classes fail
         return L.divIcon({
-            html: `<div class="aprs-symbol ${spriteClass}" style="background-position: ${xPos}px 0;"></div>`,
+            html: `<div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${xPos}px 0;background-repeat:no-repeat;image-rendering:pixelated;"></div>`,
             className: 'aprs-symbol-icon',
             iconSize: [24, 24],
             iconAnchor: [12, 12],
@@ -283,15 +284,15 @@
         // Get symbol name for popup
         const symbolName = symbolNames[symbolKey] || 'Station';
         
-        // Create popup with symbol sprite
+        // Create popup with symbol sprite (use inline styles for reliability)
         const xPos = getSymbolSpritePosition(symbolChar);
         const isPrimary = symbolTable === '/' || !symbolTable;
-        const spriteClass = isPrimary ? 'aprs-symbol-primary' : 'aprs-symbol-secondary';
+        const spriteUrl = isPrimary ? PRIMARY_SPRITE : SECONDARY_SPRITE;
         
         marker.bindPopup(`
             <div style="min-width:180px;">
                 <div style="display:flex;align-items:center;margin-bottom:8px;">
-                    <div class="aprs-symbol ${spriteClass}" style="background-position: ${xPos}px 0; margin-right:8px;"></div>
+                    <div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${xPos}px 0;background-repeat:no-repeat;margin-right:8px;"></div>
                     <div>
                         <div style="font-weight:bold;font-size:14px;color:#333;">${props.callsign}</div>
                         <div style="font-size:11px;color:#666;">${symbolName}</div>
