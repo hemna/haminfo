@@ -315,8 +315,8 @@ def _format_weather_human_info(parsed: dict) -> str:
     rain_24h = weather.get('rain_24h') or parsed.get('rain_24h')
 
     if temp is not None:
-        # aprslib returns temp in Fahrenheit
-        parts.append(f'Temp:{temp:.0f}F')
+        # aprslib returns temp in Celsius (converted from APRS Fahrenheit)
+        parts.append(f'Temp:{temp:.0f}C')
 
     if humidity is not None:
         parts.append(f'Humidity:{humidity}%')

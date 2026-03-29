@@ -11,7 +11,7 @@
             {% if latest.temperature is not none %}
             <div style="text-align:center;">
                 <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Temperature</div>
-                <div style="color:var(--accent-green);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.temperature) }}&deg;F</div>
+                <div style="color:var(--accent-green);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.temperature) }}&deg;C</div>
             </div>
             {% endif %}
             {% if latest.humidity is not none %}
