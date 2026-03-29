@@ -60,6 +60,13 @@
     .map-loading.active {
         display: block;
     }
+    .aprs-symbol-icon {
+        background: transparent;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 {% endblock %}
 
@@ -76,17 +83,38 @@
 <div style="position:relative;">
     <div id="map"></div>
     <div class="map-legend">
+        <div style="color:var(--text-muted);font-size:10px;margin-bottom:8px;border-bottom:1px solid var(--border-color);padding-bottom:6px;">Common Symbols</div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></div>
-            <span style="color:var(--text-secondary);">Position</span>
+            <span style="font-size:14px;">🚗</span>
+            <span style="color:var(--text-secondary);">Car</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:var(--accent-cyan);box-shadow:0 0 6px var(--accent-cyan);"></div>
+            <span style="font-size:14px;">🏠</span>
+            <span style="color:var(--text-secondary);">House/Home</span>
+        </div>
+        <div class="legend-item">
+            <span style="font-size:14px;">🌡️</span>
             <span style="color:var(--text-secondary);">Weather</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:var(--accent-yellow);box-shadow:0 0 6px var(--accent-yellow);"></div>
+            <span style="font-size:14px;">📶</span>
             <span style="color:var(--text-secondary);">Digipeater</span>
+        </div>
+        <div class="legend-item">
+            <span style="font-size:14px;">📻</span>
+            <span style="color:var(--text-secondary);">IGATE</span>
+        </div>
+        <div class="legend-item">
+            <span style="font-size:14px;">🚴</span>
+            <span style="color:var(--text-secondary);">Bicycle</span>
+        </div>
+        <div class="legend-item">
+            <span style="font-size:14px;">✈️</span>
+            <span style="color:var(--text-secondary);">Aircraft</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></div>
+            <span style="color:var(--text-secondary);">Other</span>
         </div>
     </div>
     <div id="map-loading" class="map-loading">Loading stations...</div>
@@ -127,7 +155,66 @@
         maxZoom: 19,
     }).addTo(map);
     
-    // Marker colors
+    // APRS Symbol mapping - maps symbol table + symbol char to emoji/icon
+    // Primary table (/) symbols
+    const aprsSymbols = {
+        // Vehicles
+        '/>' : '🚗', // Car
+        '/k' : '🚚', // Truck
+        '/s' : '🚢', // Ship/Boat
+        '/Y' : '🛥️', // Yacht
+        '/(' : '📱', // Mobile
+        '/[' : '🏃', // Jogger/Runner
+        '/b' : '🚴', // Bicycle
+        '/<' : '🏍️', // Motorcycle
+        '/=' : '🚂', // Train
+        '/X' : '🚁', // Helicopter
+        '/^' : '✈️', // Aircraft (large)
+        "/'" : '✈️', // Aircraft (small)
+        '/O' : '🎈', // Balloon
+        '/g' : '⛽', // Gas station
+        
+        // Fixed stations
+        '/-' : '🏠', // House
+        '/;' : '⛺', // Campground
+        '/r' : '📡', // Repeater
+        '/#' : '📶', // Digipeater
+        '/I' : '📻', // IGATE
+        '/&' : '📶', // HF Gateway
+        '/i' : '📍', // Box/point of interest
+        
+        // Weather
+        '/_' : '🌡️', // Weather Station
+        '/W' : '☁️', // Weather service
+        
+        // Emergency/Public service
+        '/!' : '🚔', // Police
+        '/a' : '🚑', // Ambulance
+        '/f' : '🚒', // Fire truck
+        '/u' : '🚌', // Bus
+        '/P' : '🅿️', // Parking
+        '/C' : '⛵', // Coast Guard
+        
+        // Misc
+        '/n' : '📍', // Node
+        '/p' : '🐕', // Dog
+        '/x' : '❌', // X marker
+        '/y' : '🏠', // House w/ yagi
+        '/o' : '⭕', // Circle
+        
+        // Alternate table (\) common symbols
+        '\\>' : '🚙', // Car (alt)
+        '\\k' : '🚛', // Truck (alt)
+        '\\n' : '▲', // Triangle
+        '\\s' : '⛵', // Sailboat
+        '\\#' : '📶', // Digipeater (alt)
+        '\\-' : '🏡', // House (alt)
+        '\\_' : '🌦️', // Weather (alt)
+        '\\A' : '📦', // Box
+        '\\W' : '⛈️', // Storm
+    };
+    
+    // Fallback colors by packet type
     const markerColors = {
         'position': '#0f0',
         'weather': '#0ff',
@@ -141,26 +228,62 @@
     let loadTimeout = null;
     const loadingEl = document.getElementById('map-loading');
     
+    function getSymbolIcon(symbolTable, symbol, packetType) {
+        // Build the key: table + symbol character
+        const key = (symbolTable || '/') + (symbol || '-');
+        const emoji = aprsSymbols[key];
+        
+        if (emoji) {
+            return L.divIcon({
+                html: `<div style="font-size:18px;text-shadow:0 0 3px #000,0 0 3px #000;">${emoji}</div>`,
+                className: 'aprs-symbol-icon',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+                popupAnchor: [0, -12]
+            });
+        }
+        
+        // Fallback to colored circle
+        return null;
+    }
+    
     function createMarker(feature) {
         const props = feature.properties;
         const coords = feature.geometry.coordinates;
         const color = markerColors[props.packet_type] || markerColors.default;
         
-        const marker = L.circleMarker([coords[1], coords[0]], {
-            radius: 6,
-            fillColor: color,
-            color: color,
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8,
-        });
+        // Try to get symbol icon
+        const symbolIcon = getSymbolIcon(props.symbol_table, props.symbol, props.packet_type);
+        
+        let marker;
+        if (symbolIcon) {
+            marker = L.marker([coords[1], coords[0]], { icon: symbolIcon });
+        } else {
+            // Fallback to circle marker
+            marker = L.circleMarker([coords[1], coords[0]], {
+                radius: 6,
+                fillColor: color,
+                color: color,
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8,
+            });
+        }
+        
+        // Build symbol display for popup
+        const symbolKey = (props.symbol_table || '/') + (props.symbol || '?');
+        const symbolEmoji = aprsSymbols[symbolKey] || '📍';
         
         marker.bindPopup(`
             <div style="min-width:150px;">
-                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:8px;">${props.callsign}</div>
+                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:8px;">
+                    <span style="font-size:18px;margin-right:6px;">${symbolEmoji}</span>
+                    ${props.callsign}
+                </div>
                 <div style="font-size:11px;color:var(--text-secondary);">
                     <div>Position: ${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</div>
                     ${props.speed ? `<div>Speed: ${props.speed} km/h</div>` : ''}
+                    ${props.altitude ? `<div>Altitude: ${props.altitude} m</div>` : ''}
                     <div>Last: ${props.last_seen || '--'}</div>
                 </div>
                 <div style="margin-top:8px;">
