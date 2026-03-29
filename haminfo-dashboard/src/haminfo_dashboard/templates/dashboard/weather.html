@@ -137,6 +137,7 @@
         if (countrySelect.value) params.set('country', countrySelect.value);
         if (stateSelect.value) params.set('state', stateSelect.value);
         if (recentCheckbox.checked) params.set('has_recent_data', 'true');
+        if (searchInput.value.trim()) params.set('search', searchInput.value.trim());
         return '{{ url_for("dashboard.api_weather_stations") }}?' + params.toString();
     }
 
@@ -171,20 +172,16 @@
     stateSelect.addEventListener('change', reloadGrid);
     recentCheckbox.addEventListener('change', reloadGrid);
 
-    // Client-side search (filters already-loaded cards)
+    // Server-side search with debounce
+    var searchTimeout = null;
     searchInput.addEventListener('input', function(e) {
-        var search = e.target.value.toLowerCase();
-        var visible = 0;
-        var total = 0;
-        document.querySelectorAll('#weather-grid .card').forEach(function(card) {
-            total++;
-            var link = card.querySelector('a');
-            var callsign = link ? link.textContent.toLowerCase() : '';
-            var match = callsign.indexOf(search) >= 0;
-            card.style.display = match ? '' : 'none';
-            if (match) visible++;
-        });
-        resultCount.textContent = search ? visible + ' of ' + total : '';
+        // Clear previous timeout
+        if (searchTimeout) clearTimeout(searchTimeout);
+        
+        // Debounce: wait 300ms after user stops typing
+        searchTimeout = setTimeout(function() {
+            reloadGrid();
+        }, 300);
     });
 
     // Update count after HTMX swap
@@ -193,10 +190,6 @@
             hideLoading();
             var count = document.querySelectorAll('#weather-grid .card').length;
             resultCount.textContent = count + ' stations';
-            // Re-apply search filter if active
-            if (searchInput.value) {
-                searchInput.dispatchEvent(new Event('input'));
-            }
         }
     });
 

@@ -281,7 +281,9 @@ def get_recent_packets(
     return result
 
 
-@cached('dashboard:wx_stations:{limit}:{offset}:{country}:{state}:{has_recent_data}')
+@cached(
+    'dashboard:wx_stations:{limit}:{offset}:{country}:{state}:{has_recent_data}:{search}'
+)
 def get_weather_stations(
     session: Session,
     limit: int = 50,
@@ -289,6 +291,7 @@ def get_weather_stations(
     country: Optional[str] = None,
     state: Optional[str] = None,
     has_recent_data: bool = False,
+    search: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Get weather stations with their latest reports.
 
@@ -299,6 +302,7 @@ def get_weather_stations(
         country: Filter by country code.
         state: Filter by state/province code (US, CA, AU only).
         has_recent_data: Only return stations with reports in last 24h.
+        search: Filter by callsign (partial match, case-insensitive).
 
     Returns:
         List of weather station dicts with latest report data.
@@ -307,6 +311,11 @@ def get_weather_stations(
     last_24h = now - timedelta(hours=24)
 
     query = session.query(WeatherStation).order_by(WeatherStation.callsign)
+
+    # Apply callsign search filter at DB level for efficiency
+    if search:
+        query = query.filter(WeatherStation.callsign.ilike(f'%{search}%'))
+
     stations_list = query.all()
 
     result = []

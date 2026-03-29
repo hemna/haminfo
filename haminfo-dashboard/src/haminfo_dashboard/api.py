@@ -147,8 +147,13 @@ def api_weather_stations():
         offset = request.args.get('offset', 0, type=int)
         country = request.args.get('country')
         state = request.args.get('state')
-        has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
-        
+        search = request.args.get('search')
+        has_recent_data = request.args.get('has_recent_data', '').lower() in (
+            'true',
+            '1',
+            'yes',
+        )
+
         stations = get_weather_stations(
             session,
             limit=limit,
@@ -156,6 +161,7 @@ def api_weather_stations():
             country=country if country else None,
             state=state if state else None,
             has_recent_data=has_recent_data,
+            search=search if search else None,
         )
         return render_template(
             'dashboard/partials/weather_grid.html', stations=stations
@@ -173,8 +179,13 @@ def api_weather_stations_json():
         offset = request.args.get('offset', 0, type=int)
         country = request.args.get('country')
         state = request.args.get('state')
-        has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
-        
+        search = request.args.get('search')
+        has_recent_data = request.args.get('has_recent_data', '').lower() in (
+            'true',
+            '1',
+            'yes',
+        )
+
         stations = get_weather_stations(
             session,
             limit=limit,
@@ -182,6 +193,7 @@ def api_weather_stations_json():
             country=country if country else None,
             state=state if state else None,
             has_recent_data=has_recent_data,
+            search=search if search else None,
         )
         return jsonify(stations)
     finally:
@@ -191,7 +203,7 @@ def api_weather_stations_json():
 @dashboard_bp.route('/api/dashboard/weather/states/<country>')
 def api_weather_states(country: str):
     """Get list of states/provinces for a country - returns JSON.
-    
+
     Only supports US, CA, AU countries.
     """
     states = get_states_for_country(country.upper())
