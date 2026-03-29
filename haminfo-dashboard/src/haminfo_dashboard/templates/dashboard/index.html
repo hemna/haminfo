@@ -13,25 +13,25 @@
 {% endblock %}
 
 {% block content %}
-<!-- Stats Cards -->
+<!-- Stats Cards - Pre-loaded from cache, refreshed every 30s -->
 <div class="stats-grid" 
      hx-get="{{ url_for('dashboard.api_stats') }}" 
-     hx-trigger="load, every 30s"
+     hx-trigger="every 30s"
      hx-swap="innerHTML">
     <div class="stat-card green">
-        <div class="stat-value">--</div>
+        <div class="stat-value">{{ stats.total_packets|format_number }}</div>
         <div class="stat-label">Total Packets (24h)</div>
     </div>
     <div class="stat-card cyan">
-        <div class="stat-value">--</div>
+        <div class="stat-value">{{ stats.unique_stations|format_number }}</div>
         <div class="stat-label">Unique Stations</div>
     </div>
     <div class="stat-card yellow">
-        <div class="stat-value">--</div>
+        <div class="stat-value">{{ stats.countries }}</div>
         <div class="stat-label">Countries</div>
     </div>
     <div class="stat-card magenta">
-        <div class="stat-value">--</div>
+        <div class="stat-value">{{ stats.weather_stations|format_number }}</div>
         <div class="stat-label">Weather Stations</div>
     </div>
 </div>
@@ -63,29 +63,31 @@
         </div>
     </div>
     
-    <!-- Top Stations -->
+    <!-- Top Stations - Pre-loaded, refreshed every 60s -->
     <div class="card">
         <div class="card-header">
             <span class="card-title">Top Stations (24h)</span>
         </div>
         <div class="card-body"
              hx-get="{{ url_for('dashboard.api_top_stations') }}"
-             hx-trigger="load, every 60s"
+             hx-trigger="every 60s"
              hx-swap="innerHTML">
-            <div style="color: var(--text-muted);">Loading...</div>
+            {% with stations=top_stations %}
+            {% include 'dashboard/partials/top_stations.html' %}
+            {% endwith %}
         </div>
     </div>
     
-    <!-- Countries -->
+    <!-- Countries - Pre-loaded, refreshed every 60s -->
     <div class="card">
         <div class="card-header">
             <span class="card-title">Countries</span>
         </div>
         <div class="card-body"
              hx-get="{{ url_for('dashboard.api_countries') }}"
-             hx-trigger="load, every 60s"
+             hx-trigger="every 60s"
              hx-swap="innerHTML">
-            <div style="color: var(--text-muted);">Loading...</div>
+            {% include 'dashboard/partials/countries.html' %}
         </div>
     </div>
 </div>
@@ -145,36 +147,33 @@
         }
     }
     
-    // Initialize hourly chart
-    fetch('{{ url_for("dashboard.api_hourly") }}')
-        .then(r => r.json())
-        .then(data => {
-            new Chart(document.getElementById('hourly-chart'), {
-                type: 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        data: data.values,
-                        backgroundColor: '#0f0',
-                        borderRadius: 4,
-                    }]
+    // Initialize hourly chart with pre-loaded data
+    const hourlyData = {{ hourly|tojson }};
+    new Chart(document.getElementById('hourly-chart'), {
+        type: 'bar',
+        data: {
+            labels: hourlyData.labels,
+            datasets: [{
+                data: hourlyData.values,
+                backgroundColor: '#0f0',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { 
+                    grid: { color: '#2a2a4e' },
+                    ticks: { color: '#888' }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { 
-                            grid: { color: '#2a2a4e' },
-                            ticks: { color: '#888' }
-                        },
-                        y: { 
-                            grid: { color: '#2a2a4e' },
-                            ticks: { color: '#888' }
-                        }
-                    }
+                y: { 
+                    grid: { color: '#2a2a4e' },
+                    ticks: { color: '#888' }
                 }
-            });
-        });
+            }
+        }
+    });
 </script>
 {% endblock %}

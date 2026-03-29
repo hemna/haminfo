@@ -3,6 +3,14 @@
 
 from flask import render_template, request, redirect, url_for, Blueprint
 
+from haminfo.db.db import setup_session
+from haminfo_dashboard.queries import (
+    get_dashboard_stats,
+    get_hourly_distribution,
+    get_top_stations,
+    get_country_breakdown,
+)
+
 dashboard_bp = Blueprint(
     'dashboard',
     __name__,
@@ -10,6 +18,12 @@ dashboard_bp = Blueprint(
     static_folder='static',
     static_url_path='/static',
 )
+
+
+def _get_session():
+    """Get a database session."""
+    session_factory = setup_session()
+    return session_factory()
 
 
 @dashboard_bp.app_template_filter('format_number')
@@ -23,8 +37,23 @@ def format_number(value):
 
 @dashboard_bp.route('/')
 def index():
-    """Main dashboard page."""
-    return render_template('dashboard/index.html')
+    """Main dashboard page with pre-loaded cached stats."""
+    session = _get_session()
+    try:
+        # Pre-load all data from cache for instant display
+        stats = get_dashboard_stats(session)
+        hourly = get_hourly_distribution(session)
+        top_stations = get_top_stations(session, limit=10)
+        countries = get_country_breakdown(session, limit=10)
+        return render_template(
+            'dashboard/index.html',
+            stats=stats,
+            hourly=hourly,
+            top_stations=top_stations,
+            countries=countries,
+        )
+    finally:
+        session.close()
 
 
 @dashboard_bp.route('/weather')
