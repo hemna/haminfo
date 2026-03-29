@@ -737,6 +737,99 @@ def get_map_stations(
     return result
 
 
+def get_map_stations_fast(
+    session: Session,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    station_type: Optional[str] = None,
+    hours: int = 24,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """Get stations for map display using a fast query (no trails).
+
+    This is optimized for quick initial load - it fetches recent packets
+    and deduplicates by callsign in Python, which is much faster than
+    the GROUP BY subquery approach for large datasets.
+
+    Args:
+        session: Database session.
+        bbox: Optional bounding box (min_lon, min_lat, max_lon, max_lat).
+        station_type: Optional packet type filter.
+        hours: Number of hours of history to include.
+        limit: Maximum number of unique stations to return.
+
+    Returns:
+        List of station dicts with position data (no trails).
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
+    # Build filters - query recent packets directly, ordered by time desc
+    filters = [
+        APRSPacket.received_at >= since,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+
+    if station_type:
+        filters.append(APRSPacket.packet_type == station_type)
+
+    if bbox:
+        min_lon, min_lat, max_lon, max_lat = bbox
+        filters.extend(
+            [
+                APRSPacket.longitude >= min_lon,
+                APRSPacket.longitude <= max_lon,
+                APRSPacket.latitude >= min_lat,
+                APRSPacket.latitude <= max_lat,
+            ]
+        )
+
+    # Fetch more packets than needed, then deduplicate
+    # This is faster than GROUP BY for getting first N unique stations
+    packets = (
+        session.query(APRSPacket)
+        .filter(*filters)
+        .order_by(APRSPacket.received_at.desc())
+        .limit(limit * 10)  # Fetch extra to ensure we get enough unique
+        .all()
+    )
+
+    # Deduplicate by callsign, keeping the most recent packet
+    seen_callsigns: set[str] = set()
+    result = []
+
+    for packet in packets:
+        if packet.from_call in seen_callsigns:
+            continue
+        seen_callsigns.add(packet.from_call)
+
+        country_info = get_country_from_callsign(packet.from_call)
+        result.append(
+            {
+                'callsign': packet.from_call,
+                'latitude': packet.latitude,
+                'longitude': packet.longitude,
+                'packet_type': packet.packet_type,
+                'symbol': packet.symbol,
+                'symbol_table': packet.symbol_table,
+                'speed': packet.speed,
+                'course': packet.course,
+                'altitude': packet.altitude,
+                'comment': packet.comment,
+                'last_seen': packet.received_at.isoformat()
+                if packet.received_at
+                else None,
+                'country_code': country_info[0] if country_info else None,
+                'trail': [],  # No trails in fast mode
+            }
+        )
+
+        if len(result) >= limit:
+            break
+
+    return result
+
+
 def count_map_stations(
     session: Session,
     bbox: Optional[tuple[float, float, float, float]] = None,

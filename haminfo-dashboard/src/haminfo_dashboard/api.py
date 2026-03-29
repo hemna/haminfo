@@ -307,14 +307,17 @@ def api_station_weather_json(callsign: str):
 # Map stations endpoint (GeoJSON)
 @dashboard_bp.route('/api/dashboard/map/stations')
 def api_map_stations():
-    """Map stations - returns GeoJSON FeatureCollection with pagination.
+    """Map stations - returns GeoJSON FeatureCollection.
 
-    Supports progressive loading via offset/limit pagination.
-    Returns total_count and has_more to enable chunked fetching.
+    Supports two modes:
+    - fast=true (default for offset=0): Quick load without trails
+    - fast=false: Full load with trails (slower but complete)
+
+    This enables fast initial display followed by trail loading.
     """
     from haminfo_dashboard.queries import (
+        get_map_stations_fast,
         get_map_stations_with_trails,
-        count_map_stations,
     )
 
     session = _get_session()
@@ -331,9 +334,11 @@ def api_map_stations():
                 pass
 
         station_type = request.args.get('type')
-        limit = request.args.get('limit', 500, type=int)  # Default batch size
+        limit = request.args.get('limit', 500, type=int)
         offset = request.args.get('offset', 0, type=int)
         hours = request.args.get('hours', 24, type=int)
+        # Fast mode: skip trails for quick initial load
+        fast_mode = request.args.get('fast', 'true').lower() == 'true'
 
         # Clamp hours to valid range
         if hours not in (1, 2, 6, 24):
@@ -342,24 +347,25 @@ def api_map_stations():
         # Clamp limit to reasonable range
         limit = min(max(limit, 100), 2000)
 
-        # Get total count for progress indication (only on first request)
-        total_count = None
-        if offset == 0:
-            total_count = count_map_stations(
+        # Use fast query for initial load (no trails, simpler query)
+        if fast_mode:
+            stations = get_map_stations_fast(
                 session,
                 bbox=bbox,
                 station_type=station_type,
                 hours=hours,
+                limit=limit,
             )
-
-        stations = get_map_stations_with_trails(
-            session,
-            bbox=bbox,
-            station_type=station_type,
-            hours=hours,
-            limit=limit,
-            offset=offset,
-        )
+        else:
+            # Full query with trails (slower)
+            stations = get_map_stations_with_trails(
+                session,
+                bbox=bbox,
+                station_type=station_type,
+                hours=hours,
+                limit=limit,
+                offset=offset,
+            )
 
         # Convert to GeoJSON FeatureCollection
         features = []
@@ -387,23 +393,11 @@ def api_map_stations():
                 }
                 features.append(feature)
 
-        # Determine if there are more results
-        has_more = len(features) == limit
-
         geojson = {
             'type': 'FeatureCollection',
             'features': features,
-            'pagination': {
-                'offset': offset,
-                'limit': limit,
-                'returned': len(features),
-                'has_more': has_more,
-            },
+            'mode': 'fast' if fast_mode else 'full',
         }
-
-        # Include total count on first request
-        if total_count is not None:
-            geojson['pagination']['total_count'] = total_count
 
         return jsonify(geojson)
     finally:

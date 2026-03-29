@@ -87,10 +87,10 @@
 
 {% block header_right %}
 <select id="time-filter" style="margin-right:8px;">
-    <option value="24">Last 24 hours</option>
-    <option value="6">Last 6 hours</option>
+    <option value="1" selected>Last 1 hour</option>
     <option value="2">Last 2 hours</option>
-    <option value="1">Last 1 hour</option>
+    <option value="6">Last 6 hours</option>
+    <option value="24">Last 24 hours</option>
 </select>
 <select id="station-type-filter">
     <option value="">All Station Types</option>
@@ -255,13 +255,12 @@
     let markers = [];
     let trails = [];  // Store trail polylines
     let currentType = '';
-    let currentHours = 24;
+    let currentHours = 1;  // Default to 1 hour for fast load
     let loadTimeout = null;
     let loadAbortController = null;  // For cancelling in-progress loads
     const loadingEl = document.getElementById('map-loading');
     const loadingText = document.getElementById('loading-text');
     const progressFill = document.getElementById('progress-fill');
-    const BATCH_SIZE = 500;  // Load 500 stations at a time
     
     // Trail colors - gradient from older (faded) to newer (bright)
     const trailColor = '#00ff00';
@@ -350,7 +349,7 @@
             bounds.getNorth()
         ].join(',');
         
-        // Clear existing markers and trails for fresh load
+        // Clear existing markers and trails
         markers.forEach(m => map.removeLayer(m));
         markers = [];
         trails.forEach(t => map.removeLayer(t));
@@ -362,31 +361,21 @@
         progressFill.style.width = '0%';
         document.getElementById('station-count').textContent = '-- stations';
         
-        // Start progressive loading
-        loadBatch(bbox, 0, null);
-    }
-    
-    function loadBatch(bbox, offset, totalCount) {
         const url = new URL('{{ url_for("dashboard.api_map_stations") }}', window.location.origin);
         url.searchParams.set('bbox', bbox);
-        url.searchParams.set('limit', BATCH_SIZE.toString());
-        url.searchParams.set('offset', offset.toString());
+        url.searchParams.set('limit', '2000');
         url.searchParams.set('hours', currentHours.toString());
+        url.searchParams.set('fast', 'true');  // Always use fast mode
         if (currentType) url.searchParams.set('type', currentType);
         
         fetch(url, { signal: loadAbortController.signal })
             .then(r => r.json())
             .then(data => {
-                // Get total count from first response
-                if (totalCount === null && data.pagination.total_count !== undefined) {
-                    totalCount = data.pagination.total_count;
-                }
-                
-                // Add markers and trails from this batch
+                // Add markers
                 data.features.forEach(feature => {
                     const props = feature.properties;
                     
-                    // Draw trail if station has one
+                    // Draw trail if station has one (only in non-fast mode)
                     if (props.trail && props.trail.length > 1) {
                         const trailCoords = props.trail.map(p => [p[1], p[0]]);
                         
@@ -418,37 +407,18 @@
                     markers.push(marker);
                 });
                 
-                // Update progress
-                const loadedCount = markers.length;
+                // Update count
                 const trailCount = trails.length;
-                
-                if (totalCount && totalCount > 0) {
-                    const progress = Math.min(100, (loadedCount / totalCount) * 100);
-                    progressFill.style.width = progress + '%';
-                    loadingText.textContent = `Loading ${loadedCount}/${totalCount}...`;
-                } else {
-                    loadingText.textContent = `Loading ${loadedCount}...`;
-                }
-                
-                // Update station count display
+                const stationCount = markers.length;
                 document.getElementById('station-count').textContent = 
-                    `${loadedCount} stations` + (trailCount > 0 ? `, ${trailCount} with trails` : '');
+                    `${stationCount} stations` + (trailCount > 0 ? `, ${trailCount} with trails` : '');
                 
-                // Load next batch if there are more
-                if (data.pagination.has_more) {
-                    // Small delay to let the browser render and keep UI responsive
-                    setTimeout(() => {
-                        loadBatch(bbox, offset + BATCH_SIZE, totalCount);
-                    }, 50);
-                } else {
-                    // Loading complete
-                    loadingEl.classList.remove('active');
-                }
+                progressFill.style.width = '100%';
+                loadingEl.classList.remove('active');
             })
             .catch(err => {
                 if (err.name === 'AbortError') {
-                    // Load was cancelled (e.g., user moved the map)
-                    return;
+                    return;  // Load was cancelled
                 }
                 console.error('Failed to load stations:', err);
                 loadingEl.classList.remove('active');
