@@ -4,6 +4,11 @@
 {% block title %}APRS Dashboard - Weather{% endblock %}
 
 {% block header_right %}
+<div class="time-display">
+    <span id="utc-time" style="color:var(--accent-cyan);font-family:'Fira Code',monospace;font-size:12px;">--:--:-- UTC</span>
+    <span style="color:var(--text-muted);margin:0 8px;">|</span>
+    <span id="local-time" style="color:var(--accent-yellow);font-family:'Fira Code',monospace;font-size:12px;">--:--:-- Local</span>
+</div>
 <div class="live-indicator">LIVE</div>
 {% endblock %}
 
@@ -28,6 +33,14 @@
                 <input type="checkbox" id="wx-recent-filter" style="width:16px;height:16px;accent-color:var(--accent-green);">
                 <span style="color:var(--text-muted);font-size:12px;">Has recent data (24h)</span>
             </label>
+        </div>
+        <!-- Unit Toggle -->
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:var(--text-muted);font-size:12px;">Units:</span>
+            <div id="unit-toggle" style="display:flex;border:1px solid var(--border-color);border-radius:4px;overflow:hidden;">
+                <button id="btn-metric" style="padding:4px 10px;font-size:11px;border:none;background:var(--accent-green);color:#000;cursor:pointer;">Metric</button>
+                <button id="btn-imperial" style="padding:4px 10px;font-size:11px;border:none;background:var(--bg-tertiary);color:var(--text-muted);cursor:pointer;">Imperial</button>
+            </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
             <input type="text" id="wx-search" placeholder="Search callsign..." style="width:160px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
@@ -90,9 +103,92 @@
     var weatherGrid = document.getElementById('weather-grid');
     var resultCount = document.getElementById('wx-result-count');
     var loadingIndicator = document.getElementById('wx-loading');
+    var btnMetric = document.getElementById('btn-metric');
+    var btnImperial = document.getElementById('btn-imperial');
+
+    // Unit state - default to metric, or load from localStorage
+    var isMetric = localStorage.getItem('wxUnits') !== 'imperial';
 
     // Countries that support state filtering
     var stateCountries = ['US', 'CA', 'AU'];
+
+    // Unit conversion functions
+    function celsiusToFahrenheit(c) {
+        return (c * 9/5) + 32;
+    }
+
+    function kmhToMph(kmh) {
+        return kmh * 0.621371;
+    }
+
+    function hpaToInHg(hpa) {
+        return hpa * 0.02953;
+    }
+
+    // Apply units to all weather values in the grid
+    function applyUnits() {
+        // Update button states
+        if (isMetric) {
+            btnMetric.style.background = 'var(--accent-green)';
+            btnMetric.style.color = '#000';
+            btnImperial.style.background = 'var(--bg-tertiary)';
+            btnImperial.style.color = 'var(--text-muted)';
+        } else {
+            btnImperial.style.background = 'var(--accent-green)';
+            btnImperial.style.color = '#000';
+            btnMetric.style.background = 'var(--bg-tertiary)';
+            btnMetric.style.color = 'var(--text-muted)';
+        }
+
+        // Convert temperatures
+        document.querySelectorAll('.wx-temp').forEach(function(el) {
+            var tempC = parseFloat(el.dataset.tempC);
+            if (!isNaN(tempC)) {
+                if (isMetric) {
+                    el.textContent = tempC.toFixed(1) + '°C';
+                } else {
+                    el.textContent = celsiusToFahrenheit(tempC).toFixed(1) + '°F';
+                }
+            }
+        });
+
+        // Convert wind speeds
+        document.querySelectorAll('.wx-wind').forEach(function(el) {
+            var windKmh = parseFloat(el.dataset.windKmh);
+            if (!isNaN(windKmh)) {
+                if (isMetric) {
+                    el.textContent = windKmh.toFixed(1) + ' km/h';
+                } else {
+                    el.textContent = kmhToMph(windKmh).toFixed(1) + ' mph';
+                }
+            }
+        });
+
+        // Convert pressure
+        document.querySelectorAll('.wx-pressure').forEach(function(el) {
+            var pressureHpa = parseFloat(el.dataset.pressureHpa);
+            if (!isNaN(pressureHpa) && pressureHpa > 0) {
+                if (isMetric) {
+                    el.textContent = pressureHpa.toFixed(1) + ' hPa';
+                } else {
+                    el.textContent = hpaToInHg(pressureHpa).toFixed(2) + ' inHg';
+                }
+            }
+        });
+    }
+
+    // Unit toggle handlers
+    btnMetric.addEventListener('click', function() {
+        isMetric = true;
+        localStorage.setItem('wxUnits', 'metric');
+        applyUnits();
+    });
+
+    btnImperial.addEventListener('click', function() {
+        isMetric = false;
+        localStorage.setItem('wxUnits', 'imperial');
+        applyUnits();
+    });
 
     // Load countries for dropdown
     fetch('{{ url_for("dashboard.api_weather_countries") }}')
@@ -190,6 +286,8 @@
             hideLoading();
             var count = document.querySelectorAll('#weather-grid .card').length;
             resultCount.textContent = count + ' stations';
+            // Apply unit conversion to newly loaded content
+            applyUnits();
         }
     });
 
@@ -206,7 +304,11 @@
     document.body.addEventListener('htmx:afterOnLoad', function(e) {
         if (e.detail.target.id === 'weather-grid') {
             hideLoading();
+            applyUnits();
         }
     });
+
+    // Apply initial button state
+    applyUnits();
 </script>
 {% endblock %}

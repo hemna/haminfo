@@ -11,10 +11,10 @@
         </div>
         {% if station.latest_report %}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
-            <div><span style="color:var(--text-muted);">Temp:</span> <span style="color:var(--accent-yellow);">{{ "%.1f"|format(station.latest_report.temperature) if station.latest_report.temperature is not none else '--' }}°C</span></div>
+            <div><span style="color:var(--text-muted);">Temp:</span> <span class="wx-temp" style="color:var(--accent-yellow);" data-temp-c="{{ station.latest_report.temperature if station.latest_report.temperature is not none else '' }}">{{ "%.1f"|format(station.latest_report.temperature) if station.latest_report.temperature is not none else '--' }}°C</span></div>
             <div><span style="color:var(--text-muted);">Humid:</span> <span style="color:var(--accent-cyan);">{{ station.latest_report.humidity | default('--') }}%</span></div>
-            <div><span style="color:var(--text-muted);">Wind:</span> {{ station.latest_report.wind_speed | default('--') }} km/h</div>
-            <div><span style="color:var(--text-muted);">Press:</span> {{ "%.1f"|format(station.latest_report.pressure) if station.latest_report.pressure else '--' }} hPa</div>
+            <div><span style="color:var(--text-muted);">Wind:</span> <span class="wx-wind" data-wind-kmh="{{ station.latest_report.wind_speed if station.latest_report.wind_speed is not none else '' }}">{{ "%.1f"|format(station.latest_report.wind_speed) if station.latest_report.wind_speed is not none else '--' }} km/h</span></div>
+            <div><span style="color:var(--text-muted);">Press:</span> <span class="wx-pressure" data-pressure-hpa="{{ station.latest_report.pressure if station.latest_report.pressure else '' }}">{{ "%.1f"|format(station.latest_report.pressure) if station.latest_report.pressure else '--' }} hPa</span></div>
         </div>
         {% else %}
         <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:10px;">No recent reports</div>
