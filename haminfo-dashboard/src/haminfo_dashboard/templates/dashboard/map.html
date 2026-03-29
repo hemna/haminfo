@@ -45,11 +45,6 @@
     .legend-item:last-child {
         margin-bottom: 0;
     }
-    .legend-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-    }
     .map-loading {
         position: absolute;
         top: 10px;
@@ -81,13 +76,28 @@
         transition: width 0.2s ease;
         width: 0%;
     }
-    .aprs-symbol-icon {
-        background: transparent;
-        border: none;
-    }
-    .aprs-symbol-img {
+    /* APRS Symbol sprite styles */
+    .aprs-symbol {
+        width: 24px;
+        height: 24px;
+        background-repeat: no-repeat;
         image-rendering: pixelated;
         image-rendering: crisp-edges;
+    }
+    .aprs-symbol-primary {
+        background-image: url('https://raw.githubusercontent.com/hessu/aprs-symbols/master/png/aprs-symbols-24-0.png');
+    }
+    .aprs-symbol-secondary {
+        background-image: url('https://raw.githubusercontent.com/hessu/aprs-symbols/master/png/aprs-symbols-24-1.png');
+    }
+    .aprs-symbol-icon {
+        background: transparent !important;
+        border: none !important;
+    }
+    .legend-symbol {
+        width: 24px;
+        height: 24px;
+        display: inline-block;
     }
 </style>
 {% endblock %}
@@ -111,30 +121,30 @@
 <div style="position:relative;">
     <div id="map"></div>
     <div class="map-legend">
-        <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">Station Types</div>
+        <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">Common Symbols</div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#1e88e5;"></div>
-            <span style="color:#555;">Vehicle/Mobile</span>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -720px 0;"></div>
+            <span style="color:#555;">Car</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#6d4c41;"></div>
-            <span style="color:#555;">House/Fixed</span>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -288px 0;"></div>
+            <span style="color:#555;">House</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#43a047;"></div>
-            <span style="color:#555;">Weather Station</span>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -1488px 0;"></div>
+            <span style="color:#555;">Weather</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#fb8c00;"></div>
-            <span style="color:#555;">Digipeater/IGate</span>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -48px 0;"></div>
+            <span style="color:#555;">Digipeater</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#8e24aa;"></div>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -1128px 0;"></div>
             <span style="color:#555;">Aircraft</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot" style="background:#00897b;"></div>
-            <span style="color:#555;">Marine</span>
+            <div class="aprs-symbol aprs-symbol-primary legend-symbol" style="background-position: -1320px 0;"></div>
+            <span style="color:#555;">Boat</span>
         </div>
         <div style="color:#666;font-size:10px;margin-top:10px;margin-bottom:6px;border-top:1px solid #ddd;padding-top:8px;">Trails</div>
         <div class="legend-item">
@@ -183,10 +193,15 @@
         maxZoom: 19,
     }).addTo(map);
     
-    // APRS Symbol sprite sheet approach
-    // The standard APRS symbol set has 192 symbols (96 primary + 96 alternate)
-    // We'll use simple colored circle markers with symbol character overlay
-    // This is more reliable than external image hosting
+    // APRS Symbol sprite sheets from hessu/aprs-symbols (aprs.fi symbols)
+    // Primary table: aprs-symbols-24-0.png (symbols for table '/')
+    // Secondary table: aprs-symbols-24-1.png (symbols for table '\')
+    // Each sprite sheet is 96 symbols wide at 24px each = 2304px total
+    // Symbol index = ASCII code - 33 (space+1 = !, which is index 0)
+    
+    const SYMBOL_SIZE = 24;
+    const PRIMARY_SPRITE = 'https://raw.githubusercontent.com/hessu/aprs-symbols/master/png/aprs-symbols-24-0.png';
+    const SECONDARY_SPRITE = 'https://raw.githubusercontent.com/hessu/aprs-symbols/master/png/aprs-symbols-24-1.png';
     
     // Symbol descriptions for common symbols
     const symbolNames = {
@@ -214,49 +229,6 @@
         '\\#': 'Digipeater',
     };
     
-    // Colors by symbol type
-    const symbolColors = {
-        // Vehicles - blue
-        '>': '#1e88e5',
-        'k': '#1e88e5', 
-        'b': '#1e88e5',
-        'v': '#1e88e5',
-        '<': '#1e88e5',
-        '[': '#1e88e5',
-        // Aircraft - purple
-        '^': '#8e24aa',
-        "'": '#8e24aa',
-        'O': '#8e24aa',
-        // Marine - teal
-        's': '#00897b',
-        'Y': '#00897b',
-        // Weather - green
-        '_': '#43a047',
-        'W': '#43a047',
-        // Infrastructure - orange  
-        '#': '#fb8c00',
-        'r': '#fb8c00',
-        'I': '#fb8c00',
-        '&': '#fb8c00',
-        // House/Fixed - brown
-        '-': '#6d4c41',
-        'y': '#6d4c41',
-        // Default - gray
-        'default': '#546e7a',
-    };
-    
-    function getSymbolColor(symbolChar) {
-        return symbolColors[symbolChar] || symbolColors['default'];
-    }
-    
-    // Fallback colors by packet type (for circle markers)
-    const markerColors = {
-        'position': '#1e88e5',
-        'weather': '#43a047',
-        'digipeater': '#fb8c00',
-        'default': '#546e7a',
-    };
-    
     // Store markers for filtering
     let markers = [];
     let trails = [];  // Store trail polylines
@@ -272,36 +244,58 @@
     const trailColor = '#1e88e5';
     const trailOpacity = 0.7;
     
+    // Calculate sprite position for a symbol
+    function getSymbolSpritePosition(symbolChar) {
+        // Symbol index is ASCII code - 33 (first printable char '!' is index 0)
+        const charCode = symbolChar ? symbolChar.charCodeAt(0) : 45; // Default to '-' (house)
+        const index = charCode - 33;
+        // Clamp to valid range (0-93)
+        const safeIndex = Math.max(0, Math.min(93, index));
+        return -(safeIndex * SYMBOL_SIZE);
+    }
+    
+    // Create a Leaflet divIcon using CSS sprites
+    function createSymbolIcon(symbolTable, symbolChar) {
+        const xPos = getSymbolSpritePosition(symbolChar);
+        const isPrimary = symbolTable === '/' || !symbolTable;
+        const spriteClass = isPrimary ? 'aprs-symbol-primary' : 'aprs-symbol-secondary';
+        
+        return L.divIcon({
+            html: `<div class="aprs-symbol ${spriteClass}" style="background-position: ${xPos}px 0;"></div>`,
+            className: 'aprs-symbol-icon',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12]
+        });
+    }
+    
     function createMarker(feature) {
         const props = feature.properties;
         const coords = feature.geometry.coordinates;
-        const symbolChar = props.symbol || '?';
+        const symbolChar = props.symbol || '-';
         const symbolTable = props.symbol_table || '/';
         const symbolKey = symbolTable + symbolChar;
         
-        // Get color based on symbol
-        const color = getSymbolColor(symbolChar);
-        
-        // Create circle marker with symbol character
-        const marker = L.circleMarker([coords[1], coords[0]], {
-            radius: 8,
-            fillColor: color,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.9,
-        });
+        // Create marker with APRS symbol icon
+        const icon = createSymbolIcon(symbolTable, symbolChar);
+        const marker = L.marker([coords[1], coords[0]], { icon: icon });
         
         // Get symbol name for popup
         const symbolName = symbolNames[symbolKey] || 'Station';
         
+        // Create popup with symbol sprite
+        const xPos = getSymbolSpritePosition(symbolChar);
+        const isPrimary = symbolTable === '/' || !symbolTable;
+        const spriteClass = isPrimary ? 'aprs-symbol-primary' : 'aprs-symbol-secondary';
+        
         marker.bindPopup(`
-            <div style="min-width:150px;">
-                <div style="color:${color};font-weight:bold;margin-bottom:8px;font-size:14px;">
-                    ${props.callsign}
-                </div>
-                <div style="font-size:12px;color:#666;margin-bottom:6px;">
-                    ${symbolName} <span style="color:#999;">(${symbolKey})</span>
+            <div style="min-width:180px;">
+                <div style="display:flex;align-items:center;margin-bottom:8px;">
+                    <div class="aprs-symbol ${spriteClass}" style="background-position: ${xPos}px 0; margin-right:8px;"></div>
+                    <div>
+                        <div style="font-weight:bold;font-size:14px;color:#333;">${props.callsign}</div>
+                        <div style="font-size:11px;color:#666;">${symbolName}</div>
+                    </div>
                 </div>
                 <div style="font-size:11px;color:#555;">
                     <div>Position: ${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</div>
