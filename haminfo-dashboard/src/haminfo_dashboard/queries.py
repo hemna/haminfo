@@ -257,6 +257,7 @@ def get_recent_packets(
             {
                 'from_call': packet.from_call,
                 'to_call': packet.to_call,
+                'path': packet.path,
                 'packet_type': packet.packet_type,
                 'received_at': packet.received_at.isoformat()
                 if packet.received_at
@@ -267,6 +268,7 @@ def get_recent_packets(
                 'course': packet.course,
                 'altitude': packet.altitude,
                 'comment': packet.comment,
+                'raw': packet.raw,
                 'country_code': country_info[0] if country_info else None,
                 'country_name': country_info[1] if country_info else None,
             }

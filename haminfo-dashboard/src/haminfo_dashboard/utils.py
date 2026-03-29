@@ -230,6 +230,175 @@ def _clean_comment(comment: str) -> str:
     return comment
 
 
+def get_packet_human_info(packet: dict) -> str:
+    """Generate APRSD-style human_info from packet data.
+
+    Parses the raw packet using aprslib to extract full packet details
+    and formats them like APRSD's compact log format.
+
+    Args:
+        packet: Dict with packet data including 'raw' field
+
+    Returns:
+        Human-readable packet info string
+    """
+    raw = packet.get('raw', '')
+    packet_type = packet.get('packet_type') or 'unknown'
+
+    # Try to parse raw packet with aprslib for full details
+    if raw:
+        try:
+            import aprslib
+
+            parsed = aprslib.parse(raw)
+
+            # Weather packet
+            if parsed.get('weather') or packet_type == 'weather':
+                return _format_weather_human_info(parsed)
+
+            # Position/GPS packet
+            if (
+                parsed.get('latitude') is not None
+                and parsed.get('longitude') is not None
+            ):
+                return _format_gps_human_info(parsed)
+
+            # Message packet
+            if parsed.get('message_text'):
+                return f'Msg: {parsed.get("message_text", "")}'
+
+            # Status packet
+            if parsed.get('status'):
+                return f'Status: {parsed.get("status", "")}'
+
+            # Object packet
+            if parsed.get('object_name'):
+                name = parsed.get('object_name', '')
+                if parsed.get('latitude') is not None:
+                    return f"Object '{name}' at {parsed['latitude']:.4f}, {parsed['longitude']:.4f}"
+                return f'Object: {name}'
+
+            # Telemetry packet
+            if parsed.get('telemetry'):
+                telem = parsed.get('telemetry', {})
+                vals = telem.get('vals', [])
+                if vals:
+                    return f'Telemetry: {", ".join(str(v) for v in vals[:5])}'
+                return 'Telemetry data'
+
+            # Fall back to comment if available
+            comment = parsed.get('comment', '')
+            if comment:
+                clean = _clean_comment(comment)
+                if clean:
+                    return clean[:60]
+
+        except Exception:
+            pass  # Fall through to basic formatting
+
+    # Fallback: use stored packet fields
+    return _format_basic_human_info(packet)
+
+
+def _format_weather_human_info(parsed: dict) -> str:
+    """Format weather packet like APRSD: Temp 72F Humidity 55% Wind 10MPH@180 ..."""
+    parts = []
+
+    # Get weather data - may be nested or at top level
+    weather = parsed.get('weather', {})
+    temp = weather.get('temperature') or parsed.get('temperature')
+    humidity = weather.get('humidity') or parsed.get('humidity')
+    wind_speed = weather.get('wind_speed') or parsed.get('wind_speed')
+    wind_dir = weather.get('wind_direction') or parsed.get('wind_direction')
+    pressure = weather.get('pressure') or parsed.get('pressure')
+    rain_24h = weather.get('rain_24h') or parsed.get('rain_24h')
+
+    if temp is not None:
+        # aprslib returns temp in Fahrenheit
+        parts.append(f'Temp:{temp:.0f}F')
+
+    if humidity is not None:
+        parts.append(f'Humidity:{humidity}%')
+
+    if wind_speed is not None:
+        if wind_dir is not None:
+            parts.append(f'Wind:{wind_speed:.0f}MPH@{wind_dir}')
+        else:
+            parts.append(f'Wind:{wind_speed:.0f}MPH')
+
+    if pressure is not None and pressure > 0:
+        parts.append(f'Press:{pressure:.0f}mb')
+
+    if rain_24h is not None and rain_24h > 0:
+        parts.append(f'Rain:{rain_24h:.2f}in/24h')
+
+    return ' '.join(parts) if parts else 'Weather report'
+
+
+def _format_gps_human_info(parsed: dict) -> str:
+    """Format GPS/position packet like APRSD: Lat:XX.XXX Lon:XX.XXX Alt:XXXft Spd:XXXMPH"""
+    parts = []
+
+    lat = parsed.get('latitude')
+    lon = parsed.get('longitude')
+
+    if lat is not None:
+        parts.append(f'Lat:{lat:.3f}')
+    if lon is not None:
+        parts.append(f'Lon:{lon:.3f}')
+
+    altitude = parsed.get('altitude')
+    if altitude:
+        parts.append(f'Alt:{altitude:.0f}ft')
+
+    speed = parsed.get('speed')
+    if speed and speed > 0:
+        # aprslib returns speed in km/h, convert to MPH
+        mph = speed * 0.621371
+        parts.append(f'Spd:{mph:.0f}MPH')
+
+    course = parsed.get('course')
+    if course and course > 0:
+        parts.append(f'Crs:{course:.0f}')
+
+    # Add comment if present and clean
+    comment = parsed.get('comment', '')
+    if comment:
+        clean = _clean_comment(comment)
+        if clean and len(' '.join(parts)) < 40:
+            parts.append(clean[:30])
+
+    return ' '.join(parts) if parts else 'Position report'
+
+
+def _format_basic_human_info(packet: dict) -> str:
+    """Basic formatting using stored packet fields (fallback)."""
+    packet_type = packet.get('packet_type') or 'unknown'
+    lat = packet.get('latitude')
+    lon = packet.get('longitude')
+    comment = packet.get('comment', '') or ''
+
+    if packet_type == 'weather':
+        return 'Weather report'
+
+    if lat is not None and lon is not None:
+        parts = [f'Lat:{lat:.3f}', f'Lon:{lon:.3f}']
+        speed = packet.get('speed')
+        if speed and speed > 0:
+            mph = speed * 0.621371
+            parts.append(f'Spd:{mph:.0f}MPH')
+        altitude = packet.get('altitude')
+        if altitude:
+            parts.append(f'Alt:{altitude:.0f}ft')
+        return ' '.join(parts)
+
+    clean = _clean_comment(comment)
+    if clean:
+        return clean[:50]
+
+    return packet_type.title() if packet_type != 'unknown' else 'Packet'
+
+
 # US state bounding boxes (min_lat, max_lat, min_lon, max_lon)
 US_STATE_BOUNDS = {
     'AL': ('Alabama', 30.2, 35.0, -88.5, -84.9),
