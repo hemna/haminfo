@@ -87,14 +87,45 @@
     const MAX_FEED_ITEMS = 50;
     const feedContainer = document.getElementById('live-feed');
     
+    // Packet type colors matching APRSD
+    const typeColors = {
+        'position': '#1AA730',
+        'weather': '#00BCD4',
+        'status': '#FFC107',
+        'message': '#E91E63',
+        'telemetry': '#9C27B0',
+        'object': '#FF5722',
+        'unknown': '#607D8B'
+    };
+    
     function handlePacket(packet) {
         const item = document.createElement('div');
-        item.className = 'live-feed-item ' + (packet.packet_type || 'unknown');
-        item.textContent = packet.summary || JSON.stringify(packet);
+        item.className = 'live-feed-item';
+        item.style.cssText = 'font-family: "Fira Code", "Consolas", monospace; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;';
+        
+        const typeColor = typeColors[packet.packet_type] || typeColors['unknown'];
+        const pktType = (packet.packet_type || 'unknown').charAt(0).toUpperCase() + (packet.packet_type || 'unknown').slice(1);
+        
+        // Build APRSD-style compact format:
+        // PacketType FROM → path → TO : human_info
+        let html = `<span style="color:${typeColor};font-weight:bold;min-width:65px;">${pktType}</span>`;
+        html += `<span style="color:#C70039;font-weight:bold;">${packet.from_call || '?'}</span>`;
+        html += `<span style="color:#1AA730;">→</span>`;
+        
+        if (packet.path) {
+            html += `<span style="color:var(--text-muted);font-size:10px;">${packet.path}</span>`;
+            html += `<span style="color:#1AA730;">→</span>`;
+        }
+        
+        html += `<span style="color:#D033FF;">${packet.to_call || 'APRS'}</span>`;
+        html += `<span style="color:var(--text-muted);">:</span>`;
+        html += `<span style="color:#FFD54F;flex:1;">${packet.human_info || ''}</span>`;
+        
+        item.innerHTML = html;
         
         // Remove "waiting" message if present
         const waiting = feedContainer.querySelector('[style*="text-muted"]');
-        if (waiting) waiting.remove();
+        if (waiting && waiting.textContent.includes('Waiting')) waiting.remove();
         
         // Add to top
         feedContainer.insertBefore(item, feedContainer.firstChild);
