@@ -80,220 +80,200 @@
         </div>
 
         <!-- Chart.js and Graph Initialization -->
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
         <script>
         (function() {
             // Weather data from server (reversed to show oldest first)
             var reports = {{ weather_data.reports | tojson }}.reverse();
             
-            // Calculate dewpoint using Magnus formula
-            // Td = 243.04 * (ln(RH/100) + ((17.625 * T) / (243.04 + T))) / (17.625 - ln(RH/100) - ((17.625 * T) / (243.04 + T)))
-            function calcDewpoint(tempC, humidity) {
-                if (tempC === null || humidity === null || humidity <= 0) return null;
-                var a = 17.625;
-                var b = 243.04;
-                var alpha = Math.log(humidity / 100) + (a * tempC) / (b + tempC);
-                return b * alpha / (a - alpha);
-            }
-            
-            // Prepare data arrays
-            var labels = [];
-            var temperatures = [];
-            var dewpoints = [];
-            var humidities = [];
-            var pressures = [];
-            
-            reports.forEach(function(r) {
-                // Parse time and format for display
-                var time = r.time ? new Date(r.time) : null;
-                labels.push(time);
-                
-                temperatures.push(r.temperature);
-                dewpoints.push(calcDewpoint(r.temperature, r.humidity));
-                humidities.push(r.humidity);
-                pressures.push(r.pressure > 0 ? r.pressure : null);
-            });
-            
-            // Common chart options
-            var commonOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            color: '#9ca3af',
-                            boxWidth: 12,
-                            padding: 8,
-                            font: { size: 11 }
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(17, 24, 39, 0.9)',
-                        titleColor: '#f3f4f6',
-                        bodyColor: '#d1d5db',
-                        borderColor: '#374151',
-                        borderWidth: 1,
-                        padding: 10,
-                        callbacks: {
-                            title: function(items) {
-                                if (items[0] && items[0].raw !== null) {
-                                    var d = new Date(items[0].parsed.x);
-                                    return d.toLocaleString();
-                                }
-                                return '';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            displayFormats: {
-                                hour: 'HH:mm',
-                                day: 'MMM d'
-                            }
-                        },
-                        grid: { color: 'rgba(75, 85, 99, 0.3)' },
-                        ticks: { color: '#9ca3af', font: { size: 10 } }
-                    },
-                    y: {
-                        grid: { color: 'rgba(75, 85, 99, 0.3)' },
-                        ticks: { color: '#9ca3af', font: { size: 10 } }
-                    }
+            // Function to load a script dynamically
+            function loadScript(url, callback) {
+                // Check if already loaded
+                if (document.querySelector('script[src="' + url + '"]')) {
+                    callback();
+                    return;
                 }
-            };
+                var script = document.createElement('script');
+                script.src = url;
+                script.onload = callback;
+                document.head.appendChild(script);
+            }
             
-            // Temperature & Dewpoint Chart
-            var tempCtx = document.getElementById('tempDewpointChart');
-            if (tempCtx) {
-                new Chart(tempCtx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'Temperature (°C)',
-                                data: temperatures,
-                                borderColor: '#10b981',
-                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            // Function to initialize charts once Chart.js is loaded
+            function initCharts() {
+                // Calculate dewpoint using Magnus formula
+                function calcDewpoint(tempC, humidity) {
+                    if (tempC === null || humidity === null || humidity <= 0) return null;
+                    var a = 17.625;
+                    var b = 243.04;
+                    var alpha = Math.log(humidity / 100) + (a * tempC) / (b + tempC);
+                    return b * alpha / (a - alpha);
+                }
+                
+                // Prepare data arrays
+                var labels = [];
+                var temperatures = [];
+                var dewpoints = [];
+                var humidities = [];
+                var pressures = [];
+                
+                reports.forEach(function(r) {
+                    var time = r.time ? new Date(r.time) : null;
+                    labels.push(time);
+                    temperatures.push(r.temperature);
+                    dewpoints.push(calcDewpoint(r.temperature, r.humidity));
+                    humidities.push(r.humidity);
+                    pressures.push(r.pressure > 0 ? r.pressure : null);
+                });
+                
+                // Common chart options
+                var commonOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { color: '#9ca3af', boxWidth: 12, padding: 8, font: { size: 11 } }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(17, 24, 39, 0.9)',
+                            titleColor: '#f3f4f6',
+                            bodyColor: '#d1d5db',
+                            borderColor: '#374151',
+                            borderWidth: 1,
+                            padding: 10
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { displayFormats: { hour: 'HH:mm', day: 'MMM d' } },
+                            grid: { color: 'rgba(75, 85, 99, 0.3)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(75, 85, 99, 0.3)' },
+                            ticks: { color: '#9ca3af', font: { size: 10 } }
+                        }
+                    }
+                };
+                
+                // Temperature & Dewpoint Chart
+                var tempCtx = document.getElementById('tempDewpointChart');
+                if (tempCtx && !tempCtx._chartInitialized) {
+                    tempCtx._chartInitialized = true;
+                    new Chart(tempCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Temperature (°C)',
+                                    data: temperatures,
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 4,
+                                    tension: 0.3,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Dewpoint (°C)',
+                                    data: dewpoints,
+                                    borderColor: '#06b6d4',
+                                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 4,
+                                    tension: 0.3,
+                                    borderDash: [5, 5],
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: Object.assign({}, commonOptions, {
+                            scales: Object.assign({}, commonOptions.scales, {
+                                y: Object.assign({}, commonOptions.scales.y, {
+                                    title: { display: true, text: '°C', color: '#9ca3af', font: { size: 11 } }
+                                })
+                            })
+                        })
+                    });
+                }
+                
+                // Humidity Chart
+                var humidityCtx = document.getElementById('humidityChart');
+                if (humidityCtx && !humidityCtx._chartInitialized) {
+                    humidityCtx._chartInitialized = true;
+                    new Chart(humidityCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Humidity (%)',
+                                data: humidities,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.2)',
                                 borderWidth: 2,
                                 pointRadius: 2,
                                 pointHoverRadius: 4,
                                 tension: 0.3,
-                                fill: false
-                            },
-                            {
-                                label: 'Dewpoint (°C)',
-                                data: dewpoints,
-                                borderColor: '#06b6d4',
-                                backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: Object.assign({}, commonOptions, {
+                            scales: Object.assign({}, commonOptions.scales, {
+                                y: Object.assign({}, commonOptions.scales.y, {
+                                    min: 0,
+                                    max: 100,
+                                    title: { display: true, text: '%', color: '#9ca3af', font: { size: 11 } }
+                                })
+                            })
+                        })
+                    });
+                }
+                
+                // Pressure Chart
+                var pressureCtx = document.getElementById('pressureChart');
+                if (pressureCtx && !pressureCtx._chartInitialized) {
+                    pressureCtx._chartInitialized = true;
+                    new Chart(pressureCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Pressure (mbar)',
+                                data: pressures,
+                                borderColor: '#f59e0b',
+                                backgroundColor: 'rgba(245, 158, 11, 0.2)',
                                 borderWidth: 2,
                                 pointRadius: 2,
                                 pointHoverRadius: 4,
                                 tension: 0.3,
-                                borderDash: [5, 5],
-                                fill: false
-                            }
-                        ]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            ...commonOptions.scales,
-                            y: {
-                                ...commonOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: '°C',
-                                    color: '#9ca3af',
-                                    font: { size: 11 }
-                                }
-                            }
-                        }
-                    }
-                });
+                                fill: true
+                            }]
+                        },
+                        options: Object.assign({}, commonOptions, {
+                            scales: Object.assign({}, commonOptions.scales, {
+                                y: Object.assign({}, commonOptions.scales.y, {
+                                    title: { display: true, text: 'mbar', color: '#9ca3af', font: { size: 11 } }
+                                })
+                            })
+                        })
+                    });
+                }
             }
             
-            // Humidity Chart
-            var humidityCtx = document.getElementById('humidityChart');
-            if (humidityCtx) {
-                new Chart(humidityCtx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Humidity (%)',
-                            data: humidities,
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                            borderWidth: 2,
-                            pointRadius: 2,
-                            pointHoverRadius: 4,
-                            tension: 0.3,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            ...commonOptions.scales,
-                            y: {
-                                ...commonOptions.scales.y,
-                                min: 0,
-                                max: 100,
-                                title: {
-                                    display: true,
-                                    text: '%',
-                                    color: '#9ca3af',
-                                    font: { size: 11 }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            
-            // Pressure Chart
-            var pressureCtx = document.getElementById('pressureChart');
-            if (pressureCtx) {
-                new Chart(pressureCtx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Pressure (mbar)',
-                            data: pressures,
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                            borderWidth: 2,
-                            pointRadius: 2,
-                            pointHoverRadius: 4,
-                            tension: 0.3,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        ...commonOptions,
-                        scales: {
-                            ...commonOptions.scales,
-                            y: {
-                                ...commonOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: 'mbar',
-                                    color: '#9ca3af',
-                                    font: { size: 11 }
-                                }
-                            }
-                        }
-                    }
+            // Load Chart.js and date adapter, then initialize charts
+            if (typeof Chart !== 'undefined') {
+                // Chart.js already loaded
+                initCharts();
+            } else {
+                loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', function() {
+                    loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js', function() {
+                        initCharts();
+                    });
                 });
             }
         })();
