@@ -1,0 +1,85 @@
+<!-- Weather Reports Table for Station Detail -->
+{% if weather_data and weather_data.reports %}
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span class="card-title">Weather Reports ({{ weather_data.report_count }})</span>
+    </div>
+    <div class="card-body">
+        <!-- Latest Report Summary -->
+        {% set latest = weather_data.reports[0] %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:16px;margin-bottom:20px;padding:16px;background:var(--surface);border-radius:8px;">
+            {% if latest.temperature is not none %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Temperature</div>
+                <div style="color:var(--accent-green);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.temperature) }}&deg;F</div>
+            </div>
+            {% endif %}
+            {% if latest.humidity is not none %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Humidity</div>
+                <div style="color:var(--accent-blue);font-size:24px;font-weight:bold;">{{ latest.humidity }}%</div>
+            </div>
+            {% endif %}
+            {% if latest.pressure is not none and latest.pressure > 0 %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Pressure</div>
+                <div style="color:var(--accent-yellow);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.pressure) }}</div>
+                <div style="color:var(--text-muted);font-size:10px;">mbar</div>
+            </div>
+            {% endif %}
+            {% if latest.wind_speed is not none %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Wind</div>
+                <div style="color:var(--text-primary);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.wind_speed) }}</div>
+                <div style="color:var(--text-muted);font-size:10px;">mph @ {{ latest.wind_direction }}&deg;</div>
+            </div>
+            {% endif %}
+            {% if latest.wind_gust is not none and latest.wind_gust > 0 %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Gust</div>
+                <div style="color:var(--accent-red);font-size:24px;font-weight:bold;">{{ "%.1f"|format(latest.wind_gust) }}</div>
+                <div style="color:var(--text-muted);font-size:10px;">mph</div>
+            </div>
+            {% endif %}
+            {% if latest.rain_since_midnight is not none and latest.rain_since_midnight > 0 %}
+            <div style="text-align:center;">
+                <div style="color:var(--text-muted);font-size:11px;text-transform:uppercase;">Rain Today</div>
+                <div style="color:var(--accent-blue);font-size:24px;font-weight:bold;">{{ "%.2f"|format(latest.rain_since_midnight) }}"</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Report History Table -->
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border-color);color:var(--text-muted);">
+                        <th style="padding:8px;text-align:left;">Time</th>
+                        <th style="padding:8px;text-align:right;">Temp</th>
+                        <th style="padding:8px;text-align:right;">Humidity</th>
+                        <th style="padding:8px;text-align:right;">Pressure</th>
+                        <th style="padding:8px;text-align:right;">Wind</th>
+                        <th style="padding:8px;text-align:right;">Gust</th>
+                        <th style="padding:8px;text-align:right;">Rain 1h</th>
+                        <th style="padding:8px;text-align:right;">Rain 24h</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in weather_data.reports %}
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <td style="padding:8px;color:var(--text-secondary);">{{ report.time[:16] if report.time else '--' }}</td>
+                        <td style="padding:8px;text-align:right;color:var(--accent-green);">{{ "%.1f"|format(report.temperature) if report.temperature is not none else '--' }}&deg;</td>
+                        <td style="padding:8px;text-align:right;color:var(--accent-blue);">{{ report.humidity if report.humidity is not none else '--' }}%</td>
+                        <td style="padding:8px;text-align:right;">{{ "%.1f"|format(report.pressure) if report.pressure is not none and report.pressure > 0 else '--' }}</td>
+                        <td style="padding:8px;text-align:right;">{{ "%.1f"|format(report.wind_speed) if report.wind_speed is not none else '--' }} @ {{ report.wind_direction if report.wind_direction is not none else '--' }}&deg;</td>
+                        <td style="padding:8px;text-align:right;color:var(--accent-red);">{{ "%.1f"|format(report.wind_gust) if report.wind_gust is not none and report.wind_gust > 0 else '--' }}</td>
+                        <td style="padding:8px;text-align:right;">{{ "%.2f"|format(report.rain_1h) if report.rain_1h is not none and report.rain_1h > 0 else '--' }}</td>
+                        <td style="padding:8px;text-align:right;">{{ "%.2f"|format(report.rain_24h) if report.rain_24h is not none and report.rain_24h > 0 else '--' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}

@@ -10,7 +10,11 @@ from sqlalchemy import func, distinct
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
-from haminfo_dashboard.utils import get_country_from_callsign, CALLSIGN_PREFIXES, get_state_from_coords
+from haminfo_dashboard.utils import (
+    get_country_from_callsign,
+    CALLSIGN_PREFIXES,
+    get_state_from_coords,
+)
 from haminfo_dashboard.cache import cached
 
 if TYPE_CHECKING:
@@ -326,8 +330,10 @@ def get_weather_stations(
         # Get state info for supported countries
         state_info = None
         if country_info and country_info[0] in ('US', 'CA', 'AU'):
-            state_info = get_state_from_coords(station.latitude, station.longitude, country_info[0])
-        
+            state_info = get_state_from_coords(
+                station.latitude, station.longitude, country_info[0]
+            )
+
         # Filter by state if specified
         if state:
             if not state_info or state_info[0] != state:
@@ -359,7 +365,7 @@ def get_weather_stations(
         if len(result) >= limit + offset:
             break
 
-    return result[offset:offset + limit]
+    return result[offset : offset + limit]
 
 
 @cached('dashboard:wx_countries')
@@ -374,10 +380,12 @@ def get_weather_countries(session: Session) -> list[dict[str, Any]]:
     """
     # Only get stations that have at least one weather report
     from sqlalchemy import exists
-    
-    stations = session.query(WeatherStation.callsign).filter(
-        exists().where(WeatherReport.weather_station_id == WeatherStation.id)
-    ).all()
+
+    stations = (
+        session.query(WeatherStation.callsign)
+        .filter(exists().where(WeatherReport.weather_station_id == WeatherStation.id))
+        .all()
+    )
 
     country_counts: dict[tuple[str, str], int] = {}
 
@@ -470,6 +478,71 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     }
 
 
+def get_station_weather_reports(
+    session: Session,
+    callsign: str,
+    limit: int = 20,
+) -> Optional[dict[str, Any]]:
+    """Get weather reports for a station.
+
+    Args:
+        session: Database session.
+        callsign: Station callsign.
+        limit: Maximum number of reports to return.
+
+    Returns:
+        Dict with station info and weather reports, or None if not a weather station.
+    """
+    # Check if this callsign is a weather station
+    station = (
+        session.query(WeatherStation)
+        .filter(WeatherStation.callsign == callsign.upper())
+        .first()
+    )
+
+    if not station:
+        return None
+
+    # Get recent weather reports
+    reports = (
+        session.query(WeatherReport)
+        .filter(WeatherReport.weather_station_id == station.id)
+        .order_by(WeatherReport.time.desc())
+        .limit(limit)
+        .all()
+    )
+
+    country_info = get_country_from_callsign(callsign)
+
+    return {
+        'station': {
+            'id': station.id,
+            'callsign': station.callsign,
+            'latitude': station.latitude,
+            'longitude': station.longitude,
+            'comment': station.comment,
+            'country_code': country_info[0] if country_info else None,
+            'country_name': country_info[1] if country_info else None,
+        },
+        'reports': [
+            {
+                'time': report.time.isoformat() if report.time else None,
+                'temperature': report.temperature,
+                'humidity': report.humidity,
+                'pressure': report.pressure,
+                'wind_speed': report.wind_speed,
+                'wind_direction': report.wind_direction,
+                'wind_gust': report.wind_gust,
+                'rain_1h': report.rain_1h,
+                'rain_24h': report.rain_24h,
+                'rain_since_midnight': report.rain_since_midnight,
+            }
+            for report in reports
+        ],
+        'report_count': len(reports),
+    }
+
+
 @cached('dashboard:map:{bbox}:{station_type}:{limit}')
 def get_map_stations(
     session: Session,
@@ -497,7 +570,7 @@ def get_map_stations(
         APRSPacket.latitude.isnot(None),
         APRSPacket.longitude.isnot(None),
     ]
-    
+
     # If filtering by station type, include it in subquery
     # This ensures we find the latest packet OF THAT TYPE for each station
     if station_type:

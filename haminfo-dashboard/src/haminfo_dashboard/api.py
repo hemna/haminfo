@@ -18,6 +18,7 @@ from haminfo_dashboard.queries import (
     get_weather_countries,
     get_station_detail,
     get_map_stations,
+    get_station_weather_reports,
 )
 
 
@@ -253,6 +254,39 @@ def api_station_packets(callsign: str):
         return render_template(
             'dashboard/partials/packets_table.html', packets=packets, callsign=callsign
         )
+    finally:
+        session.close()
+
+
+# Station weather reports endpoints
+@dashboard_bp.route('/api/dashboard/station/<callsign>/weather')
+def api_station_weather(callsign: str):
+    """Station weather reports - returns HTMX partial."""
+    session = _get_session()
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        weather_data = get_station_weather_reports(session, callsign, limit=limit)
+        if not weather_data:
+            return '', 204  # No content - not a weather station
+        return render_template(
+            'dashboard/partials/weather_reports_table.html', weather_data=weather_data
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/station/<callsign>/weather/json')
+def api_station_weather_json(callsign: str):
+    """Station weather reports - returns JSON."""
+    session = _get_session()
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        weather_data = get_station_weather_reports(session, callsign, limit=limit)
+        if not weather_data:
+            return jsonify(
+                {'error': 'Not a weather station', 'callsign': callsign}
+            ), 404
+        return jsonify(weather_data)
     finally:
         session.close()
 

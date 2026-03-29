@@ -33,6 +33,13 @@
     <div style="color:var(--text-muted);text-align:center;padding:40px;">Loading station data...</div>
 </div>
 
+<!-- Weather Reports (loaded via HTMX - only shows if station has weather data) -->
+<div id="weather-reports"
+     hx-get="{{ url_for('dashboard.api_station_weather', callsign=callsign) }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+</div>
+
 <!-- Recent Packets -->
 <div class="card" style="margin-top:20px;">
     <div class="card-header">
