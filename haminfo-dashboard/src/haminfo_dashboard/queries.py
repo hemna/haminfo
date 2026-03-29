@@ -441,9 +441,11 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     Returns:
         Dict with station details or None if not found.
     """
+    callsign_upper = callsign.upper()
+
     latest_packet = (
         session.query(APRSPacket)
-        .filter(APRSPacket.from_call == callsign.upper())
+        .filter(APRSPacket.from_call == callsign_upper)
         .order_by(APRSPacket.received_at.desc())
         .first()
     )
@@ -453,16 +455,46 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
 
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
+    last_7d = now - timedelta(days=7)
 
-    packet_count = (
-        session.query(func.count(APRSPacket.from_call))
+    # Count packets in last 24 hours
+    packets_24h = (
+        session.query(func.count(APRSPacket.id))
         .filter(
-            APRSPacket.from_call == callsign.upper(),
+            APRSPacket.from_call == callsign_upper,
             APRSPacket.received_at >= last_24h,
         )
         .scalar()
         or 0
     )
+
+    # Count packets in last 7 days
+    packets_7d = (
+        session.query(func.count(APRSPacket.id))
+        .filter(
+            APRSPacket.from_call == callsign_upper,
+            APRSPacket.received_at >= last_7d,
+        )
+        .scalar()
+        or 0
+    )
+
+    # Count total packets
+    packets_total = (
+        session.query(func.count(APRSPacket.id))
+        .filter(APRSPacket.from_call == callsign_upper)
+        .scalar()
+        or 0
+    )
+
+    # Get first seen date
+    first_packet = (
+        session.query(APRSPacket.received_at)
+        .filter(APRSPacket.from_call == callsign_upper)
+        .order_by(APRSPacket.received_at.asc())
+        .first()
+    )
+    first_seen = first_packet[0].strftime('%Y-%m-%d') if first_packet else None
 
     type_counts = (
         session.query(
@@ -470,7 +502,7 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
             func.count(APRSPacket.packet_type).label('count'),
         )
         .filter(
-            APRSPacket.from_call == callsign.upper(),
+            APRSPacket.from_call == callsign_upper,
             APRSPacket.received_at >= last_24h,
         )
         .group_by(APRSPacket.packet_type)
@@ -493,7 +525,10 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         'symbol': latest_packet.symbol,
         'symbol_table': latest_packet.symbol_table,
         'comment': latest_packet.comment,
-        'packet_count_24h': packet_count,
+        'packets_24h': packets_24h,
+        'packets_7d': packets_7d,
+        'packets_total': packets_total,
+        'first_seen': first_seen,
         'packet_types': packet_types,
         'country_code': country_info[0] if country_info else None,
         'country_name': country_info[1] if country_info else None,
