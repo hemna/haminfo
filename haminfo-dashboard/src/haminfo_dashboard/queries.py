@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, and_
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
@@ -16,10 +18,63 @@ from haminfo_dashboard.utils import (
     CALLSIGN_PREFIXES,
     get_state_from_coords,
 )
+from haminfo_dashboard import cache
 from haminfo_dashboard.cache import cached
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+LOG = logging.getLogger(__name__)
+
+# Tile-based caching constants
+TILE_CACHE_TTL = 60  # seconds
+MAX_TILES_PER_REQUEST = 100
+
+
+def get_tile_coords(latitude: float, longitude: float) -> tuple[int, int]:
+    """Get tile coordinates for a lat/lon position.
+
+    Tiles are 1° x 1° squares. The tile coordinate is the floor
+    of the latitude and longitude.
+
+    Args:
+        latitude: Latitude in degrees (-90 to 90).
+        longitude: Longitude in degrees (-180 to 180).
+
+    Returns:
+        Tuple of (tile_lat, tile_lon) as integers.
+    """
+    return (math.floor(latitude), math.floor(longitude))
+
+
+def get_tiles_for_bbox(
+    min_lon: float,
+    min_lat: float,
+    max_lon: float,
+    max_lat: float,
+) -> list[tuple[int, int]]:
+    """Get all tile coordinates that overlap with a bounding box.
+
+    Args:
+        min_lon: Western edge of bbox.
+        min_lat: Southern edge of bbox.
+        max_lon: Eastern edge of bbox.
+        max_lat: Northern edge of bbox.
+
+    Returns:
+        List of (tile_lat, tile_lon) tuples, sorted by lat then lon.
+    """
+    start_lat = math.floor(min_lat)
+    end_lat = math.floor(max_lat)
+    start_lon = math.floor(min_lon)
+    end_lon = math.floor(max_lon)
+
+    tiles = []
+    for lat in range(start_lat, end_lat + 1):
+        for lon in range(start_lon, end_lon + 1):
+            tiles.append((lat, lon))
+
+    return tiles
 
 
 @cached('dashboard:stats', ttl=300)
