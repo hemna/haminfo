@@ -28,7 +28,7 @@ LOG = logging.getLogger(__name__)
 
 # Feature flag for continuous aggregates
 # Set to True after migrations are run and aggregates are populated
-USE_CONTINUOUS_AGGREGATES = False
+USE_CONTINUOUS_AGGREGATES = True
 
 # Tile-based caching constants
 TILE_CACHE_TTL = 60  # seconds
