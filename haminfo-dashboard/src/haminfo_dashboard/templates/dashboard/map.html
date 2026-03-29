@@ -45,6 +45,21 @@
         height: 10px;
         border-radius: 50%;
     }
+    .map-loading {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(22,33,62,0.95);
+        border-radius: 6px;
+        padding: 8px 12px;
+        z-index: 1000;
+        font-size: 12px;
+        color: var(--accent-cyan);
+        display: none;
+    }
+    .map-loading.active {
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -74,6 +89,7 @@
             <span style="color:var(--text-secondary);">Digipeater</span>
         </div>
     </div>
+    <div id="map-loading" class="map-loading">Loading stations...</div>
 </div>
 {% endblock %}
 
@@ -121,6 +137,9 @@
     
     // Store markers for filtering
     let markers = [];
+    let currentType = '';
+    let loadTimeout = null;
+    const loadingEl = document.getElementById('map-loading');
     
     function createMarker(feature) {
         const props = feature.properties;
@@ -154,9 +173,21 @@
         return marker;
     }
     
-    function loadStations(type = '') {
+    function loadStations() {
+        const bounds = map.getBounds();
+        const bbox = [
+            bounds.getWest(),
+            bounds.getSouth(), 
+            bounds.getEast(),
+            bounds.getNorth()
+        ].join(',');
+        
         const url = new URL('{{ url_for("dashboard.api_map_stations") }}', window.location.origin);
-        if (type) url.searchParams.set('type', type);
+        url.searchParams.set('bbox', bbox);
+        url.searchParams.set('limit', '5000');
+        if (currentType) url.searchParams.set('type', currentType);
+        
+        loadingEl.classList.add('active');
         
         fetch(url)
             .then(r => r.json())
@@ -173,15 +204,30 @@
                 });
                 
                 document.getElementById('station-count').textContent = `${markers.length} stations`;
+                loadingEl.classList.remove('active');
+            })
+            .catch(err => {
+                console.error('Failed to load stations:', err);
+                loadingEl.classList.remove('active');
             });
     }
     
-    // Initial load
-    loadStations();
+    // Debounced load on map move
+    function scheduleLoad() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        loadTimeout = setTimeout(loadStations, 300);
+    }
+    
+    // Initial load after map is ready
+    map.whenReady(loadStations);
+    
+    // Reload when map is panned or zoomed
+    map.on('moveend', scheduleLoad);
     
     // Filter handler
     document.getElementById('station-type-filter').addEventListener('change', (e) => {
-        loadStations(e.target.value);
+        currentType = e.target.value;
+        loadStations();
     });
     
     // Handle callsign from URL
