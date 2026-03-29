@@ -283,15 +283,38 @@
         };
     }
     
-    // Create a Leaflet divIcon using CSS sprites
+    // Determine if symbol_table is an overlay character
+    // Primary table: '/'
+    // Secondary table: '\\'
+    // Overlay: any other character (A-Z, 0-9) - use secondary table + show overlay
+    function parseSymbolTable(symbolTable) {
+        if (!symbolTable || symbolTable === '/') {
+            return { spriteUrl: PRIMARY_SPRITE, overlay: null };
+        } else if (symbolTable === '\\') {
+            return { spriteUrl: SECONDARY_SPRITE, overlay: null };
+        } else {
+            // It's an overlay character - use secondary table and show the overlay
+            return { spriteUrl: SECONDARY_SPRITE, overlay: symbolTable };
+        }
+    }
+    
+    // Create a Leaflet divIcon using CSS sprites with optional overlay
     function createSymbolIcon(symbolTable, symbolChar) {
         const pos = getSymbolSpritePosition(symbolChar);
-        const isPrimary = symbolTable === '/' || !symbolTable;
-        const spriteUrl = isPrimary ? PRIMARY_SPRITE : SECONDARY_SPRITE;
+        const { spriteUrl, overlay } = parseSymbolTable(symbolTable);
         
-        // Use inline styles for reliability - ensures icon renders even if CSS classes fail
+        // Build the icon HTML
+        let html = `<div style="position:relative;width:24px;height:24px;">`;
+        html += `<div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${pos.x}px ${pos.y}px;background-repeat:no-repeat;image-rendering:pixelated;"></div>`;
+        
+        // Add overlay character if present
+        if (overlay) {
+            html += `<div style="position:absolute;top:0;left:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#000;text-shadow:0 0 2px #fff, 0 0 2px #fff;">${overlay}</div>`;
+        }
+        html += `</div>`;
+        
         return L.divIcon({
-            html: `<div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${pos.x}px ${pos.y}px;background-repeat:no-repeat;image-rendering:pixelated;"></div>`,
+            html: html,
             className: 'aprs-symbol-icon',
             iconSize: [24, 24],
             iconAnchor: [12, 12],
@@ -313,18 +336,25 @@
         // Get symbol name for popup
         const symbolName = symbolNames[symbolKey] || 'Station';
         
-        // Create popup with symbol sprite (use inline styles for reliability)
+        // Create popup with symbol sprite and overlay
         const pos = getSymbolSpritePosition(symbolChar);
-        const isPrimary = symbolTable === '/' || !symbolTable;
-        const spriteUrl = isPrimary ? PRIMARY_SPRITE : SECONDARY_SPRITE;
+        const { spriteUrl, overlay } = parseSymbolTable(symbolTable);
+        
+        // Build popup symbol HTML with overlay support
+        let popupSymbolHtml = `<div style="position:relative;width:24px;height:24px;margin-right:8px;">`;
+        popupSymbolHtml += `<div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${pos.x}px ${pos.y}px;background-repeat:no-repeat;"></div>`;
+        if (overlay) {
+            popupSymbolHtml += `<div style="position:absolute;top:0;left:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#000;text-shadow:0 0 2px #fff, 0 0 2px #fff;">${overlay}</div>`;
+        }
+        popupSymbolHtml += `</div>`;
         
         marker.bindPopup(`
             <div style="min-width:180px;">
                 <div style="display:flex;align-items:center;margin-bottom:8px;">
-                    <div style="width:24px;height:24px;background-image:url('${spriteUrl}');background-position:${pos.x}px ${pos.y}px;background-repeat:no-repeat;margin-right:8px;"></div>
+                    ${popupSymbolHtml}
                     <div>
                         <div style="font-weight:bold;font-size:14px;color:#333;">${props.callsign}</div>
-                        <div style="font-size:11px;color:#666;">${symbolName}</div>
+                        <div style="font-size:11px;color:#666;">${symbolName}${overlay ? ' (' + overlay + ')' : ''}</div>
                     </div>
                 </div>
                 <div style="font-size:11px;color:#555;">
