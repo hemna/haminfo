@@ -77,6 +77,193 @@ def get_tiles_for_bbox(
     return tiles
 
 
+def query_tile_from_db(
+    session: Session,
+    tile_lat: int,
+    tile_lon: int,
+    hours: int,
+    station_type: str,
+) -> list[dict[str, Any]]:
+    """Query database for stations within a single tile.
+
+    Returns the most recent packet per callsign within the tile bounds.
+
+    Args:
+        session: Database session.
+        tile_lat: Tile latitude (floor of actual lat).
+        tile_lon: Tile longitude (floor of actual lon).
+        hours: Hours of history to include.
+        station_type: Optional packet type filter (empty string for all).
+
+    Returns:
+        List of compact station dicts.
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
+    # Build filters for the tile
+    filters = [
+        APRSPacket.received_at >= since,
+        APRSPacket.latitude >= tile_lat,
+        APRSPacket.latitude < tile_lat + 1,
+        APRSPacket.longitude >= tile_lon,
+        APRSPacket.longitude < tile_lon + 1,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+
+    if station_type:
+        filters.append(APRSPacket.packet_type == station_type)
+
+    # Query with ordering to get most recent per callsign
+    # We'll deduplicate in Python for simplicity
+    packets = (
+        session.query(APRSPacket)
+        .filter(and_(*filters))
+        .order_by(APRSPacket.received_at.desc())
+        .all()
+    )
+
+    # Deduplicate by callsign, keeping most recent
+    seen: set[str] = set()
+    result = []
+
+    for packet in packets:
+        if packet.from_call in seen:
+            continue
+        seen.add(packet.from_call)
+
+        result.append(
+            {
+                'callsign': packet.from_call,
+                'latitude': packet.latitude,
+                'longitude': packet.longitude,
+                'packet_type': packet.packet_type,
+                'symbol': packet.symbol,
+                'symbol_table': packet.symbol_table,
+                'speed': packet.speed,
+                'course': packet.course,
+                'altitude': packet.altitude,
+                'comment': packet.comment,
+                'received_at': packet.received_at.isoformat()
+                if packet.received_at
+                else None,
+            }
+        )
+
+    return result
+
+
+def get_tile_stations(
+    session: Session,
+    tile_lat: int,
+    tile_lon: int,
+    hours: int,
+    station_type: str,
+) -> list[dict[str, Any]]:
+    """Get stations for a tile, using cache when available.
+
+    Args:
+        session: Database session.
+        tile_lat: Tile latitude coordinate.
+        tile_lon: Tile longitude coordinate.
+        hours: Hours of history.
+        station_type: Packet type filter (empty string for all).
+
+    Returns:
+        List of station dicts.
+    """
+    cache_key = f'map:tile:{hours}:{station_type}:{tile_lat}:{tile_lon}'
+
+    # Try cache first
+    try:
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            LOG.debug(f'Tile cache hit: {cache_key}')
+            return cached_data
+    except Exception as e:
+        LOG.warning(f'Cache read failed for {cache_key}: {e}')
+
+    # Cache miss - query database
+    LOG.debug(f'Tile cache miss: {cache_key}')
+    stations = query_tile_from_db(session, tile_lat, tile_lon, hours, station_type)
+
+    # Store in cache
+    try:
+        cache.set(cache_key, stations, ttl=TILE_CACHE_TTL)
+    except Exception as e:
+        LOG.warning(f'Cache write failed for {cache_key}: {e}')
+
+    return stations
+
+
+def get_map_stations_tiled(
+    session: Session,
+    bbox: tuple[float, float, float, float],
+    hours: int,
+    station_type: str,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Get map stations using tile-based caching.
+
+    Calculates tiles overlapping the bbox, fetches each tile (from cache
+    or DB), merges results, deduplicates by callsign, filters to exact
+    bbox, and applies limit.
+
+    Args:
+        session: Database session.
+        bbox: Bounding box (min_lon, min_lat, max_lon, max_lat).
+        hours: Hours of history.
+        station_type: Packet type filter (empty string for all).
+        limit: Maximum stations to return.
+
+    Returns:
+        List of station dicts sorted by recency.
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # Get tiles for bbox
+    tiles = get_tiles_for_bbox(min_lon, min_lat, max_lon, max_lat)
+
+    # Limit tiles to prevent abuse
+    if len(tiles) > MAX_TILES_PER_REQUEST:
+        LOG.warning(
+            f'Bbox too large: {len(tiles)} tiles, limiting to {MAX_TILES_PER_REQUEST}'
+        )
+        tiles = tiles[:MAX_TILES_PER_REQUEST]
+
+    # Fetch all tiles
+    all_stations: dict[str, dict[str, Any]] = {}
+
+    for tile_lat, tile_lon in tiles:
+        tile_data = get_tile_stations(session, tile_lat, tile_lon, hours, station_type)
+
+        for station in tile_data:
+            callsign = station['callsign']
+            # Keep most recent if duplicate
+            if callsign not in all_stations:
+                all_stations[callsign] = station
+            else:
+                existing_time = all_stations[callsign].get('received_at', '')
+                new_time = station.get('received_at', '')
+                if new_time > existing_time:
+                    all_stations[callsign] = station
+
+    # Filter to exact bbox
+    result = [
+        s
+        for s in all_stations.values()
+        if (
+            min_lat <= s['latitude'] <= max_lat and min_lon <= s['longitude'] <= max_lon
+        )
+    ]
+
+    # Sort by recency and apply limit
+    result.sort(key=lambda s: s.get('received_at', ''), reverse=True)
+
+    return result[:limit]
+
+
 @cached('dashboard:stats', ttl=300)
 def get_dashboard_stats(session: Session) -> dict[str, Any]:
     """Get summary statistics for dashboard.
