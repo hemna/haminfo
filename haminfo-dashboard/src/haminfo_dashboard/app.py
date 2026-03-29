@@ -101,7 +101,8 @@ def _warm_cache() -> None:
     print('Warming cache with dashboard stats...', file=sys.stderr, flush=True)
 
     try:
-        session = setup_session()
+        session_factory = setup_session()
+        session = session_factory()
 
         # Pre-cache the main dashboard queries
         get_dashboard_stats(session)
