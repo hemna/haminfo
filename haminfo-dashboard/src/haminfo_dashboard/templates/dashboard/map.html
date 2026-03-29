@@ -253,8 +253,16 @@
     
     // Calculate sprite position for a symbol (returns {x, y} for background-position)
     function getSymbolSpritePosition(symbolChar) {
-        // Symbol index is ASCII code - 33 (first printable char '!' is index 0)
-        const charCode = symbolChar ? symbolChar.charCodeAt(0) : 45; // Default to '-' (house)
+        // Default to '-' (house) for null, undefined, empty string, or invalid chars
+        // ASCII 45 = '-' which is the house symbol
+        let charCode = 45;
+        if (symbolChar && symbolChar.length > 0) {
+            const code = symbolChar.charCodeAt(0);
+            // Only use valid printable ASCII range (33-126)
+            if (code >= 33 && code <= 126) {
+                charCode = code;
+            }
+        }
         const index = Math.max(0, Math.min(95, charCode - 33)); // Clamp to valid range
         
         // Sprite is a 16-column grid, calculate row and column
