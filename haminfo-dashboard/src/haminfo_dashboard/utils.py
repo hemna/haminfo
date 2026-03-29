@@ -24,6 +24,7 @@ CALLSIGN_PREFIXES = {
     'AE': ('US', 'United States'),
     'AF': ('US', 'United States'),
     'AG': ('US', 'United States'),
+    'AH': ('US', 'United States'),
     'AI': ('US', 'United States'),
     'AJ': ('US', 'United States'),
     'AK': ('US', 'United States'),
@@ -482,6 +483,52 @@ AU_STATE_BOUNDS = {
     'NT': ('Northern Territory', -26.0, -10.9, 129.0, 138.0),
     'ACT': ('Australian Capital Territory', -35.9, -35.1, 148.8, 149.4),
 }
+
+
+# Country bounding boxes for coordinate-based detection
+# These are rough bounding boxes - not exact borders
+COUNTRY_BOUNDS = {
+    'US': ('United States', 24.5, 49.5, -125.0, -66.5),  # Continental US
+    'CA': ('Canada', 41.7, 83.1, -141.0, -52.6),
+    'AU': ('Australia', -43.6, -10.7, 112.9, 153.6),
+    'GB': ('United Kingdom', 49.9, 60.9, -8.6, 1.8),
+    'DE': ('Germany', 47.3, 55.1, 5.9, 15.0),
+    'FR': ('France', 41.3, 51.1, -5.1, 9.6),
+    'JP': ('Japan', 24.0, 46.0, 122.9, 153.9),
+    'NZ': ('New Zealand', -47.3, -34.4, 166.4, 178.6),
+    'ES': ('Spain', 36.0, 43.8, -9.3, 4.3),
+    'IT': ('Italy', 36.6, 47.1, 6.6, 18.5),
+    'NL': ('Netherlands', 50.8, 53.5, 3.4, 7.1),
+    'PL': ('Poland', 49.0, 54.8, 14.1, 24.1),
+    'SE': ('Sweden', 55.3, 69.1, 11.1, 24.2),
+    'NO': ('Norway', 58.0, 71.2, 4.6, 31.1),
+    'FI': ('Finland', 59.8, 70.1, 20.6, 31.6),
+    'MY': ('Malaysia', 0.9, 7.4, 99.6, 119.3),
+    'KR': ('South Korea', 33.1, 38.6, 124.6, 131.9),
+    'TW': ('Taiwan', 21.9, 25.3, 120.0, 122.0),
+}
+
+
+def get_country_from_coords(
+    lat: float | None, lon: float | None
+) -> tuple[str, str] | None:
+    """Get country from coordinates using bounding boxes.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+
+    Returns:
+        Tuple of (country_code, country_name) or None if not found
+    """
+    if lat is None or lon is None:
+        return None
+
+    for code, (name, min_lat, max_lat, min_lon, max_lon) in COUNTRY_BOUNDS.items():
+        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
+            return (code, name)
+
+    return None
 
 
 def get_state_from_coords(

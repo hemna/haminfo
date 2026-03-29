@@ -12,6 +12,7 @@ from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 from haminfo_dashboard.utils import (
     get_country_from_callsign,
+    get_country_from_coords,
     CALLSIGN_PREFIXES,
     get_state_from_coords,
 )
@@ -323,7 +324,11 @@ def get_weather_stations(
         if not latest_report:
             continue
 
-        country_info = get_country_from_callsign(station.callsign)
+        # Get country from coordinates first (more reliable for weather stations)
+        # Fall back to callsign prefix if coords don't match any country
+        country_info = get_country_from_coords(station.latitude, station.longitude)
+        if not country_info:
+            country_info = get_country_from_callsign(station.callsign)
 
         if country:
             if not country_info or country_info[0] != country:
@@ -384,15 +389,21 @@ def get_weather_countries(session: Session) -> list[dict[str, Any]]:
     from sqlalchemy import exists
 
     stations = (
-        session.query(WeatherStation.callsign)
+        session.query(
+            WeatherStation.callsign, WeatherStation.latitude, WeatherStation.longitude
+        )
         .filter(exists().where(WeatherReport.weather_station_id == WeatherStation.id))
         .all()
     )
 
     country_counts: dict[tuple[str, str], int] = {}
 
-    for (callsign,) in stations:
-        country_info = get_country_from_callsign(callsign)
+    for callsign, lat, lon in stations:
+        # Get country from coordinates first (more reliable)
+        # Fall back to callsign prefix if coords don't match
+        country_info = get_country_from_coords(lat, lon)
+        if not country_info:
+            country_info = get_country_from_callsign(callsign)
         if country_info:
             key = country_info
             country_counts[key] = country_counts.get(key, 0) + 1
