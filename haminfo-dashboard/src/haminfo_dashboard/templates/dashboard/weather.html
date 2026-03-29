@@ -28,6 +28,11 @@
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
             <input type="text" id="wx-search" placeholder="Search callsign..." style="width:160px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
         </div>
+        <!-- Loading indicator -->
+        <div id="wx-loading" style="display:none;align-items:center;gap:6px;">
+            <div class="loading-spinner"></div>
+            <span style="color:var(--accent-cyan);font-size:12px;">Loading...</span>
+        </div>
         <div style="color:var(--text-muted);font-size:12px;" id="wx-result-count"></div>
     </div>
 </div>
@@ -36,9 +41,39 @@
 <div id="weather-grid"
      hx-get="{{ url_for('dashboard.api_weather_stations') }}?limit=100"
      hx-trigger="load"
-     hx-swap="innerHTML">
+     hx-swap="innerHTML"
+     hx-indicator="#wx-loading">
     <div style="color:var(--text-muted);text-align:center;padding:40px;">Loading weather stations...</div>
 </div>
+
+<style>
+    .loading-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--accent-cyan);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* HTMX loading state - fade the grid */
+    #weather-grid.htmx-request {
+        opacity: 0.5;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+    
+    /* Show loading indicator during HTMX request */
+    .htmx-request #wx-loading,
+    .htmx-request.htmx-indicator,
+    #wx-loading.htmx-request {
+        display: flex !important;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -50,6 +85,7 @@
     var searchInput = document.getElementById('wx-search');
     var weatherGrid = document.getElementById('weather-grid');
     var resultCount = document.getElementById('wx-result-count');
+    var loadingIndicator = document.getElementById('wx-loading');
 
     // Countries that support state filtering
     var stateCountries = ['US', 'CA', 'AU'];
@@ -100,8 +136,24 @@
         return '{{ url_for("dashboard.api_weather_stations") }}?' + params.toString();
     }
 
+    // Show loading state
+    function showLoading() {
+        loadingIndicator.style.display = 'flex';
+        weatherGrid.style.opacity = '0.5';
+        weatherGrid.style.pointerEvents = 'none';
+        resultCount.textContent = '';
+    }
+
+    // Hide loading state
+    function hideLoading() {
+        loadingIndicator.style.display = 'none';
+        weatherGrid.style.opacity = '1';
+        weatherGrid.style.pointerEvents = 'auto';
+    }
+
     // Reload grid with HTMX
     function reloadGrid() {
+        showLoading();
         htmx.ajax('GET', buildUrl(), {target: '#weather-grid', swap: 'innerHTML'});
     }
 
@@ -134,12 +186,29 @@
     // Update count after HTMX swap
     document.body.addEventListener('htmx:afterSwap', function(e) {
         if (e.detail.target.id === 'weather-grid') {
+            hideLoading();
             var count = document.querySelectorAll('#weather-grid .card').length;
             resultCount.textContent = count + ' stations';
             // Re-apply search filter if active
             if (searchInput.value) {
                 searchInput.dispatchEvent(new Event('input'));
             }
+        }
+    });
+
+    // Handle HTMX request errors
+    document.body.addEventListener('htmx:responseError', function(e) {
+        if (e.detail.target.id === 'weather-grid') {
+            hideLoading();
+            resultCount.textContent = 'Error loading stations';
+            resultCount.style.color = 'var(--accent-red, #f55)';
+        }
+    });
+
+    // Also hide loading on initial page load completion
+    document.body.addEventListener('htmx:afterOnLoad', function(e) {
+        if (e.detail.target.id === 'weather-grid') {
+            hideLoading();
         }
     });
 </script>
