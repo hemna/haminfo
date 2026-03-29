@@ -19,8 +19,18 @@
             <div style="color:var(--accent-green);font-size:32px;font-weight:bold;margin-bottom:4px;">{{ callsign }}</div>
             <div id="station-meta" style="color:var(--text-secondary);font-size:13px;">Loading...</div>
         </div>
-        <div id="station-status" style="text-align:right;">
-            <div style="color:var(--accent-green);font-size:12px;">● Loading...</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+            <!-- Unit Toggle -->
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--text-muted);font-size:11px;">Units:</span>
+                <div id="unit-toggle" style="display:flex;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;border:1px solid var(--border-color);">
+                    <button type="button" data-unit="metric" class="unit-btn active" style="padding:4px 10px;font-size:11px;border:none;cursor:pointer;background:var(--accent-green);color:#000;">Metric</button>
+                    <button type="button" data-unit="imperial" class="unit-btn" style="padding:4px 10px;font-size:11px;border:none;cursor:pointer;background:transparent;color:var(--text-secondary);">Imperial</button>
+                </div>
+            </div>
+            <div id="station-status" style="text-align:right;">
+                <div style="color:var(--accent-green);font-size:12px;">● Loading...</div>
+            </div>
         </div>
     </div>
 </div>
@@ -69,6 +79,79 @@
 
 {% block scripts %}
 <script>
+    // Unit conversion utilities
+    var currentUnit = localStorage.getItem('weatherUnit') || 'metric';
+    
+    function celsiusToFahrenheit(c) {
+        return (c * 9/5) + 32;
+    }
+    
+    function kphToMph(kph) {
+        return kph * 0.621371;
+    }
+    
+    function mbarToInhg(mbar) {
+        return mbar * 0.02953;
+    }
+    
+    function mmToInches(mm) {
+        return mm * 0.0393701;
+    }
+    
+    function convertTemperature(celsius, unit) {
+        if (unit === 'imperial') {
+            return celsiusToFahrenheit(celsius).toFixed(1) + '°F';
+        }
+        return celsius.toFixed(1) + '°C';
+    }
+    
+    function updateUnitToggle() {
+        document.querySelectorAll('.unit-btn').forEach(function(btn) {
+            if (btn.dataset.unit === currentUnit) {
+                btn.style.background = 'var(--accent-green)';
+                btn.style.color = '#000';
+                btn.classList.add('active');
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = 'var(--text-secondary)';
+                btn.classList.remove('active');
+            }
+        });
+    }
+    
+    function convertAllTemperatures() {
+        // Convert temperatures in weather reports table
+        document.querySelectorAll('[data-temp-c]').forEach(function(el) {
+            var celsius = parseFloat(el.dataset.tempC);
+            if (!isNaN(celsius)) {
+                el.textContent = convertTemperature(celsius, currentUnit);
+            }
+        });
+        
+        // Update unit labels
+        document.querySelectorAll('[data-unit-label="temp"]').forEach(function(el) {
+            el.textContent = currentUnit === 'imperial' ? '°F' : '°C';
+        });
+    }
+    
+    // Initialize unit toggle
+    document.getElementById('unit-toggle')?.addEventListener('click', function(e) {
+        if (e.target.classList.contains('unit-btn')) {
+            currentUnit = e.target.dataset.unit;
+            localStorage.setItem('weatherUnit', currentUnit);
+            updateUnitToggle();
+            convertAllTemperatures();
+        }
+    });
+    
+    // Set initial state
+    updateUnitToggle();
+    
+    // Convert temperatures after HTMX content loads
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+        convertAllTemperatures();
+    });
+
     // Handle search form
     document.getElementById('search-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
