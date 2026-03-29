@@ -124,6 +124,13 @@
         }
         
         html += `<span style="color:#D033FF;">${packet.to_call || 'APRS'}</span>`;
+        
+        // Show addressee for message/ack packets
+        if (packet.addressee) {
+            html += `<span style="color:#1AA730;">→</span>`;
+            html += `<span style="color:#FF6B35;font-weight:bold;">${packet.addressee}</span>`;
+        }
+        
         html += `<span style="color:var(--text-muted);">:</span>`;
         html += `<span style="color:#FFD54F;flex:1;">${packet.human_info || ''}</span>`;
         

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
 
-from haminfo_dashboard.utils import get_packet_human_info
+from haminfo_dashboard.utils import get_packet_human_info, get_packet_addressee
 
 socketio: SocketIO | None = None
 _poll_greenlet = None
@@ -91,6 +91,7 @@ def poll_packets():
                         else None,
                     }
                     packet_data['human_info'] = get_packet_human_info(packet_data)
+                    packet_data['addressee'] = get_packet_addressee(packet_data)
                     broadcast_packet(packet_data)
 
                     if packet.received_at and (
