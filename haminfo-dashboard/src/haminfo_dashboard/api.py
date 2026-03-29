@@ -276,7 +276,8 @@ def api_station_weather(callsign: str):
     """Station weather reports - returns HTMX partial."""
     session = _get_session()
     try:
-        limit = request.args.get('limit', 20, type=int)
+        # Default to 50 for better graph visualization
+        limit = request.args.get('limit', 50, type=int)
         weather_data = get_station_weather_reports(session, callsign, limit=limit)
         if not weather_data:
             return '', 204  # No content - not a weather station
