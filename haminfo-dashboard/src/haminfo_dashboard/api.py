@@ -309,14 +309,16 @@ def api_station_weather_json(callsign: str):
 def api_map_stations():
     """Map stations - returns GeoJSON FeatureCollection.
 
-    Supports two modes:
-    - fast=true (default for offset=0): Quick load without trails
-    - fast=false: Full load with trails (slower but complete)
+    Uses tile-based caching when bbox is provided for better performance.
+    Falls back to fast query when no bbox is provided.
 
-    This enables fast initial display followed by trail loading.
+    Supports two modes:
+    - fast=true (default): Quick load without trails
+    - fast=false: Full load with trails (slower but complete)
     """
     from haminfo_dashboard.queries import (
         get_map_stations_fast,
+        get_map_stations_tiled,
         get_map_stations_with_trails,
     )
 
@@ -333,7 +335,7 @@ def api_map_stations():
             except ValueError:
                 pass
 
-        station_type = request.args.get('type')
+        station_type = request.args.get('type', '')
         limit = request.args.get('limit', 500, type=int)
         offset = request.args.get('offset', 0, type=int)
         hours = request.args.get('hours', 24, type=int)
@@ -347,8 +349,17 @@ def api_map_stations():
         # Clamp limit to reasonable range
         limit = min(max(limit, 100), 2000)
 
-        # Use fast query for initial load (no trails, simpler query)
-        if fast_mode:
+        # Use tile-based caching when bbox is provided (most common case)
+        if bbox and fast_mode:
+            stations = get_map_stations_tiled(
+                session,
+                bbox=bbox,
+                hours=hours,
+                station_type=station_type,
+                limit=limit,
+            )
+        elif fast_mode:
+            # No bbox - use fast query without caching
             stations = get_map_stations_fast(
                 session,
                 bbox=bbox,
@@ -386,7 +397,8 @@ def api_map_stations():
                         'course': station.get('course'),
                         'altitude': station.get('altitude'),
                         'comment': station.get('comment'),
-                        'last_seen': station.get('last_seen'),
+                        'last_seen': station.get('last_seen')
+                        or station.get('received_at'),
                         'country_code': station.get('country_code'),
                         'trail': station.get('trail', []),
                     },
