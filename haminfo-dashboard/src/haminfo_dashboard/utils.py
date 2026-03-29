@@ -231,6 +231,35 @@ def _clean_comment(comment: str) -> str:
     return comment
 
 
+def get_packet_addressee(packet: dict) -> str | None:
+    """Extract the message addressee from a packet.
+
+    For message packets, this returns the callsign the message is addressed to
+    (extracted from the raw packet), which is different from to_call (usually 'APRS').
+
+    Args:
+        packet: Dict with packet data including 'raw' field
+
+    Returns:
+        Addressee callsign for message packets, None otherwise
+    """
+    raw = packet.get('raw', '')
+    packet_type = packet.get('packet_type', '')
+
+    # Only parse message/ack packets
+    if packet_type not in ('message', 'ack') or not raw:
+        return None
+
+    try:
+        import aprslib
+
+        parsed = aprslib.parse(raw)
+        # aprslib uses 'addresse' (note spelling) for message destination
+        return parsed.get('addresse')
+    except Exception:
+        return None
+
+
 def get_packet_human_info(packet: dict) -> str:
     """Generate APRSD-style human_info from packet data.
 

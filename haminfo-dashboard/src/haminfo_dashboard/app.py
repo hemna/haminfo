@@ -11,7 +11,7 @@ from haminfo_dashboard.routes import dashboard_bp
 from haminfo_dashboard import api  # noqa: F401 - Import to register API routes on blueprint
 from haminfo_dashboard.websocket import init_socketio
 from haminfo_dashboard import cache
-from haminfo_dashboard.utils import get_packet_human_info
+from haminfo_dashboard.utils import get_packet_human_info, get_packet_addressee
 
 
 def create_app(config_file: str | None = None) -> Flask:
@@ -43,6 +43,7 @@ def create_app(config_file: str | None = None) -> Flask:
 
     # Register template globals
     app.jinja_env.globals['get_packet_human_info'] = get_packet_human_info
+    app.jinja_env.globals['get_packet_addressee'] = get_packet_addressee
 
     # Initialize SocketIO
     init_socketio(app)

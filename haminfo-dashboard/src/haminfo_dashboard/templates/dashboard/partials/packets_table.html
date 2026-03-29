@@ -3,6 +3,7 @@
 {% if packets %}
 <div style="font-family:'Fira Code', 'Consolas', 'Monaco', monospace;font-size:11px;line-height:1.6;">
     {% for packet in packets %}
+    {% set addressee = get_packet_addressee(packet) %}
     <div style="padding:6px 8px;border-bottom:1px solid var(--border-color);display:flex;align-items:baseline;gap:8px;{% if loop.index is odd %}background:rgba(255,255,255,0.02);{% endif %}">
         <!-- Packet Type Badge -->
         <span style="color:{% if packet.packet_type == 'position' %}#1AA730{% elif packet.packet_type == 'weather' %}#00BCD4{% elif packet.packet_type == 'status' %}#FFC107{% elif packet.packet_type == 'message' %}#E91E63{% elif packet.packet_type == 'telemetry' %}#9C27B0{% else %}#607D8B{% endif %};font-weight:bold;min-width:70px;">
@@ -21,6 +22,12 @@
         
         <!-- To Call -->
         <span style="color:#D033FF;">{{ packet.to_call | default('APRS') }}</span>
+        
+        <!-- Message Addressee (for message/ack packets) -->
+        {% if addressee %}
+        <span style="color:#1AA730;">→</span>
+        <span style="color:#FF6B35;font-weight:bold;">{{ addressee }}</span>
+        {% endif %}
         
         <!-- Separator -->
         <span style="color:var(--text-muted);">:</span>
