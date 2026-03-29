@@ -10,7 +10,7 @@ from sqlalchemy import func, distinct
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
-from haminfo_dashboard.utils import get_country_from_callsign, CALLSIGN_PREFIXES
+from haminfo_dashboard.utils import get_country_from_callsign, CALLSIGN_PREFIXES, get_state_from_coords
 from haminfo_dashboard.cache import cached
 
 if TYPE_CHECKING:
@@ -274,12 +274,13 @@ def get_recent_packets(
     return result
 
 
-@cached('dashboard:wx_stations:{limit}:{offset}:{country}:{has_recent_data}')
+@cached('dashboard:wx_stations:{limit}:{offset}:{country}:{state}:{has_recent_data}')
 def get_weather_stations(
     session: Session,
     limit: int = 50,
     offset: int = 0,
     country: Optional[str] = None,
+    state: Optional[str] = None,
     has_recent_data: bool = False,
 ) -> list[dict[str, Any]]:
     """Get weather stations with their latest reports.
@@ -289,6 +290,7 @@ def get_weather_stations(
         limit: Maximum number of stations to return.
         offset: Number of stations to skip.
         country: Filter by country code.
+        state: Filter by state/province code (US, CA, AU only).
         has_recent_data: Only return stations with reports in last 24h.
 
     Returns:
@@ -320,6 +322,16 @@ def get_weather_stations(
             if not country_info or country_info[0] != country:
                 continue
 
+        # Get state info for supported countries
+        state_info = None
+        if country_info and country_info[0] in ('US', 'CA', 'AU'):
+            state_info = get_state_from_coords(station.latitude, station.longitude, country_info[0])
+        
+        # Filter by state if specified
+        if state:
+            if not state_info or state_info[0] != state:
+                continue
+
         station_dict = {
             'id': station.id,
             'callsign': station.callsign,
@@ -328,6 +340,8 @@ def get_weather_stations(
             'comment': station.comment,
             'country_code': country_info[0] if country_info else None,
             'country_name': country_info[1] if country_info else None,
+            'state_code': state_info[0] if state_info else None,
+            'state_name': state_info[1] if state_info else None,
         }
 
         if latest_report:

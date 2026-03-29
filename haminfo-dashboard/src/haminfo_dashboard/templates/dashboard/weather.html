@@ -13,6 +13,12 @@
                 <option value="">All Countries</option>
             </select>
         </div>
+        <div id="state-filter-container" style="display:none;align-items:center;gap:8px;">
+            <label style="color:var(--text-muted);font-size:12px;">State:</label>
+            <select id="wx-state-filter" style="width:180px;padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;">
+                <option value="">All States</option>
+            </select>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                 <input type="checkbox" id="wx-recent-filter" style="width:16px;height:16px;accent-color:var(--accent-green);">
@@ -37,11 +43,16 @@
 
 {% block scripts %}
 <script>
-    const countrySelect = document.getElementById('wx-country-filter');
-    const recentCheckbox = document.getElementById('wx-recent-filter');
-    const searchInput = document.getElementById('wx-search');
-    const weatherGrid = document.getElementById('weather-grid');
-    const resultCount = document.getElementById('wx-result-count');
+    var countrySelect = document.getElementById('wx-country-filter');
+    var stateSelect = document.getElementById('wx-state-filter');
+    var stateContainer = document.getElementById('state-filter-container');
+    var recentCheckbox = document.getElementById('wx-recent-filter');
+    var searchInput = document.getElementById('wx-search');
+    var weatherGrid = document.getElementById('weather-grid');
+    var resultCount = document.getElementById('wx-result-count');
+
+    // Countries that support state filtering
+    var stateCountries = ['US', 'CA', 'AU'];
 
     // Load countries for dropdown
     fetch('{{ url_for("dashboard.api_weather_countries") }}')
@@ -55,11 +66,36 @@
             });
         });
 
+    // Load states when country changes
+    function loadStates(countryCode) {
+        // Clear existing options
+        stateSelect.innerHTML = '<option value="">All States</option>';
+        
+        if (!countryCode || stateCountries.indexOf(countryCode) === -1) {
+            stateContainer.style.display = 'none';
+            return;
+        }
+        
+        stateContainer.style.display = 'flex';
+        
+        fetch('/api/dashboard/weather/states/' + countryCode)
+            .then(function(r) { return r.json(); })
+            .then(function(states) {
+                states.forEach(function(s) {
+                    var opt = document.createElement('option');
+                    opt.value = s.code;
+                    opt.textContent = s.name;
+                    stateSelect.appendChild(opt);
+                });
+            });
+    }
+
     // Build URL with filters
     function buildUrl() {
         var params = new URLSearchParams();
         params.set('limit', '100');
         if (countrySelect.value) params.set('country', countrySelect.value);
+        if (stateSelect.value) params.set('state', stateSelect.value);
         if (recentCheckbox.checked) params.set('has_recent_data', 'true');
         return '{{ url_for("dashboard.api_weather_stations") }}?' + params.toString();
     }
@@ -70,7 +106,13 @@
     }
 
     // Filter handlers
-    countrySelect.addEventListener('change', reloadGrid);
+    countrySelect.addEventListener('change', function() {
+        // Reset state filter when country changes
+        stateSelect.value = '';
+        loadStates(countrySelect.value);
+        reloadGrid();
+    });
+    stateSelect.addEventListener('change', reloadGrid);
     recentCheckbox.addEventListener('change', reloadGrid);
 
     // Client-side search (filters already-loaded cards)

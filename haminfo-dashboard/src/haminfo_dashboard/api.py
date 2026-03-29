@@ -7,6 +7,7 @@ from flask import jsonify, request, render_template
 
 from haminfo.db.db import setup_session
 from haminfo_dashboard.routes import dashboard_bp
+from haminfo_dashboard.utils import get_states_for_country
 from haminfo_dashboard.queries import (
     get_dashboard_stats,
     get_top_stations,
@@ -144,6 +145,7 @@ def api_weather_stations():
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         country = request.args.get('country')
+        state = request.args.get('state')
         has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
         
         stations = get_weather_stations(
@@ -151,6 +153,7 @@ def api_weather_stations():
             limit=limit,
             offset=offset,
             country=country if country else None,
+            state=state if state else None,
             has_recent_data=has_recent_data,
         )
         return render_template(
@@ -168,6 +171,7 @@ def api_weather_stations_json():
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         country = request.args.get('country')
+        state = request.args.get('state')
         has_recent_data = request.args.get('has_recent_data', '').lower() in ('true', '1', 'yes')
         
         stations = get_weather_stations(
@@ -175,11 +179,22 @@ def api_weather_stations_json():
             limit=limit,
             offset=offset,
             country=country if country else None,
+            state=state if state else None,
             has_recent_data=has_recent_data,
         )
         return jsonify(stations)
     finally:
         session.close()
+
+
+@dashboard_bp.route('/api/dashboard/weather/states/<country>')
+def api_weather_states(country: str):
+    """Get list of states/provinces for a country - returns JSON.
+    
+    Only supports US, CA, AU countries.
+    """
+    states = get_states_for_country(country.upper())
+    return jsonify([{'code': code, 'name': name} for code, name in states])
 
 
 @dashboard_bp.route('/api/dashboard/weather/countries')
