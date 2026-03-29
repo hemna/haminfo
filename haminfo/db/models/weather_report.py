@@ -62,8 +62,32 @@ class WeatherStation(ModelBase):
             # LOG.warning(f"Station {station_json}")
             return None
 
+        # Validate callsign - reject invalid entries
+        callsign = station_json.get('from_call', '').replace('\x00', '').upper()
+        if not callsign or len(callsign) < 3:
+            LOG.warning(f'Invalid callsign (too short): "{callsign}"')
+            return None
+        # Reject common APRS path/destination addresses that aren't real stations
+        invalid_callsigns = {
+            'APRS',
+            'WIDE',
+            'WIDE1',
+            'WIDE2',
+            'WIDE1-1',
+            'WIDE2-1',
+            'WIDE2-2',
+            'RELAY',
+            'TRACE',
+            'TCPIP',
+            'CQ',
+            'QST',
+        }
+        if callsign in invalid_callsigns or callsign.startswith('WIDE'):
+            LOG.warning(f'Invalid callsign (APRS path/dest): "{callsign}"')
+            return None
+
         station = WeatherStation(
-            callsign=station_json['from_call'].replace('\x00', '').upper(),
+            callsign=callsign,
             latitude=station_json['latitude'],
             longitude=station_json['longitude'],
             location='POINT({} {})'.format(
