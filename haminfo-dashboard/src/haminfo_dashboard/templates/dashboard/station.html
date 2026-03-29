@@ -56,6 +56,7 @@
         <span class="card-title">Recent Packets</span>
     </div>
     <div class="card-body"
+         id="station-packets-container"
          hx-get="{{ url_for('dashboard.api_station_packets', callsign=callsign) }}"
          hx-trigger="load"
          hx-swap="innerHTML">
@@ -120,11 +121,35 @@
     }
     
     function convertAllTemperatures() {
-        // Convert temperatures in weather reports table
+        // Convert temperatures in weather reports table (data attributes)
         document.querySelectorAll('[data-temp-c]').forEach(function(el) {
             var celsius = parseFloat(el.dataset.tempC);
             if (!isNaN(celsius)) {
                 el.textContent = convertTemperature(celsius, currentUnit);
+            }
+        });
+        
+        // Convert temperatures in Recent Packets section (text parsing)
+        // Matches patterns like "Temp:5C" or "Temp:12C" or "Temp:-3C"
+        document.querySelectorAll('#station-packets-container span').forEach(function(el) {
+            var text = el.textContent;
+            if (text && text.indexOf('Temp:') !== -1) {
+                // Store original text if not already stored
+                if (!el.dataset.originalText) {
+                    el.dataset.originalText = text;
+                }
+                var original = el.dataset.originalText;
+                
+                // Convert all Temp:XXC patterns
+                var converted = original.replace(/Temp:(-?\d+(?:\.\d+)?)C/g, function(match, tempC) {
+                    var celsius = parseFloat(tempC);
+                    if (currentUnit === 'imperial') {
+                        var fahrenheit = celsiusToFahrenheit(celsius);
+                        return 'Temp:' + fahrenheit.toFixed(0) + 'F';
+                    }
+                    return match; // Keep as Celsius
+                });
+                el.textContent = converted;
             }
         });
         
