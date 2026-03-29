@@ -313,7 +313,8 @@ def get_weather_stations(
 
         latest_report = report_query.order_by(WeatherReport.time.desc()).first()
 
-        if has_recent_data and not latest_report:
+        # Skip stations with no reports at all
+        if not latest_report:
             continue
 
         country_info = get_country_from_callsign(station.callsign)
@@ -344,17 +345,14 @@ def get_weather_stations(
             'state_name': state_info[1] if state_info else None,
         }
 
-        if latest_report:
-            station_dict['latest_report'] = {
-                'time': latest_report.time.isoformat() if latest_report.time else None,
-                'temperature': latest_report.temperature,
-                'humidity': latest_report.humidity,
-                'pressure': latest_report.pressure,
-                'wind_speed': latest_report.wind_speed,
-                'wind_direction': latest_report.wind_direction,
-            }
-        else:
-            station_dict['latest_report'] = None
+        station_dict['latest_report'] = {
+            'time': latest_report.time.isoformat() if latest_report.time else None,
+            'temperature': latest_report.temperature,
+            'humidity': latest_report.humidity,
+            'pressure': latest_report.pressure,
+            'wind_speed': latest_report.wind_speed,
+            'wind_direction': latest_report.wind_direction,
+        }
 
         result.append(station_dict)
 
@@ -366,7 +364,7 @@ def get_weather_stations(
 
 @cached('dashboard:wx_countries')
 def get_weather_countries(session: Session) -> list[dict[str, Any]]:
-    """Get list of countries that have weather stations.
+    """Get list of countries that have weather stations with reports.
 
     Args:
         session: Database session.
@@ -374,18 +372,20 @@ def get_weather_countries(session: Session) -> list[dict[str, Any]]:
     Returns:
         List of dicts with country_code, country_name, count.
     """
-    stations = session.query(WeatherStation.callsign).all()
+    # Only get stations that have at least one weather report
+    from sqlalchemy import exists
+    
+    stations = session.query(WeatherStation.callsign).filter(
+        exists().where(WeatherReport.weather_station_id == WeatherStation.id)
+    ).all()
 
     country_counts: dict[tuple[str, str], int] = {}
-    unknown_count = 0
 
     for (callsign,) in stations:
         country_info = get_country_from_callsign(callsign)
         if country_info:
             key = country_info
             country_counts[key] = country_counts.get(key, 0) + 1
-        else:
-            unknown_count += 1
 
     result = [
         {
