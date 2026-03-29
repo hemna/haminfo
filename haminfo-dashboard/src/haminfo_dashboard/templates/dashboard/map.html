@@ -11,25 +11,30 @@
         height: calc(100vh - 120px);
         width: 100%;
         border-radius: 8px;
-        background: var(--bg-card);
+        background: #f2f2f2;
     }
     .leaflet-popup-content-wrapper {
-        background: var(--bg-card);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
+        background: #fff;
+        color: #333;
+        border: 1px solid #ccc;
     }
     .leaflet-popup-tip {
-        background: var(--bg-card);
+        background: #fff;
+    }
+    .leaflet-popup-content a {
+        color: #0066cc;
     }
     .map-legend {
         position: absolute;
         bottom: 30px;
         left: 10px;
-        background: rgba(22,33,62,0.95);
+        background: rgba(255,255,255,0.95);
         border-radius: 6px;
         padding: 12px;
         z-index: 1000;
         font-size: 11px;
+        border: 1px solid #ccc;
+        color: #333;
     }
     .legend-item {
         display: flex;
@@ -49,13 +54,14 @@
         position: absolute;
         top: 10px;
         right: 10px;
-        background: rgba(22,33,62,0.95);
+        background: rgba(255,255,255,0.95);
         border-radius: 6px;
         padding: 8px 12px;
         z-index: 1000;
         font-size: 12px;
-        color: var(--accent-cyan);
+        color: #0066cc;
         display: none;
+        border: 1px solid #ccc;
     }
     .map-loading.active {
         display: flex;
@@ -65,22 +71,23 @@
     .map-loading .progress-bar {
         width: 100px;
         height: 4px;
-        background: rgba(255,255,255,0.2);
+        background: rgba(0,0,0,0.1);
         border-radius: 2px;
         overflow: hidden;
     }
     .map-loading .progress-fill {
         height: 100%;
-        background: var(--accent-green);
+        background: #0066cc;
         transition: width 0.2s ease;
         width: 0%;
     }
     .aprs-symbol-icon {
         background: transparent;
         border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    }
+    .aprs-symbol-img {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
     }
 </style>
 {% endblock %}
@@ -104,43 +111,31 @@
 <div style="position:relative;">
     <div id="map"></div>
     <div class="map-legend">
-        <div style="color:var(--text-muted);font-size:10px;margin-bottom:8px;border-bottom:1px solid var(--border-color);padding-bottom:6px;">Common Symbols</div>
+        <div style="color:#666;font-size:10px;margin-bottom:8px;border-bottom:1px solid #ddd;padding-bottom:6px;">APRS Symbols</div>
         <div class="legend-item">
-            <span style="font-size:14px;">🚗</span>
-            <span style="color:var(--text-secondary);">Car</span>
+            <img src="https://www.aprsdirect.com/symbol/icon24/s0062.png" width="16" height="16" alt="Car">
+            <span style="color:#555;">Car/Vehicle</span>
         </div>
         <div class="legend-item">
-            <span style="font-size:14px;">🏠</span>
-            <span style="color:var(--text-secondary);">House/Home</span>
+            <img src="https://www.aprsdirect.com/symbol/icon24/s0045.png" width="16" height="16" alt="House">
+            <span style="color:#555;">House/Home</span>
         </div>
         <div class="legend-item">
-            <span style="font-size:14px;">🌡️</span>
-            <span style="color:var(--text-secondary);">Weather</span>
+            <img src="https://www.aprsdirect.com/symbol/icon24/s0095.png" width="16" height="16" alt="Weather">
+            <span style="color:#555;">Weather Station</span>
         </div>
         <div class="legend-item">
-            <span style="font-size:14px;">📶</span>
-            <span style="color:var(--text-secondary);">Digipeater</span>
+            <img src="https://www.aprsdirect.com/symbol/icon24/s0035.png" width="16" height="16" alt="Digipeater">
+            <span style="color:#555;">Digipeater</span>
         </div>
         <div class="legend-item">
-            <span style="font-size:14px;">📻</span>
-            <span style="color:var(--text-secondary);">IGATE</span>
+            <img src="https://www.aprsdirect.com/symbol/icon24/s0073.png" width="16" height="16" alt="IGate">
+            <span style="color:#555;">IGate</span>
         </div>
+        <div style="color:#666;font-size:10px;margin-top:10px;margin-bottom:6px;border-top:1px solid #ddd;padding-top:8px;">Trails</div>
         <div class="legend-item">
-            <span style="font-size:14px;">🚴</span>
-            <span style="color:var(--text-secondary);">Bicycle</span>
-        </div>
-        <div class="legend-item">
-            <span style="font-size:14px;">✈️</span>
-            <span style="color:var(--text-secondary);">Aircraft</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-dot" style="background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></div>
-            <span style="color:var(--text-secondary);">Other</span>
-        </div>
-        <div style="color:var(--text-muted);font-size:10px;margin-top:10px;margin-bottom:6px;border-top:1px solid var(--border-color);padding-top:8px;">Trails</div>
-        <div class="legend-item">
-            <div style="width:20px;height:3px;background:var(--accent-green);opacity:0.6;border-radius:2px;"></div>
-            <span style="color:var(--text-secondary);">Movement path</span>
+            <div style="width:20px;height:3px;background:#0066cc;opacity:0.7;border-radius:2px;"></div>
+            <span style="color:#555;">Movement path</span>
         </div>
     </div>
     <div id="map-loading" class="map-loading">
@@ -178,77 +173,51 @@
         );
     }
     
-    // Dark tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    // Light mode tile layer (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
     }).addTo(map);
     
-    // APRS Symbol mapping - maps symbol table + symbol char to emoji/icon
-    // Primary table (/) symbols
-    const aprsSymbols = {
-        // Vehicles
-        '/>' : '🚗', // Car
-        '/k' : '🚚', // Truck
-        '/s' : '🚢', // Ship/Boat
-        '/Y' : '🛥️', // Yacht
-        '/(' : '📱', // Mobile
-        '/[' : '🏃', // Jogger/Runner
-        '/b' : '🚴', // Bicycle
-        '/<' : '🏍️', // Motorcycle
-        '/=' : '🚂', // Train
-        '/X' : '🚁', // Helicopter
-        '/^' : '✈️', // Aircraft (large)
-        "/'" : '✈️', // Aircraft (small)
-        '/O' : '🎈', // Balloon
-        '/g' : '⛽', // Gas station
+    // APRS Symbol URL builder
+    // Uses aprsdirect.com icon service which hosts the standard APRS symbol set
+    // Symbol codes: Primary table (/) = 0-93, Alternate table (\) = 96-189
+    function getAprsSymbolUrl(symbolTable, symbolChar) {
+        // Default to primary table house if no symbol
+        if (!symbolTable || !symbolChar) {
+            return 'https://www.aprsdirect.com/symbol/icon24/s0045.png';
+        }
         
-        // Fixed stations
-        '/-' : '🏠', // House
-        '/;' : '⛺', // Campground
-        '/r' : '📡', // Repeater
-        '/#' : '📶', // Digipeater
-        '/I' : '📻', // IGATE
-        '/&' : '📶', // HF Gateway
-        '/i' : '📍', // Box/point of interest
+        // Calculate symbol index
+        // Primary table (/) symbols are 0-93 (ASCII 33-126 minus 33)
+        // Alternate table (\) symbols are 96-189 (ASCII 33-126 minus 33 + 96)
+        const charCode = symbolChar.charCodeAt(0);
+        let index;
         
-        // Weather
-        '/_' : '🌡️', // Weather Station
-        '/W' : '☁️', // Weather service
+        if (symbolTable === '/') {
+            // Primary table: index = charCode - 33
+            index = charCode - 33;
+        } else {
+            // Alternate table: index = charCode - 33 + 96
+            index = charCode - 33 + 96;
+        }
         
-        // Emergency/Public service
-        '/!' : '🚔', // Police
-        '/a' : '🚑', // Ambulance
-        '/f' : '🚒', // Fire truck
-        '/u' : '🚌', // Bus
-        '/P' : '🅿️', // Parking
-        '/C' : '⛵', // Coast Guard
+        // Ensure valid range
+        if (index < 0 || index > 189) {
+            index = 45; // Default to house
+        }
         
-        // Misc
-        '/n' : '📍', // Node
-        '/p' : '🐕', // Dog
-        '/x' : '❌', // X marker
-        '/y' : '🏠', // House w/ yagi
-        '/o' : '⭕', // Circle
-        
-        // Alternate table (\) common symbols
-        '\\>' : '🚙', // Car (alt)
-        '\\k' : '🚛', // Truck (alt)
-        '\\n' : '▲', // Triangle
-        '\\s' : '⛵', // Sailboat
-        '\\#' : '📶', // Digipeater (alt)
-        '\\-' : '🏡', // House (alt)
-        '\\_' : '🌦️', // Weather (alt)
-        '\\A' : '📦', // Box
-        '\\W' : '⛈️', // Storm
-    };
+        // Format as 4-digit number with leading zeros
+        const indexStr = index.toString().padStart(4, '0');
+        return `https://www.aprsdirect.com/symbol/icon24/s${indexStr}.png`;
+    }
     
-    // Fallback colors by packet type
+    // Fallback colors by packet type (for circle markers)
     const markerColors = {
-        'position': '#0f0',
-        'weather': '#0ff',
-        'digipeater': '#ff0',
-        'default': '#0f0',
+        'position': '#0066cc',
+        'weather': '#009900',
+        'digipeater': '#cc6600',
+        'default': '#0066cc',
     };
     
     // Store markers for filtering
@@ -262,27 +231,20 @@
     const loadingText = document.getElementById('loading-text');
     const progressFill = document.getElementById('progress-fill');
     
-    // Trail colors - gradient from older (faded) to newer (bright)
-    const trailColor = '#00ff00';
-    const trailOpacity = 0.6;
+    // Trail colors
+    const trailColor = '#0066cc';
+    const trailOpacity = 0.7;
     
-    function getSymbolIcon(symbolTable, symbol, packetType) {
-        // Build the key: table + symbol character
-        const key = (symbolTable || '/') + (symbol || '-');
-        const emoji = aprsSymbols[key];
+    function getSymbolIcon(symbolTable, symbol) {
+        const url = getAprsSymbolUrl(symbolTable, symbol);
         
-        if (emoji) {
-            return L.divIcon({
-                html: `<div style="font-size:18px;text-shadow:0 0 3px #000,0 0 3px #000;">${emoji}</div>`,
-                className: 'aprs-symbol-icon',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12],
-                popupAnchor: [0, -12]
-            });
-        }
-        
-        // Fallback to colored circle
-        return null;
+        return L.icon({
+            iconUrl: url,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12],
+            className: 'aprs-symbol-img'
+        });
     }
     
     function createMarker(feature) {
@@ -290,8 +252,8 @@
         const coords = feature.geometry.coordinates;
         const color = markerColors[props.packet_type] || markerColors.default;
         
-        // Try to get symbol icon
-        const symbolIcon = getSymbolIcon(props.symbol_table, props.symbol, props.packet_type);
+        // Get APRS symbol icon
+        const symbolIcon = getSymbolIcon(props.symbol_table, props.symbol);
         
         let marker;
         if (symbolIcon) {
@@ -308,24 +270,23 @@
             });
         }
         
-        // Build symbol display for popup
-        const symbolKey = (props.symbol_table || '/') + (props.symbol || '?');
-        const symbolEmoji = aprsSymbols[symbolKey] || '📍';
+        // Build popup with symbol image
+        const symbolUrl = getAprsSymbolUrl(props.symbol_table, props.symbol);
         
         marker.bindPopup(`
             <div style="min-width:150px;">
-                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:8px;">
-                    <span style="font-size:18px;margin-right:6px;">${symbolEmoji}</span>
+                <div style="color:#0066cc;font-weight:bold;margin-bottom:8px;">
+                    <img src="${symbolUrl}" width="20" height="20" style="vertical-align:middle;margin-right:6px;">
                     ${props.callsign}
                 </div>
-                <div style="font-size:11px;color:var(--text-secondary);">
+                <div style="font-size:11px;color:#555;">
                     <div>Position: ${coords[1].toFixed(4)}°, ${coords[0].toFixed(4)}°</div>
                     ${props.speed ? `<div>Speed: ${props.speed} km/h</div>` : ''}
                     ${props.altitude ? `<div>Altitude: ${props.altitude} m</div>` : ''}
                     <div>Last: ${props.last_seen || '--'}</div>
                 </div>
                 <div style="margin-top:8px;">
-                    <a href="/station/${props.callsign}" style="color:var(--accent-cyan);font-size:11px;">View details →</a>
+                    <a href="/station/${props.callsign}" style="color:#0066cc;font-size:11px;">View details →</a>
                 </div>
             </div>
         `);
@@ -383,15 +344,14 @@
                             color: trailColor,
                             weight: 3,
                             opacity: trailOpacity,
-                            dashArray: '5, 5',
                             lineCap: 'round',
                             lineJoin: 'round',
                         });
                         
                         trail.bindPopup(`
                             <div style="min-width:120px;">
-                                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:4px;">${props.callsign}</div>
-                                <div style="font-size:11px;color:var(--text-secondary);">
+                                <div style="color:#0066cc;font-weight:bold;margin-bottom:4px;">${props.callsign}</div>
+                                <div style="font-size:11px;color:#555;">
                                     ${props.trail.length} position reports
                                 </div>
                             </div>
