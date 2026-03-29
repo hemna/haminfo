@@ -459,7 +459,8 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
 
     # Count packets in last 24 hours
     packets_24h = (
-        session.query(func.count(APRSPacket.id))
+        session.query(func.count('*'))
+        .select_from(APRSPacket)
         .filter(
             APRSPacket.from_call == callsign_upper,
             APRSPacket.received_at >= last_24h,
@@ -470,7 +471,8 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
 
     # Count packets in last 7 days
     packets_7d = (
-        session.query(func.count(APRSPacket.id))
+        session.query(func.count('*'))
+        .select_from(APRSPacket)
         .filter(
             APRSPacket.from_call == callsign_upper,
             APRSPacket.received_at >= last_7d,
@@ -481,7 +483,8 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
 
     # Count total packets
     packets_total = (
-        session.query(func.count(APRSPacket.id))
+        session.query(func.count('*'))
+        .select_from(APRSPacket)
         .filter(APRSPacket.from_call == callsign_upper)
         .scalar()
         or 0
