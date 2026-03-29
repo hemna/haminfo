@@ -453,9 +453,10 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     if not latest_packet:
         # Fall back to weather station table - some weather stations
         # may not have APRS packets but exist in WeatherStation table
+        # Use case-insensitive match since callsigns may be stored with mixed case
         weather_station = (
             session.query(WeatherStation)
-            .filter(WeatherStation.callsign == callsign_upper)
+            .filter(func.upper(WeatherStation.callsign) == callsign_upper)
             .first()
         )
         if weather_station:
@@ -597,9 +598,10 @@ def get_station_weather_reports(
         Dict with station info and weather reports, or None if not a weather station.
     """
     # Check if this callsign is a weather station
+    # Use case-insensitive match since callsigns may be stored with mixed case
     station = (
         session.query(WeatherStation)
-        .filter(WeatherStation.callsign == callsign.upper())
+        .filter(func.upper(WeatherStation.callsign) == callsign.upper())
         .first()
     )
 
