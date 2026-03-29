@@ -737,12 +737,64 @@ def get_map_stations(
     return result
 
 
+def count_map_stations(
+    session: Session,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    station_type: Optional[str] = None,
+    hours: int = 24,
+) -> int:
+    """Count unique stations in the map view area.
+
+    Args:
+        session: Database session.
+        bbox: Optional bounding box (min_lon, min_lat, max_lon, max_lat).
+        station_type: Optional packet type filter.
+        hours: Number of hours of history to include.
+
+    Returns:
+        Count of unique stations.
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
+    # Build filters
+    filters = [
+        APRSPacket.received_at >= since,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+
+    if station_type:
+        filters.append(APRSPacket.packet_type == station_type)
+
+    if bbox:
+        min_lon, min_lat, max_lon, max_lat = bbox
+        filters.extend(
+            [
+                APRSPacket.longitude >= min_lon,
+                APRSPacket.longitude <= max_lon,
+                APRSPacket.latitude >= min_lat,
+                APRSPacket.latitude <= max_lat,
+            ]
+        )
+
+    count = (
+        session.query(func.count(distinct(APRSPacket.from_call)))
+        .filter(*filters)
+        .scalar()
+        or 0
+    )
+
+    return count
+
+
 def get_map_stations_with_trails(
     session: Session,
     bbox: Optional[tuple[float, float, float, float]] = None,
     station_type: Optional[str] = None,
     hours: int = 1,
-    limit: int = 1000,
+    limit: int = 500,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     """Get stations for map display with position trails.
 
@@ -750,8 +802,9 @@ def get_map_stations_with_trails(
         session: Database session.
         bbox: Optional bounding box (min_lon, min_lat, max_lon, max_lat).
         station_type: Optional packet type filter.
-        hours: Number of hours of history to include (1, 2, 6).
+        hours: Number of hours of history to include (1, 2, 6, 24).
         limit: Maximum number of stations to return.
+        offset: Number of stations to skip (for pagination).
 
     Returns:
         List of station dicts with position data and trail coordinates.
@@ -799,7 +852,9 @@ def get_map_stations_with_trails(
     if station_type:
         query = query.filter(APRSPacket.packet_type == station_type)
 
-    latest_packets = query.limit(limit).all()
+    # Apply pagination - order by callsign for consistent pagination
+    query = query.order_by(APRSPacket.from_call)
+    latest_packets = query.offset(offset).limit(limit).all()
 
     # Get callsigns of stations in view
     callsigns = [p.from_call for p in latest_packets]

@@ -58,7 +58,22 @@
         display: none;
     }
     .map-loading.active {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .map-loading .progress-bar {
+        width: 100px;
+        height: 4px;
+        background: rgba(255,255,255,0.2);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    .map-loading .progress-fill {
+        height: 100%;
+        background: var(--accent-green);
+        transition: width 0.2s ease;
+        width: 0%;
     }
     .aprs-symbol-icon {
         background: transparent;
@@ -128,7 +143,10 @@
             <span style="color:var(--text-secondary);">Movement path</span>
         </div>
     </div>
-    <div id="map-loading" class="map-loading">Loading stations...</div>
+    <div id="map-loading" class="map-loading">
+        <span id="loading-text">Loading stations...</span>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+    </div>
 </div>
 {% endblock %}
 
@@ -239,7 +257,11 @@
     let currentType = '';
     let currentHours = 24;
     let loadTimeout = null;
+    let loadAbortController = null;  // For cancelling in-progress loads
     const loadingEl = document.getElementById('map-loading');
+    const loadingText = document.getElementById('loading-text');
+    const progressFill = document.getElementById('progress-fill');
+    const BATCH_SIZE = 500;  // Load 500 stations at a time
     
     // Trail colors - gradient from older (faded) to newer (bright)
     const trailColor = '#00ff00';
@@ -314,6 +336,12 @@
     }
     
     function loadStations() {
+        // Cancel any in-progress load
+        if (loadAbortController) {
+            loadAbortController.abort();
+        }
+        loadAbortController = new AbortController();
+        
         const bounds = map.getBounds();
         const bbox = [
             bounds.getWest(),
@@ -322,33 +350,46 @@
             bounds.getNorth()
         ].join(',');
         
+        // Clear existing markers and trails for fresh load
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        trails.forEach(t => map.removeLayer(t));
+        trails = [];
+        
+        // Show loading indicator
+        loadingEl.classList.add('active');
+        loadingText.textContent = 'Loading...';
+        progressFill.style.width = '0%';
+        document.getElementById('station-count').textContent = '-- stations';
+        
+        // Start progressive loading
+        loadBatch(bbox, 0, null);
+    }
+    
+    function loadBatch(bbox, offset, totalCount) {
         const url = new URL('{{ url_for("dashboard.api_map_stations") }}', window.location.origin);
         url.searchParams.set('bbox', bbox);
-        url.searchParams.set('limit', '5000');
-        url.searchParams.set('hours', currentHours);
+        url.searchParams.set('limit', BATCH_SIZE.toString());
+        url.searchParams.set('offset', offset.toString());
+        url.searchParams.set('hours', currentHours.toString());
         if (currentType) url.searchParams.set('type', currentType);
         
-        loadingEl.classList.add('active');
-        
-        fetch(url)
+        fetch(url, { signal: loadAbortController.signal })
             .then(r => r.json())
             .then(data => {
-                // Clear existing markers and trails
-                markers.forEach(m => map.removeLayer(m));
-                markers = [];
-                trails.forEach(t => map.removeLayer(t));
-                trails = [];
+                // Get total count from first response
+                if (totalCount === null && data.pagination.total_count !== undefined) {
+                    totalCount = data.pagination.total_count;
+                }
                 
-                // Add new markers and trails
+                // Add markers and trails from this batch
                 data.features.forEach(feature => {
                     const props = feature.properties;
                     
                     // Draw trail if station has one
                     if (props.trail && props.trail.length > 1) {
-                        // Convert trail points from [lon, lat, time] to [lat, lon] for Leaflet
                         const trailCoords = props.trail.map(p => [p[1], p[0]]);
                         
-                        // Create gradient effect - older points are more transparent
                         const trail = L.polyline(trailCoords, {
                             color: trailColor,
                             weight: 3,
@@ -377,13 +418,38 @@
                     markers.push(marker);
                 });
                 
+                // Update progress
+                const loadedCount = markers.length;
                 const trailCount = trails.length;
-                const stationCount = markers.length;
+                
+                if (totalCount && totalCount > 0) {
+                    const progress = Math.min(100, (loadedCount / totalCount) * 100);
+                    progressFill.style.width = progress + '%';
+                    loadingText.textContent = `Loading ${loadedCount}/${totalCount}...`;
+                } else {
+                    loadingText.textContent = `Loading ${loadedCount}...`;
+                }
+                
+                // Update station count display
                 document.getElementById('station-count').textContent = 
-                    `${stationCount} stations` + (trailCount > 0 ? `, ${trailCount} with trails` : '');
-                loadingEl.classList.remove('active');
+                    `${loadedCount} stations` + (trailCount > 0 ? `, ${trailCount} with trails` : '');
+                
+                // Load next batch if there are more
+                if (data.pagination.has_more) {
+                    // Small delay to let the browser render and keep UI responsive
+                    setTimeout(() => {
+                        loadBatch(bbox, offset + BATCH_SIZE, totalCount);
+                    }, 50);
+                } else {
+                    // Loading complete
+                    loadingEl.classList.remove('active');
+                }
             })
             .catch(err => {
+                if (err.name === 'AbortError') {
+                    // Load was cancelled (e.g., user moved the map)
+                    return;
+                }
                 console.error('Failed to load stations:', err);
                 loadingEl.classList.remove('active');
             });
