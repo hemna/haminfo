@@ -197,6 +197,87 @@ def get_tile_stations(
     return stations
 
 
+def query_bbox_from_db(
+    session: Session,
+    min_lon: float,
+    min_lat: float,
+    max_lon: float,
+    max_lat: float,
+    hours: int,
+    station_type: str,
+) -> list[dict[str, Any]]:
+    """Query database for stations within a bounding box.
+
+    Returns the most recent packet per callsign within the bbox.
+    This is used for bulk loading when many tiles have cache misses.
+
+    Args:
+        session: Database session.
+        min_lon: Western edge.
+        min_lat: Southern edge.
+        max_lon: Eastern edge.
+        max_lat: Northern edge.
+        hours: Hours of history to include.
+        station_type: Optional packet type filter (empty string for all).
+
+    Returns:
+        List of compact station dicts.
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
+    # Build filters for the bbox
+    filters = [
+        APRSPacket.received_at >= since,
+        APRSPacket.latitude >= min_lat,
+        APRSPacket.latitude <= max_lat,
+        APRSPacket.longitude >= min_lon,
+        APRSPacket.longitude <= max_lon,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+
+    if station_type:
+        filters.append(APRSPacket.packet_type == station_type)
+
+    # Query with ordering to get most recent per callsign
+    packets = (
+        session.query(APRSPacket)
+        .filter(and_(*filters))
+        .order_by(APRSPacket.received_at.desc())
+        .all()
+    )
+
+    # Deduplicate by callsign, keeping most recent
+    seen: set[str] = set()
+    result = []
+
+    for packet in packets:
+        if packet.from_call in seen:
+            continue
+        seen.add(packet.from_call)
+
+        result.append(
+            {
+                'callsign': packet.from_call,
+                'latitude': packet.latitude,
+                'longitude': packet.longitude,
+                'packet_type': packet.packet_type,
+                'symbol': packet.symbol,
+                'symbol_table': packet.symbol_table,
+                'speed': packet.speed,
+                'course': packet.course,
+                'altitude': packet.altitude,
+                'comment': packet.comment,
+                'received_at': packet.received_at.isoformat()
+                if packet.received_at
+                else None,
+            }
+        )
+
+    return result
+
+
 def get_map_stations_tiled(
     session: Session,
     bbox: tuple[float, float, float, float],
@@ -206,9 +287,9 @@ def get_map_stations_tiled(
 ) -> list[dict[str, Any]]:
     """Get map stations using tile-based caching.
 
-    Calculates tiles overlapping the bbox, fetches each tile (from cache
-    or DB), merges results, deduplicates by callsign, filters to exact
-    bbox, and applies limit.
+    Calculates tiles overlapping the bbox, checks cache for each tile,
+    then does a single DB query for all uncached tiles. Results are
+    cached per-tile for future requests.
 
     Args:
         session: Database session.
@@ -232,22 +313,68 @@ def get_map_stations_tiled(
         )
         tiles = tiles[:MAX_TILES_PER_REQUEST]
 
-    # Fetch all tiles
+    # Check cache for each tile, collect cached data and uncached tiles
     all_stations: dict[str, dict[str, Any]] = {}
+    uncached_tiles: list[tuple[int, int]] = []
 
     for tile_lat, tile_lon in tiles:
-        tile_data = get_tile_stations(session, tile_lat, tile_lon, hours, station_type)
+        cache_key = f'map:tile:{hours}:{station_type}:{tile_lat}:{tile_lon}'
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data is not None:
+                # Cache hit - add to results
+                for station in cached_data:
+                    callsign = station['callsign']
+                    if callsign not in all_stations:
+                        all_stations[callsign] = station
+                    elif station.get('received_at', '') > all_stations[callsign].get(
+                        'received_at', ''
+                    ):
+                        all_stations[callsign] = station
+            else:
+                uncached_tiles.append((tile_lat, tile_lon))
+        except Exception as e:
+            LOG.warning(f'Cache read failed for {cache_key}: {e}')
+            uncached_tiles.append((tile_lat, tile_lon))
 
-        for station in tile_data:
+    # If there are uncached tiles, do ONE database query for the whole bbox
+    # (or the uncached portion) and then cache per-tile
+    if uncached_tiles:
+        LOG.debug(f'Cache miss for {len(uncached_tiles)} tiles, querying DB')
+
+        # Query the entire bbox in one go (faster than N separate queries)
+        db_stations = query_bbox_from_db(
+            session, min_lon, min_lat, max_lon, max_lat, hours, station_type
+        )
+
+        # Organize stations by tile for caching
+        tiles_data: dict[tuple[int, int], list[dict[str, Any]]] = {
+            t: [] for t in uncached_tiles
+        }
+
+        for station in db_stations:
+            tile_coord = get_tile_coords(station['latitude'], station['longitude'])
+
+            # Add to all_stations
             callsign = station['callsign']
-            # Keep most recent if duplicate
             if callsign not in all_stations:
                 all_stations[callsign] = station
-            else:
-                existing_time = all_stations[callsign].get('received_at', '')
-                new_time = station.get('received_at', '')
-                if new_time > existing_time:
-                    all_stations[callsign] = station
+            elif station.get('received_at', '') > all_stations[callsign].get(
+                'received_at', ''
+            ):
+                all_stations[callsign] = station
+
+            # Add to tile bucket for caching (only for uncached tiles)
+            if tile_coord in tiles_data:
+                tiles_data[tile_coord].append(station)
+
+        # Cache each tile's data
+        for (tile_lat, tile_lon), tile_stations in tiles_data.items():
+            cache_key = f'map:tile:{hours}:{station_type}:{tile_lat}:{tile_lon}'
+            try:
+                cache.set(cache_key, tile_stations, ttl=TILE_CACHE_TTL)
+            except Exception as e:
+                LOG.warning(f'Cache write failed for {cache_key}: {e}')
 
     # Filter to exact bbox
     result = [

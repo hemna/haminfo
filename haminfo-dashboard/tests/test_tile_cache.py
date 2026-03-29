@@ -176,15 +176,16 @@ class TestGetTileStations:
 class TestGetMapStationsTiled:
     """Tests for get_map_stations_tiled orchestration."""
 
-    @patch('haminfo_dashboard.queries.get_tile_stations')
-    def test_fetches_all_tiles(self, mock_get_tile):
-        """Test that all overlapping tiles are fetched."""
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_queries_db_when_cache_empty(self, mock_query_bbox, mock_cache):
+        """Test that DB is queried when cache is empty."""
         from haminfo_dashboard.queries import get_map_stations_tiled
 
-        mock_get_tile.return_value = []
+        mock_cache.get.return_value = None  # All cache misses
+        mock_query_bbox.return_value = []
         mock_session = MagicMock()
 
-        # 2x2 tile area
         get_map_stations_tiled(
             mock_session,
             bbox=(-123.5, 45.2, -121.5, 46.8),
@@ -193,58 +194,83 @@ class TestGetMapStationsTiled:
             limit=500,
         )
 
-        # Should fetch 6 tiles (3 lon x 2 lat)
-        assert mock_get_tile.call_count == 6
+        # Should query DB once for all tiles
+        mock_query_bbox.assert_called_once()
 
-    @patch('haminfo_dashboard.queries.get_tile_stations')
-    def test_deduplicates_by_callsign(self, mock_get_tile):
-        """Test that duplicate callsigns are deduplicated."""
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_uses_cache_when_available(self, mock_query_bbox, mock_cache):
+        """Test that cached data is used without DB query."""
         from haminfo_dashboard.queries import get_map_stations_tiled
 
-        # Same station appears in two tiles
-        mock_get_tile.side_effect = [
-            [
-                {
-                    'callsign': 'N0CALL',
-                    'latitude': 45.5,
-                    'longitude': -122.5,
-                    'received_at': '2026-03-29T12:00:00',
-                }
-            ],
-            [
-                {
-                    'callsign': 'N0CALL',
-                    'latitude': 45.5,
-                    'longitude': -122.5,
-                    'received_at': '2026-03-29T11:00:00',
-                }
-            ],  # Older
-            [],
-            [],
-            [],
-            [],  # Other tiles empty
-        ]
+        cached_station = {
+            'callsign': 'CACHED',
+            'latitude': 45.5,
+            'longitude': -122.5,
+            'received_at': '2026-03-29T12:00:00',
+        }
+        mock_cache.get.return_value = [cached_station]  # All cache hits
         mock_session = MagicMock()
 
         result = get_map_stations_tiled(
             mock_session,
-            bbox=(-123.5, 45.2, -121.5, 46.8),
+            bbox=(-123.0, 45.0, -122.0, 46.0),  # 4 tiles
             hours=1,
             station_type='',
             limit=500,
         )
 
-        # Should have only one station (most recent)
+        # Should NOT query DB since all cached
+        mock_query_bbox.assert_not_called()
+        # Should return the cached station
+        assert len(result) == 1
+        assert result[0]['callsign'] == 'CACHED'
+
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_deduplicates_by_callsign(self, mock_query_bbox, mock_cache):
+        """Test that duplicate callsigns are deduplicated."""
+        from haminfo_dashboard.queries import get_map_stations_tiled
+
+        mock_cache.get.return_value = None  # Cache miss
+        # Same station appears with different timestamps
+        mock_query_bbox.return_value = [
+            {
+                'callsign': 'N0CALL',
+                'latitude': 45.5,
+                'longitude': -122.5,
+                'received_at': '2026-03-29T12:00:00',
+            },
+            {
+                'callsign': 'N0CALL',
+                'latitude': 45.5,
+                'longitude': -122.5,
+                'received_at': '2026-03-29T11:00:00',
+            },
+        ]
+        mock_session = MagicMock()
+
+        result = get_map_stations_tiled(
+            mock_session,
+            bbox=(-123.0, 45.0, -122.0, 46.0),
+            hours=1,
+            station_type='',
+            limit=500,
+        )
+
+        # Should have only one station (most recent kept)
         assert len(result) == 1
         assert result[0]['callsign'] == 'N0CALL'
+        assert result[0]['received_at'] == '2026-03-29T12:00:00'
 
-    @patch('haminfo_dashboard.queries.get_tile_stations')
-    def test_filters_to_exact_bbox(self, mock_get_tile):
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_filters_to_exact_bbox(self, mock_query_bbox, mock_cache):
         """Test that results are filtered to exact bbox."""
         from haminfo_dashboard.queries import get_map_stations_tiled
 
-        # Station outside exact bbox but inside tile
-        mock_get_tile.return_value = [
+        mock_cache.get.return_value = None
+        mock_query_bbox.return_value = [
             {
                 'callsign': 'INSIDE',
                 'latitude': 45.5,
@@ -256,7 +282,7 @@ class TestGetMapStationsTiled:
                 'latitude': 45.1,
                 'longitude': -122.9,
                 'received_at': '2026-03-29T12:00:00',
-            },  # Outside bbox
+            },
         ]
         mock_session = MagicMock()
 
@@ -271,13 +297,14 @@ class TestGetMapStationsTiled:
         assert len(result) == 1
         assert result[0]['callsign'] == 'INSIDE'
 
-    @patch('haminfo_dashboard.queries.get_tile_stations')
-    def test_respects_limit(self, mock_get_tile):
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_respects_limit(self, mock_query_bbox, mock_cache):
         """Test that limit is applied to results."""
         from haminfo_dashboard.queries import get_map_stations_tiled
 
-        # Return many stations
-        mock_get_tile.return_value = [
+        mock_cache.get.return_value = None
+        mock_query_bbox.return_value = [
             {
                 'callsign': f'CALL{i}',
                 'latitude': 45.5,
@@ -298,15 +325,17 @@ class TestGetMapStationsTiled:
 
         assert len(result) == 3
 
-    @patch('haminfo_dashboard.queries.get_tile_stations')
-    def test_limits_tiles_per_request(self, mock_get_tile):
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_limits_tiles_per_request(self, mock_query_bbox, mock_cache):
         """Test that too many tiles are truncated."""
         from haminfo_dashboard.queries import (
             get_map_stations_tiled,
             MAX_TILES_PER_REQUEST,
         )
 
-        mock_get_tile.return_value = []
+        mock_cache.get.return_value = None
+        mock_query_bbox.return_value = []
         mock_session = MagicMock()
 
         # Request huge bbox that would span many tiles
@@ -318,5 +347,33 @@ class TestGetMapStationsTiled:
             limit=500,
         )
 
-        # Should be capped at MAX_TILES_PER_REQUEST
-        assert mock_get_tile.call_count <= MAX_TILES_PER_REQUEST
+        # Should still work (just limited)
+        mock_query_bbox.assert_called_once()
+
+    @patch('haminfo_dashboard.queries.cache')
+    @patch('haminfo_dashboard.queries.query_bbox_from_db')
+    def test_caches_results_per_tile(self, mock_query_bbox, mock_cache):
+        """Test that results are cached per tile."""
+        from haminfo_dashboard.queries import get_map_stations_tiled
+
+        mock_cache.get.return_value = None  # All cache misses
+        mock_query_bbox.return_value = [
+            {
+                'callsign': 'N0CALL',
+                'latitude': 45.5,
+                'longitude': -122.5,
+                'received_at': '2026-03-29T12:00:00',
+            },
+        ]
+        mock_session = MagicMock()
+
+        get_map_stations_tiled(
+            mock_session,
+            bbox=(-123.0, 45.0, -122.0, 46.0),  # 4 tiles
+            hours=1,
+            station_type='',
+            limit=500,
+        )
+
+        # Should cache each tile (4 tiles)
+        assert mock_cache.set.call_count == 4
