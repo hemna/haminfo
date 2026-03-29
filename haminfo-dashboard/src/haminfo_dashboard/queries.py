@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-@cached('dashboard:stats', ttl=30)
+@cached('dashboard:stats', ttl=300)
 def get_dashboard_stats(session: Session) -> dict[str, Any]:
     """Get summary statistics for dashboard.
 
@@ -166,7 +166,7 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     return result[:limit]
 
 
-@cached('dashboard:hourly', ttl=60)
+@cached('dashboard:hourly', ttl=300)
 def get_hourly_distribution(session: Session) -> dict[str, list]:
     """Get packet count distribution by hour of day.
 
