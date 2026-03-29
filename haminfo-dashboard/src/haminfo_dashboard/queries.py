@@ -8,7 +8,7 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import func, distinct, and_
+from sqlalchemy import func, distinct, and_, text
 
 from haminfo.db.models.aprs_packet import APRSPacket
 from haminfo.db.models.weather_report import WeatherStation, WeatherReport
@@ -25,6 +25,10 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 LOG = logging.getLogger(__name__)
+
+# Feature flag for continuous aggregates
+# Set to True after migrations are run and aggregates are populated
+USE_CONTINUOUS_AGGREGATES = False
 
 # Tile-based caching constants
 TILE_CACHE_TTL = 60  # seconds
@@ -407,6 +411,37 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
     Returns:
         Dict with total_packets_24h, unique_stations, countries, weather_stations.
     """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_dashboard_stats_from_aggregates(session)
+    return _get_dashboard_stats_from_raw(session)
+
+
+def _get_dashboard_stats_from_aggregates(session: Session) -> dict[str, Any]:
+    """Get dashboard stats from continuous aggregates (fast)."""
+    result = session.execute(
+        text("""
+        SELECT 
+            COALESCE(SUM(packet_count), 0) as total_packets,
+            COALESCE(SUM(unique_stations), 0) as unique_stations,
+            COALESCE(SUM(unique_prefixes), 0) as unique_prefixes
+        FROM aprs_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+    """)
+    ).fetchone()
+
+    # Weather stations still from regular query
+    weather_stations = session.query(func.count(WeatherStation.id)).scalar() or 0
+
+    return {
+        'total_packets_24h': int(result.total_packets) if result else 0,
+        'unique_stations': int(result.unique_stations) if result else 0,
+        'countries': int(result.unique_prefixes) if result else 0,
+        'weather_stations': weather_stations,
+    }
+
+
+def _get_dashboard_stats_from_raw(session: Session) -> dict[str, Any]:
+    """Get dashboard stats from raw table (slow fallback)."""
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -456,6 +491,44 @@ def get_top_stations(session: Session, limit: int = 10) -> list[dict[str, Any]]:
     Returns:
         List of dicts with callsign, count, and country info.
     """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_top_stations_from_aggregates(session, limit)
+    return _get_top_stations_from_raw(session, limit)
+
+
+def _get_top_stations_from_aggregates(
+    session: Session, limit: int
+) -> list[dict[str, Any]]:
+    """Get top stations from continuous aggregates (fast)."""
+    results = session.execute(
+        text("""
+        SELECT from_call, SUM(packet_count) as total_count
+        FROM aprs_station_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        GROUP BY from_call
+        ORDER BY total_count DESC
+        LIMIT :limit
+    """),
+        {'limit': limit},
+    ).fetchall()
+
+    stations = []
+    for row in results:
+        country_info = get_country_from_callsign(row.from_call)
+        stations.append(
+            {
+                'callsign': row.from_call,
+                'count': int(row.total_count),
+                'country_code': country_info[0] if country_info else None,
+                'country_name': country_info[1] if country_info else None,
+            }
+        )
+
+    return stations
+
+
+def _get_top_stations_from_raw(session: Session, limit: int) -> list[dict[str, Any]]:
+    """Get top stations from raw table (slow fallback)."""
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -497,6 +570,58 @@ def get_country_breakdown(session: Session, limit: int = 10) -> list[dict[str, A
     Returns:
         List of dicts with country_code, country_name, count.
     """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_country_breakdown_from_aggregates(session, limit)
+    return _get_country_breakdown_from_raw(session, limit)
+
+
+def _get_country_breakdown_from_aggregates(
+    session: Session, limit: int
+) -> list[dict[str, Any]]:
+    """Get country breakdown from continuous aggregates (fast)."""
+    prefix_counts = session.execute(
+        text("""
+        SELECT prefix, SUM(packet_count) as count
+        FROM aprs_prefix_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        GROUP BY prefix
+    """)
+    ).fetchall()
+
+    country_counts: dict[tuple[str, str], int] = {}
+    unknown_count = 0
+
+    for row in prefix_counts:
+        prefix = row.prefix
+        count = int(row.count)
+        if not prefix:
+            unknown_count += count
+            continue
+        country_info = None
+        if len(prefix) >= 2:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:2])
+        if not country_info and len(prefix) >= 1:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:1])
+
+        if country_info:
+            key = country_info
+            country_counts[key] = country_counts.get(key, 0) + count
+        else:
+            unknown_count += count
+
+    result = [
+        {'country_code': code, 'country_name': name, 'count': cnt}
+        for (code, name), cnt in country_counts.items()
+    ]
+    result.sort(key=lambda x: x['count'], reverse=True)
+
+    return result[:limit]
+
+
+def _get_country_breakdown_from_raw(
+    session: Session, limit: int
+) -> list[dict[str, Any]]:
+    """Get country breakdown from raw table (slow fallback)."""
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
@@ -556,6 +681,35 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
     Returns:
         Dict with 'labels' (hour strings) and 'values' (counts) arrays.
     """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_hourly_distribution_from_aggregates(session)
+    return _get_hourly_distribution_from_raw(session)
+
+
+def _get_hourly_distribution_from_aggregates(session: Session) -> dict[str, list]:
+    """Get hourly distribution from continuous aggregates (fast)."""
+    hourly_counts = session.execute(
+        text("""
+        SELECT EXTRACT(hour FROM bucket)::integer as hour, SUM(packet_count) as count
+        FROM aprs_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        GROUP BY EXTRACT(hour FROM bucket)
+    """)
+    ).fetchall()
+
+    hour_map = {}
+    for row in hourly_counts:
+        if row.hour is not None:
+            hour_map[row.hour] = int(row.count)
+
+    labels = [f'{h:02d}:00' for h in range(24)]
+    values = [hour_map.get(h, 0) for h in range(24)]
+
+    return {'labels': labels, 'values': values}
+
+
+def _get_hourly_distribution_from_raw(session: Session) -> dict[str, list]:
+    """Get hourly distribution from raw table (slow fallback)."""
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
