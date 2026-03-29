@@ -85,21 +85,30 @@
             // Weather data from server (reversed to show oldest first)
             var reports = {{ weather_data.reports | tojson }}.reverse();
             
-            // Function to load a script dynamically
-            function loadScript(url, callback) {
-                // Check if already loaded
-                if (document.querySelector('script[src="' + url + '"]')) {
-                    callback();
-                    return;
-                }
-                var script = document.createElement('script');
-                script.src = url;
-                script.onload = callback;
-                document.head.appendChild(script);
+            // Function to load a script dynamically and wait for it
+            function loadScript(url) {
+                return new Promise(function(resolve, reject) {
+                    var existing = document.querySelector('script[src="' + url + '"]');
+                    if (existing) {
+                        // Already loaded, resolve immediately
+                        resolve();
+                        return;
+                    }
+                    var script = document.createElement('script');
+                    script.src = url;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
             }
             
             // Function to initialize charts once Chart.js is loaded
             function initCharts() {
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js not loaded');
+                    return;
+                }
+                
                 // Calculate dewpoint using Magnus formula
                 function calcDewpoint(tempC, humidity) {
                     if (tempC === null || humidity === null || humidity <= 0) return null;
@@ -267,14 +276,21 @@
             
             // Load Chart.js and date adapter, then initialize charts
             if (typeof Chart !== 'undefined') {
-                // Chart.js already loaded
+                // Chart.js already loaded, init immediately
                 initCharts();
             } else {
-                loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js', function() {
-                    loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js', function() {
-                        initCharts();
+                // Load Chart.js first
+                loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js')
+                    .then(function() {
+                        return loadScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js');
+                    })
+                    .then(function() {
+                        // Small delay to ensure Chart is fully initialized
+                        setTimeout(initCharts, 50);
+                    })
+                    .catch(function(err) {
+                        console.error('Failed to load Chart.js:', err);
                     });
-                });
             }
         })();
         </script>
