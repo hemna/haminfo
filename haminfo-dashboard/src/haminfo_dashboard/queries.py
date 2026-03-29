@@ -451,6 +451,49 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     )
 
     if not latest_packet:
+        # Fall back to weather station table - some weather stations
+        # may not have APRS packets but exist in WeatherStation table
+        weather_station = (
+            session.query(WeatherStation)
+            .filter(WeatherStation.callsign == callsign_upper)
+            .first()
+        )
+        if weather_station:
+            # Return minimal station info from weather station
+            country_info = get_country_from_coords(
+                weather_station.latitude, weather_station.longitude
+            )
+            if not country_info:
+                country_info = get_country_from_callsign(callsign)
+
+            # Get weather report count
+            report_count = (
+                session.query(func.count(WeatherReport.id))
+                .filter(WeatherReport.weather_station_id == weather_station.id)
+                .scalar()
+                or 0
+            )
+
+            return {
+                'callsign': weather_station.callsign,
+                'last_seen': None,
+                'latitude': weather_station.latitude,
+                'longitude': weather_station.longitude,
+                'altitude': None,
+                'speed': None,
+                'course': None,
+                'symbol': '_',  # Weather station symbol
+                'symbol_table': '/',
+                'comment': weather_station.comment,
+                'packets_24h': 0,
+                'packets_7d': 0,
+                'packets_total': report_count,  # Use weather report count
+                'first_seen': None,
+                'packet_types': {'weather': report_count},
+                'country_code': country_info[0] if country_info else None,
+                'country_name': country_info[1] if country_info else None,
+                'is_weather_station': True,
+            }
         return None
 
     now = datetime.now(timezone.utc)
