@@ -308,6 +308,8 @@ def api_station_weather_json(callsign: str):
 @dashboard_bp.route('/api/dashboard/map/stations')
 def api_map_stations():
     """Map stations - returns GeoJSON FeatureCollection."""
+    from haminfo_dashboard.queries import get_map_stations_with_trails
+
     session = _get_session()
     try:
         # Parse bbox parameter (min_lon,min_lat,max_lon,max_lat)
@@ -323,11 +325,17 @@ def api_map_stations():
 
         station_type = request.args.get('type')
         limit = request.args.get('limit', 1000, type=int)
+        hours = request.args.get('hours', 24, type=int)
 
-        stations = get_map_stations(
+        # Clamp hours to valid range
+        if hours not in (1, 2, 6, 24):
+            hours = 24
+
+        stations = get_map_stations_with_trails(
             session,
             bbox=bbox,
             station_type=station_type,
+            hours=hours,
             limit=limit,
         )
 
@@ -352,6 +360,7 @@ def api_map_stations():
                         'comment': station.get('comment'),
                         'last_seen': station.get('last_seen'),
                         'country_code': station.get('country_code'),
+                        'trail': station.get('trail', []),
                     },
                 }
                 features.append(feature)

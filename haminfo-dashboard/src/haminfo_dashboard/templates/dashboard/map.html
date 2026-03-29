@@ -71,6 +71,12 @@
 {% endblock %}
 
 {% block header_right %}
+<select id="time-filter" style="margin-right:8px;">
+    <option value="24">Last 24 hours</option>
+    <option value="6">Last 6 hours</option>
+    <option value="2">Last 2 hours</option>
+    <option value="1">Last 1 hour</option>
+</select>
 <select id="station-type-filter">
     <option value="">All Station Types</option>
     <option value="position">Position Only</option>
@@ -115,6 +121,11 @@
         <div class="legend-item">
             <div class="legend-dot" style="background:var(--accent-green);box-shadow:0 0 6px var(--accent-green);"></div>
             <span style="color:var(--text-secondary);">Other</span>
+        </div>
+        <div style="color:var(--text-muted);font-size:10px;margin-top:10px;margin-bottom:6px;border-top:1px solid var(--border-color);padding-top:8px;">Trails</div>
+        <div class="legend-item">
+            <div style="width:20px;height:3px;background:var(--accent-green);opacity:0.6;border-radius:2px;"></div>
+            <span style="color:var(--text-secondary);">Movement path</span>
         </div>
     </div>
     <div id="map-loading" class="map-loading">Loading stations...</div>
@@ -224,9 +235,15 @@
     
     // Store markers for filtering
     let markers = [];
+    let trails = [];  // Store trail polylines
     let currentType = '';
+    let currentHours = 24;
     let loadTimeout = null;
     const loadingEl = document.getElementById('map-loading');
+    
+    // Trail colors - gradient from older (faded) to newer (bright)
+    const trailColor = '#00ff00';
+    const trailOpacity = 0.6;
     
     function getSymbolIcon(symbolTable, symbol, packetType) {
         // Build the key: table + symbol character
@@ -308,6 +325,7 @@
         const url = new URL('{{ url_for("dashboard.api_map_stations") }}', window.location.origin);
         url.searchParams.set('bbox', bbox);
         url.searchParams.set('limit', '5000');
+        url.searchParams.set('hours', currentHours);
         if (currentType) url.searchParams.set('type', currentType);
         
         loadingEl.classList.add('active');
@@ -315,18 +333,54 @@
         fetch(url)
             .then(r => r.json())
             .then(data => {
-                // Clear existing markers
+                // Clear existing markers and trails
                 markers.forEach(m => map.removeLayer(m));
                 markers = [];
+                trails.forEach(t => map.removeLayer(t));
+                trails = [];
                 
-                // Add new markers
+                // Add new markers and trails
                 data.features.forEach(feature => {
+                    const props = feature.properties;
+                    
+                    // Draw trail if station has one
+                    if (props.trail && props.trail.length > 1) {
+                        // Convert trail points from [lon, lat, time] to [lat, lon] for Leaflet
+                        const trailCoords = props.trail.map(p => [p[1], p[0]]);
+                        
+                        // Create gradient effect - older points are more transparent
+                        const trail = L.polyline(trailCoords, {
+                            color: trailColor,
+                            weight: 3,
+                            opacity: trailOpacity,
+                            dashArray: '5, 5',
+                            lineCap: 'round',
+                            lineJoin: 'round',
+                        });
+                        
+                        trail.bindPopup(`
+                            <div style="min-width:120px;">
+                                <div style="color:var(--accent-green);font-weight:bold;margin-bottom:4px;">${props.callsign}</div>
+                                <div style="font-size:11px;color:var(--text-secondary);">
+                                    ${props.trail.length} position reports
+                                </div>
+                            </div>
+                        `);
+                        
+                        trail.addTo(map);
+                        trails.push(trail);
+                    }
+                    
+                    // Add marker for current position
                     const marker = createMarker(feature);
                     marker.addTo(map);
                     markers.push(marker);
                 });
                 
-                document.getElementById('station-count').textContent = `${markers.length} stations`;
+                const trailCount = trails.length;
+                const stationCount = markers.length;
+                document.getElementById('station-count').textContent = 
+                    `${stationCount} stations` + (trailCount > 0 ? `, ${trailCount} with trails` : '');
                 loadingEl.classList.remove('active');
             })
             .catch(err => {
@@ -350,6 +404,12 @@
     // Filter handler
     document.getElementById('station-type-filter').addEventListener('change', (e) => {
         currentType = e.target.value;
+        loadStations();
+    });
+    
+    // Time filter handler
+    document.getElementById('time-filter').addEventListener('change', (e) => {
+        currentHours = parseInt(e.target.value, 10);
         loadStations();
     });
     

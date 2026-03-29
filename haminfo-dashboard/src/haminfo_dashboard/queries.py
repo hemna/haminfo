@@ -735,3 +735,138 @@ def get_map_stations(
         )
 
     return result
+
+
+def get_map_stations_with_trails(
+    session: Session,
+    bbox: Optional[tuple[float, float, float, float]] = None,
+    station_type: Optional[str] = None,
+    hours: int = 1,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Get stations for map display with position trails.
+
+    Args:
+        session: Database session.
+        bbox: Optional bounding box (min_lon, min_lat, max_lon, max_lat).
+        station_type: Optional packet type filter.
+        hours: Number of hours of history to include (1, 2, 6).
+        limit: Maximum number of stations to return.
+
+    Returns:
+        List of station dicts with position data and trail coordinates.
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
+    # First get the unique stations with their latest position in the bbox
+    subq_filters = [
+        APRSPacket.received_at >= since,
+        APRSPacket.latitude.isnot(None),
+        APRSPacket.longitude.isnot(None),
+    ]
+
+    if station_type:
+        subq_filters.append(APRSPacket.packet_type == station_type)
+
+    # Subquery to find latest packet per station
+    latest_subq = (
+        session.query(
+            APRSPacket.from_call,
+            func.max(APRSPacket.received_at).label('max_received'),
+        )
+        .filter(*subq_filters)
+        .group_by(APRSPacket.from_call)
+        .subquery()
+    )
+
+    # Get latest packet for each station
+    query = session.query(APRSPacket).join(
+        latest_subq,
+        (APRSPacket.from_call == latest_subq.c.from_call)
+        & (APRSPacket.received_at == latest_subq.c.max_received),
+    )
+
+    if bbox:
+        min_lon, min_lat, max_lon, max_lat = bbox
+        query = query.filter(
+            APRSPacket.longitude >= min_lon,
+            APRSPacket.longitude <= max_lon,
+            APRSPacket.latitude >= min_lat,
+            APRSPacket.latitude <= max_lat,
+        )
+
+    if station_type:
+        query = query.filter(APRSPacket.packet_type == station_type)
+
+    latest_packets = query.limit(limit).all()
+
+    # Get callsigns of stations in view
+    callsigns = [p.from_call for p in latest_packets]
+
+    if not callsigns:
+        return []
+
+    # Now get all positions for these stations within the time window
+    # to build trails
+    trail_query = (
+        session.query(
+            APRSPacket.from_call,
+            APRSPacket.latitude,
+            APRSPacket.longitude,
+            APRSPacket.received_at,
+            APRSPacket.speed,
+        )
+        .filter(
+            APRSPacket.from_call.in_(callsigns),
+            APRSPacket.received_at >= since,
+            APRSPacket.latitude.isnot(None),
+            APRSPacket.longitude.isnot(None),
+        )
+        .order_by(APRSPacket.from_call, APRSPacket.received_at)
+        .all()
+    )
+
+    # Group trail points by callsign
+    trails_by_callsign: dict[str, list[tuple[float, float, str]]] = {}
+    for row in trail_query:
+        callsign = row.from_call
+        if callsign not in trails_by_callsign:
+            trails_by_callsign[callsign] = []
+        trails_by_callsign[callsign].append(
+            (
+                row.longitude,
+                row.latitude,
+                row.received_at.isoformat() if row.received_at else None,
+            )
+        )
+
+    # Build result with latest position and trail
+    result = []
+    for packet in latest_packets:
+        country_info = get_country_from_callsign(packet.from_call)
+        trail = trails_by_callsign.get(packet.from_call, [])
+
+        result.append(
+            {
+                'callsign': packet.from_call,
+                'latitude': packet.latitude,
+                'longitude': packet.longitude,
+                'packet_type': packet.packet_type,
+                'symbol': packet.symbol,
+                'symbol_table': packet.symbol_table,
+                'speed': packet.speed,
+                'course': packet.course,
+                'altitude': packet.altitude,
+                'comment': packet.comment,
+                'last_seen': packet.received_at.isoformat()
+                if packet.received_at
+                else None,
+                'country_code': country_info[0] if country_info else None,
+                'trail': trail
+                if len(trail) > 1
+                else [],  # Only include if multiple points
+            }
+        )
+
+    return result
