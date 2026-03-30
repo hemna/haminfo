@@ -311,8 +311,13 @@
                 document.getElementById('station-meta').textContent = 'Station not found';
                 document.getElementById('station-status').innerHTML = '<div style="color:var(--accent-yellow);">Not found</div>';
             } else {
-                const country = data.country_name ? `${data.country_name}` : 'Unknown';
-                document.getElementById('station-meta').textContent = `${country}`;
+                // Show country if known, otherwise hide the meta line
+                const metaEl = document.getElementById('station-meta');
+                if (data.country_name) {
+                    metaEl.textContent = data.country_name;
+                } else {
+                    metaEl.style.display = 'none';
+                }
                 document.getElementById('station-status').innerHTML = `
                     <div style="color:var(--accent-green);font-size:12px;">● Last seen: ${data.last_seen || '--'}</div>
                     <div style="color:var(--text-muted);font-size:11px;margin-top:4px;">First seen: ${data.first_seen || '--'}</div>
