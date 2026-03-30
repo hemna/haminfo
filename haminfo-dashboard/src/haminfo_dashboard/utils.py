@@ -245,9 +245,11 @@ def normalize_packet_type(
     - 'telemetry-message' -> 'telemetry'
     - 'bulletin' -> 'message'
     - 'unknown' with position -> 'position'
+    - 'unknown' with telemetry data -> 'telemetry'
 
     If latitude/longitude are not provided but raw packet is available,
-    will attempt to re-parse the raw packet to extract position data.
+    will attempt to re-parse the raw packet to extract position data
+    or detect telemetry packets.
 
     Args:
         packet_type: The packet type from APRSD or database
@@ -261,14 +263,23 @@ def normalize_packet_type(
     if not packet_type:
         packet_type = 'unknown'
 
+    # Track if we detected telemetry from raw parsing
+    is_telemetry_from_raw = False
+
     # If we don't have lat/lon but have raw packet, try to parse it
-    if latitude is None and longitude is None and raw:
+    if raw:
         try:
             import aprslib
 
             parsed = aprslib.parse(raw)
-            latitude = parsed.get('latitude')
-            longitude = parsed.get('longitude')
+            if latitude is None and longitude is None:
+                latitude = parsed.get('latitude')
+                longitude = parsed.get('longitude')
+
+            # Check if aprslib identified this as telemetry
+            aprslib_format = parsed.get('format', '')
+            if aprslib_format == 'telemetry' or parsed.get('telemetry'):
+                is_telemetry_from_raw = True
         except Exception:
             pass
 
@@ -282,6 +293,9 @@ def normalize_packet_type(
     elif packet_type == 'bulletin':
         return 'message'
     elif packet_type == 'unknown':
+        # Check telemetry first (more specific)
+        if is_telemetry_from_raw:
+            return 'telemetry'
         if latitude is not None and longitude is not None:
             return 'position'
 

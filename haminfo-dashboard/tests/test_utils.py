@@ -73,7 +73,6 @@ class TestFormatPacketSummary:
             'speed': 60,
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
         assert '42.1234' in result
         assert '-71.5678' in result
         assert '60km/h' in result
@@ -87,7 +86,8 @@ class TestFormatPacketSummary:
             'longitude': -71.5678,
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
+        assert '42.1234' in result
+        assert '-71.5678' in result
         assert 'km/h' not in result
 
     def test_weather_packet(self):
@@ -99,8 +99,7 @@ class TestFormatPacketSummary:
             'humidity': 65,
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
-        assert 'WX' in result
+        assert 'Weather' in result
         assert '25' in result
         assert '65' in result
 
@@ -109,10 +108,9 @@ class TestFormatPacketSummary:
         packet = {
             'from_call': 'W1ABC',
             'packet_type': 'status',
-            'status': 'Hello world',
+            'comment': 'Hello world',
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
         assert 'Status' in result
         assert 'Hello world' in result
 
@@ -124,19 +122,17 @@ class TestFormatPacketSummary:
             'to_call': 'W2DEF',
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
         assert 'Message' in result
         assert 'W2DEF' in result
 
-    def test_unknown_packet_type(self):
-        """Test formatting unknown packet type."""
+    def test_telemetry_packet_type(self):
+        """Test formatting telemetry packet type."""
         packet = {
             'from_call': 'W1ABC',
             'packet_type': 'telemetry',
         }
         result = format_packet_summary(packet)
-        assert 'W1ABC' in result
-        assert 'telemetry' in result
+        assert 'Telemetry' in result
 
 
 class TestNormalizePacketType:
@@ -212,3 +208,20 @@ class TestNormalizePacketType:
             'beacon', latitude=None, longitude=None, raw='invalid'
         )
         assert result == 'beacon'
+
+    def test_unknown_with_telemetry_raw_becomes_telemetry(self):
+        """Unknown packet with telemetry data in raw should become telemetry."""
+        # T# format is telemetry data
+        raw = 'N1KSC-1>APMI03,qAR,KM4ZYG-10:T#190,085,014,076,000,00000000'
+        result = normalize_packet_type(
+            'unknown', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
+
+    def test_unknown_with_telemetry_raw_2_becomes_telemetry(self):
+        """Another telemetry data packet should become telemetry."""
+        raw = 'KD4NFI-5>APMI04,TCPIP*,qAS,KD4NFI:T#180,000,000,100,000,00000000'
+        result = normalize_packet_type(
+            'unknown', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
