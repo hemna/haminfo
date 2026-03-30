@@ -5,8 +5,9 @@
     {% for packet in packets %}
     {% set addressee = get_packet_addressee(packet) %}
     <div class="packet-row" 
-         onclick="showPacketModal(this.dataset.raw)"
+         onclick="showPacketModal(this.dataset.raw, this.dataset.callsign)"
          data-raw="{{ packet.raw | e }}"
+         data-callsign="{{ packet.from_call | e }}"
          style="padding:6px 8px;border-bottom:1px solid var(--border-color);display:flex;align-items:baseline;gap:8px;{% if loop.index is odd %}background:rgba(255,255,255,0.02);{% endif %}">
         <!-- Packet Type Badge -->
         <span style="color:{% if packet.packet_type == 'position' %}#1AA730{% elif packet.packet_type == 'weather' %}#00BCD4{% elif packet.packet_type == 'status' %}#FFC107{% elif packet.packet_type == 'message' %}#E91E63{% elif packet.packet_type == 'telemetry' %}#9C27B0{% else %}#607D8B{% endif %};font-weight:bold;min-width:70px;">

@@ -385,7 +385,7 @@
     <div id="packet-modal" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">Raw APRS Packet</span>
+                <span class="modal-title">Raw Packet: <a id="modal-callsign-link" href="#" style="color:var(--accent-cyan);text-decoration:none;font-weight:bold;"></a></span>
                 <button class="modal-close" onclick="closePacketModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -447,10 +447,23 @@
         setInterval(updateClocks, 1000);
         
         // Raw packet modal functions
-        function showPacketModal(rawPacket) {
+        function showPacketModal(rawPacket, callsign) {
             const modal = document.getElementById('packet-modal');
             const rawEl = document.getElementById('modal-raw-packet');
+            const callsignLink = document.getElementById('modal-callsign-link');
+            
             rawEl.textContent = rawPacket || 'No raw packet data available';
+            
+            if (callsign) {
+                callsignLink.textContent = callsign;
+                callsignLink.href = '/station/' + encodeURIComponent(callsign);
+                callsignLink.style.display = 'inline';
+            } else {
+                callsignLink.textContent = '';
+                callsignLink.href = '#';
+                callsignLink.style.display = 'none';
+            }
+            
             modal.classList.add('active');
         }
         
