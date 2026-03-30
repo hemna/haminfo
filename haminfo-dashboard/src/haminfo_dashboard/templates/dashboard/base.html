@@ -66,6 +66,15 @@
             font-weight: bold;
             font-size: 18px;
             text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+        
+        .logo-subtitle {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: normal;
         }
         
         .nav {
@@ -345,7 +354,10 @@
 <body>
     <header class="header">
         <div class="header-left">
-            <a href="{{ url_for('dashboard.index') }}" class="logo">APRS Dashboard</a>
+            <a href="{{ url_for('dashboard.index') }}" class="logo">
+                APRS Dashboard
+                <span class="logo-subtitle">Real-time APRS Network Activity</span>
+            </a>
             <nav class="nav">
                 <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if request.endpoint == 'dashboard.index' else '' }}">Home</a>
                 <a href="{{ url_for('dashboard.weather') }}" class="{{ 'active' if request.endpoint == 'dashboard.weather' else '' }}">Weather</a>
