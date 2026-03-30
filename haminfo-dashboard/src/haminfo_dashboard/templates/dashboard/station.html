@@ -188,6 +188,96 @@
     });
     
     {% if callsign and callsign != 'lookup' %}
+    // Current station callsign (normalized for comparison)
+    const stationCallsign = '{{ callsign }}'.toUpperCase();
+    
+    // Packet type colors matching APRSD
+    const typeColors = {
+        'position': '#1AA730',
+        'weather': '#00BCD4',
+        'status': '#FFC107',
+        'message': '#E91E63',
+        'telemetry': '#9C27B0',
+        'object': '#FF5722',
+        'unknown': '#607D8B'
+    };
+    
+    // Handle incoming packets - filter for this station
+    function handlePacket(packet) {
+        // Check if packet is from or to this station
+        const fromCall = (packet.from_call || '').toUpperCase();
+        const toCall = (packet.to_call || '').toUpperCase();
+        const addressee = (packet.addressee || '').toUpperCase();
+        
+        // Match if this station sent the packet, or is the addressee
+        if (fromCall !== stationCallsign && toCall !== stationCallsign && addressee !== stationCallsign) {
+            return; // Not for this station
+        }
+        
+        const container = document.getElementById('station-packets-container');
+        if (!container) return;
+        
+        // Find or create the packets list div
+        let listDiv = container.querySelector('div[style*="font-family"]');
+        if (!listDiv) {
+            // Remove "Loading packets..." or "No packets found" message
+            container.innerHTML = '<div style="font-family:\'Fira Code\', \'Consolas\', \'Monaco\', monospace;font-size:11px;line-height:1.6;"></div>';
+            listDiv = container.querySelector('div');
+        }
+        
+        // Create new packet row
+        const row = document.createElement('div');
+        row.className = 'packet-row new-packet';
+        row.dataset.raw = packet.raw || '';
+        row.dataset.callsign = packet.from_call || '';
+        row.onclick = function() { showPacketModal(this.dataset.raw, this.dataset.callsign); };
+        row.style.cssText = 'padding:6px 8px;border-bottom:1px solid var(--border-color);display:flex;align-items:baseline;gap:8px;background:rgba(15,255,0,0.1);transition:background 2s ease;';
+        
+        const typeColor = typeColors[packet.packet_type] || typeColors['unknown'];
+        const pktType = (packet.packet_type || 'unknown').charAt(0).toUpperCase() + (packet.packet_type || 'unknown').slice(1);
+        const timestamp = packet.received_at ? packet.received_at.substring(0, 19) : '--';
+        
+        let html = `<span style="color:${typeColor};font-weight:bold;min-width:70px;">${pktType}</span>`;
+        html += `<span style="color:#C70039;font-weight:bold;">${packet.from_call || '?'}</span>`;
+        html += `<span style="color:#1AA730;">→</span>`;
+        
+        if (packet.path) {
+            html += `<span style="color:var(--text-muted);font-size:10px;">${packet.path}</span>`;
+            html += `<span style="color:#1AA730;">→</span>`;
+        }
+        
+        html += `<span style="color:#D033FF;">${packet.to_call || 'APRS'}</span>`;
+        
+        if (packet.addressee) {
+            html += `<span style="color:#1AA730;">→</span>`;
+            html += `<span style="color:#FF6B35;font-weight:bold;">${packet.addressee}</span>`;
+        }
+        
+        html += `<span style="color:var(--text-muted);">:</span>`;
+        html += `<span style="color:#FFD54F;flex:1;">${packet.human_info || ''}</span>`;
+        html += `<span style="color:var(--text-muted);font-size:10px;white-space:nowrap;">${timestamp}</span>`;
+        
+        row.innerHTML = html;
+        
+        // Insert at the top of the list
+        listDiv.insertBefore(row, listDiv.firstChild);
+        
+        // Fade out the highlight after a moment
+        setTimeout(() => {
+            row.style.background = 'transparent';
+        }, 100);
+        
+        // Update last seen time
+        const statusEl = document.getElementById('station-status');
+        if (statusEl && fromCall === stationCallsign) {
+            const now = new Date();
+            statusEl.innerHTML = `
+                <div style="color:var(--accent-green);font-size:12px;">● Last seen: just now</div>
+                <div style="color:var(--text-muted);font-size:11px;margin-top:4px;">Live packet received</div>
+            `;
+        }
+    }
+    
     // Load station metadata
     fetch('/api/dashboard/station/{{ callsign }}/json')
         .then(r => r.json())
