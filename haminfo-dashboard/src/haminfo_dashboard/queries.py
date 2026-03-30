@@ -999,28 +999,59 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         .first()
     )
 
-    # If no position packet found in DB, try parsing raw packets with aprslib
+    # If no position packet found in DB, try parsing recent raw packets with aprslib
     # This handles cases where Rust ingest didn't extract position (e.g., objects)
     parsed_position = None
-    if not latest_position_packet and latest_packet and latest_packet.raw:
-        try:
-            import aprslib
+    if not latest_position_packet:
+        # Get a few recent packets to try parsing (not just the latest)
+        recent_packets = (
+            session.query(APRSPacket)
+            .filter(APRSPacket.from_call == callsign_upper)
+            .order_by(APRSPacket.received_at.desc())
+            .limit(20)
+            .all()
+        )
 
-            parsed = aprslib.parse(latest_packet.raw)
-            if (
-                parsed.get('latitude') is not None
-                and parsed.get('longitude') is not None
-            ):
-                parsed_position = {
-                    'latitude': parsed.get('latitude'),
-                    'longitude': parsed.get('longitude'),
-                    'altitude': parsed.get('altitude'),
-                    'speed': parsed.get('speed'),
-                    'course': parsed.get('course'),
-                    'received_at': latest_packet.received_at,
-                }
-        except Exception:
-            pass
+        for packet in recent_packets:
+            if not packet.raw:
+                continue
+            try:
+                import aprslib
+
+                parsed = aprslib.parse(packet.raw)
+
+                # Only accept position from formats that actually contain position
+                # Reject telemetry and other non-position formats
+                fmt = parsed.get('format', '')
+                if fmt in ('telemetry', 'telemetry-message', 'message', 'status'):
+                    continue
+
+                lat = parsed.get('latitude')
+                lon = parsed.get('longitude')
+
+                # Validate coordinates are within valid ranges
+                # Also reject coordinates that are suspiciously close to 0,0 or poles
+                if lat is not None and lon is not None:
+                    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                        continue
+                    # Reject coordinates above 85° latitude (likely parsing errors)
+                    if abs(lat) > 85:
+                        continue
+                    # Reject 0,0 (null island - usually parsing error)
+                    if lat == 0 and lon == 0:
+                        continue
+
+                    parsed_position = {
+                        'latitude': lat,
+                        'longitude': lon,
+                        'altitude': parsed.get('altitude'),
+                        'speed': parsed.get('speed'),
+                        'course': parsed.get('course'),
+                        'received_at': packet.received_at,
+                    }
+                    break  # Found valid position, stop searching
+            except Exception:
+                continue
 
     if not latest_packet:
         # Fall back to weather station table - some weather stations
