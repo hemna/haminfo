@@ -1164,8 +1164,6 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     )
     packet_types = {ptype or 'unknown': count for ptype, count in type_counts}
 
-    country_info = get_country_from_callsign(callsign)
-
     # Determine position data source (in priority order):
     # 1. DB packet with position data
     # 2. Parsed position from raw packet
@@ -1199,6 +1197,13 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         spd = latest_packet.speed
         crs = latest_packet.course
         pos_last_seen = None
+
+    # Get country - prefer coords lookup over callsign prefix
+    country_info = None
+    if lat is not None and lon is not None:
+        country_info = get_country_from_coords(lat, lon)
+    if not country_info:
+        country_info = get_country_from_callsign(callsign)
 
     return {
         'callsign': latest_packet.from_call,
