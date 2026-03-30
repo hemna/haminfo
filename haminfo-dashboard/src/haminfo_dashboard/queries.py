@@ -402,7 +402,7 @@ def get_map_stations_tiled(
     return result[:limit]
 
 
-@cached('dashboard:stats', ttl=300)
+@cached('dashboard:stats', ttl=30)
 def get_dashboard_stats(session: Session) -> dict[str, Any]:
     """Get summary statistics for dashboard.
 
