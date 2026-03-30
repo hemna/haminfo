@@ -231,6 +231,63 @@ def _clean_comment(comment: str) -> str:
     return comment
 
 
+def normalize_packet_type(
+    packet_type: str | None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    raw: str | None = None,
+) -> str:
+    """Normalize APRSD packet types to dashboard-friendly display types.
+
+    APRSD returns various packet types that need to be normalized for
+    consistent dashboard display:
+    - 'beacon' with position -> 'position'
+    - 'telemetry-message' -> 'telemetry'
+    - 'bulletin' -> 'message'
+    - 'unknown' with position -> 'position'
+
+    If latitude/longitude are not provided but raw packet is available,
+    will attempt to re-parse the raw packet to extract position data.
+
+    Args:
+        packet_type: The packet type from APRSD or database
+        latitude: Latitude if available (for position detection)
+        longitude: Longitude if available (for position detection)
+        raw: Raw APRS packet string (for fallback parsing)
+
+    Returns:
+        Normalized packet type for display
+    """
+    if not packet_type:
+        packet_type = 'unknown'
+
+    # If we don't have lat/lon but have raw packet, try to parse it
+    if latitude is None and longitude is None and raw:
+        try:
+            import aprslib
+
+            parsed = aprslib.parse(raw)
+            latitude = parsed.get('latitude')
+            longitude = parsed.get('longitude')
+        except Exception:
+            pass
+
+    # Normalize based on type and available data
+    if packet_type == 'beacon':
+        if latitude is not None and longitude is not None:
+            return 'position'
+        return 'beacon'
+    elif packet_type == 'telemetry-message':
+        return 'telemetry'
+    elif packet_type == 'bulletin':
+        return 'message'
+    elif packet_type == 'unknown':
+        if latitude is not None and longitude is not None:
+            return 'position'
+
+    return packet_type
+
+
 def get_packet_addressee(packet: dict) -> str | None:
     """Extract the message addressee from a packet.
 

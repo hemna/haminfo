@@ -17,6 +17,7 @@ from haminfo_dashboard.utils import (
     get_country_from_coords,
     CALLSIGN_PREFIXES,
     get_state_from_coords,
+    normalize_packet_type,
 )
 from haminfo_dashboard import cache
 from haminfo_dashboard.cache import cached
@@ -788,7 +789,12 @@ def get_recent_packets(
                 'from_call': packet.from_call,
                 'to_call': packet.to_call,
                 'path': packet.path,
-                'packet_type': packet.packet_type,
+                'packet_type': normalize_packet_type(
+                    packet.packet_type,
+                    packet.latitude,
+                    packet.longitude,
+                    packet.raw,
+                ),
                 'received_at': packet.received_at.isoformat()
                 if packet.received_at
                 else None,

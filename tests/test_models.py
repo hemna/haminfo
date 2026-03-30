@@ -625,6 +625,85 @@ class TestAPRSPacketFromJson:
         packet = APRSPacket.from_json(data)
         assert packet.packet_type == 'unknown'
 
+    def test_unknown_packet_type_with_message_text_becomes_message(self):
+        """APRS announcements come from APRSD as packet_type='unknown' but
+        have message_text set. These should be classified as 'message' type.
+
+        This happens when APRS packets like BLNx (announcements) are parsed
+        by aprslib with format='announcement', but APRSD's TYPE_LOOKUP doesn't
+        include 'announcement', resulting in UnknownPacket with packet_type='unknown'.
+        """
+        data = {
+            'from_call': 'RGSTRY',
+            'to_call': 'APZ100',
+            'raw': 'RGSTRY>APZ100,TCPIP*,qAC,T2BC::BLNQ     :help',
+            'timestamp': 1704844800,
+            'packet_type': 'unknown',  # APRSD sets this for announcements
+            'message_text': 'help',  # But message_text IS present
+        }
+        packet = APRSPacket.from_json(data)
+        # Should detect message_text and classify as 'message', not 'unknown'
+        assert packet.packet_type == 'message'
+
+    def test_beacon_with_position_becomes_position(self):
+        """APRSD returns packet_type='beacon' for position packets.
+        These should be normalized to 'position' for consistent dashboard display.
+        """
+        data = {
+            'from_call': 'DB0AU',
+            'to_call': 'APSVX1',
+            'raw': 'DB0AU>APSVX1:!4747.10N/01158.02Er439.150MHz',
+            'timestamp': 1704844800,
+            'packet_type': 'beacon',
+            'latitude': 47.785,
+            'longitude': 11.967,
+        }
+        packet = APRSPacket.from_json(data)
+        assert packet.packet_type == 'position'
+
+    def test_beacon_without_position_stays_beacon(self):
+        """Beacon packets without coordinates should remain as beacon type."""
+        data = {
+            'from_call': 'N0BCN',
+            'to_call': 'APRS',
+            'raw': 'N0BCN>APRS:>Status beacon',
+            'timestamp': 1704844800,
+            'packet_type': 'beacon',
+            # No latitude/longitude
+        }
+        packet = APRSPacket.from_json(data)
+        # Without position, it should stay as beacon (or become unknown based on content)
+        assert packet.packet_type in ('beacon', 'unknown', 'status')
+
+    def test_telemetry_message_becomes_telemetry(self):
+        """APRSD returns packet_type='telemetry-message' for telemetry params.
+        These should be normalized to 'telemetry' for consistent dashboard display.
+        """
+        data = {
+            'from_call': 'DB0AU',
+            'to_call': 'APSVX1',
+            'raw': 'DB0AU>APSVX1::ER-DB0AU :PARM.RX Avg 10m',
+            'timestamp': 1704844800,
+            'packet_type': 'telemetry-message',
+        }
+        packet = APRSPacket.from_json(data)
+        assert packet.packet_type == 'telemetry'
+
+    def test_bulletin_becomes_message(self):
+        """APRSD returns packet_type='bulletin' for bulletin packets.
+        These should be normalized to 'message' for consistent dashboard display.
+        """
+        data = {
+            'from_call': 'N0BLN',
+            'to_call': 'APRS',
+            'raw': 'N0BLN>APRS::BLN1     :Test bulletin',
+            'timestamp': 1704844800,
+            'packet_type': 'bulletin',
+            'message_text': 'Test bulletin',
+        }
+        packet = APRSPacket.from_json(data)
+        assert packet.packet_type == 'message'
+
     def test_explicit_packet_type_overrides_detection(self):
         data = {
             'from_call': 'N0OVR',

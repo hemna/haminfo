@@ -106,8 +106,12 @@
     
     function handlePacket(packet) {
         const item = document.createElement('div');
-        item.className = 'live-feed-item';
+        item.className = 'live-feed-item packet-row';
         item.style.cssText = 'font-family: "Fira Code", "Consolas", monospace; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;';
+        
+        // Store raw packet for modal display
+        item.dataset.raw = packet.raw || '';
+        item.onclick = function() { showPacketModal(this.dataset.raw); };
         
         const typeColor = typeColors[packet.packet_type] || typeColors['unknown'];
         const pktType = (packet.packet_type || 'unknown').charAt(0).toUpperCase() + (packet.packet_type || 'unknown').slice(1);

@@ -2,7 +2,11 @@
 """Tests for utility functions."""
 
 import pytest
-from haminfo_dashboard.utils import get_country_from_callsign, format_packet_summary
+from haminfo_dashboard.utils import (
+    get_country_from_callsign,
+    format_packet_summary,
+    normalize_packet_type,
+)
 
 
 class TestGetCountryFromCallsign:
@@ -133,3 +137,78 @@ class TestFormatPacketSummary:
         result = format_packet_summary(packet)
         assert 'W1ABC' in result
         assert 'telemetry' in result
+
+
+class TestNormalizePacketType:
+    """Tests for normalize_packet_type function."""
+
+    def test_beacon_with_position_becomes_position(self):
+        """Beacon packets with coordinates should become position."""
+        result = normalize_packet_type('beacon', latitude=47.785, longitude=11.967)
+        assert result == 'position'
+
+    def test_beacon_without_position_stays_beacon(self):
+        """Beacon packets without coordinates should stay beacon."""
+        result = normalize_packet_type('beacon', latitude=None, longitude=None)
+        assert result == 'beacon'
+
+    def test_telemetry_message_becomes_telemetry(self):
+        """Telemetry-message should be normalized to telemetry."""
+        result = normalize_packet_type('telemetry-message')
+        assert result == 'telemetry'
+
+    def test_bulletin_becomes_message(self):
+        """Bulletin packets should become message."""
+        result = normalize_packet_type('bulletin')
+        assert result == 'message'
+
+    def test_unknown_with_position_becomes_position(self):
+        """Unknown packets with coordinates should become position."""
+        result = normalize_packet_type('unknown', latitude=47.785, longitude=11.967)
+        assert result == 'position'
+
+    def test_unknown_without_position_stays_unknown(self):
+        """Unknown packets without coordinates should stay unknown."""
+        result = normalize_packet_type('unknown')
+        assert result == 'unknown'
+
+    def test_position_unchanged(self):
+        """Position type should pass through unchanged."""
+        result = normalize_packet_type('position', latitude=47.785, longitude=11.967)
+        assert result == 'position'
+
+    def test_weather_unchanged(self):
+        """Weather type should pass through unchanged."""
+        result = normalize_packet_type('weather')
+        assert result == 'weather'
+
+    def test_message_unchanged(self):
+        """Message type should pass through unchanged."""
+        result = normalize_packet_type('message')
+        assert result == 'message'
+
+    def test_none_becomes_unknown(self):
+        """None packet_type should become unknown."""
+        result = normalize_packet_type(None)
+        assert result == 'unknown'
+
+    def test_beacon_with_raw_packet_fallback(self):
+        """Beacon without lat/lon should parse raw packet to get position."""
+        raw = 'SP2ROC-14>APLRFD:!5246.08N/01855.98E#LoRa APRS Digi'
+        result = normalize_packet_type('beacon', latitude=None, longitude=None, raw=raw)
+        assert result == 'position'
+
+    def test_unknown_with_raw_packet_fallback(self):
+        """Unknown without lat/lon should parse raw packet to get position."""
+        raw = 'DB0AU>APSVX1:!4747.10N/01158.02Er439.150MHz'
+        result = normalize_packet_type(
+            'unknown', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'position'
+
+    def test_beacon_with_invalid_raw_stays_beacon(self):
+        """Beacon with invalid raw packet should stay beacon."""
+        result = normalize_packet_type(
+            'beacon', latitude=None, longitude=None, raw='invalid'
+        )
+        assert result == 'beacon'

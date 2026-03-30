@@ -143,8 +143,11 @@ class APRSPacket(ModelBase):
             comment = str(comment).replace('\x00', '')
 
         # Determine packet type based on content
+        # If packet_type is missing OR is 'unknown', try to detect from content
+        # This handles APRS announcements (BLNx) which APRSD marks as 'unknown'
+        # but still have message_text set
         packet_type = packet_json.get('packet_type')
-        if not packet_type:
+        if not packet_type or packet_type == 'unknown':
             # Check for weather indicators
             if any(
                 packet_json.get(f) is not None
@@ -167,6 +170,18 @@ class APRSPacket(ModelBase):
                 packet_type = 'position'
             else:
                 packet_type = 'unknown'
+
+        # Normalize APRSD packet types to dashboard-friendly types
+        # This ensures consistent display in the UI
+        if packet_type == 'beacon' and latitude is not None and longitude is not None:
+            # Beacon packets with position data should display as 'position'
+            packet_type = 'position'
+        elif packet_type == 'telemetry-message':
+            # Telemetry parameter definitions (PARM/UNIT/BITS/EQNS) -> 'telemetry'
+            packet_type = 'telemetry'
+        elif packet_type == 'bulletin':
+            # Bulletin packets are message-like
+            packet_type = 'message'
 
         return APRSPacket(
             from_call=from_call,

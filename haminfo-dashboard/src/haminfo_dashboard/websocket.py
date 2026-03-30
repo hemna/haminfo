@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
 
-from haminfo_dashboard.utils import get_packet_human_info, get_packet_addressee
+from haminfo_dashboard.utils import (
+    get_packet_human_info,
+    get_packet_addressee,
+    normalize_packet_type,
+)
 
 socketio: SocketIO | None = None
 _poll_greenlet = None
@@ -80,7 +84,12 @@ def poll_packets():
                         'from_call': packet.from_call,
                         'to_call': packet.to_call,
                         'path': packet.path,
-                        'packet_type': packet.packet_type,
+                        'packet_type': normalize_packet_type(
+                            packet.packet_type,
+                            packet.latitude,
+                            packet.longitude,
+                            packet.raw,
+                        ),
                         'latitude': packet.latitude,
                         'longitude': packet.longitude,
                         'speed': packet.speed,
