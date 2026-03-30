@@ -689,11 +689,15 @@ def get_hourly_distribution(session: Session) -> dict[str, list]:
 
 def _get_hourly_distribution_from_aggregates(session: Session) -> dict[str, list]:
     """Get hourly distribution from continuous aggregates (fast)."""
+    # Use bucket + 1 hour to include buckets where any part falls within 24h window
+    # This prevents gaps when the current time is past the hour mark
+    # e.g., at 18:11, we want to include yesterday's 18:00 bucket
     hourly_counts = session.execute(
         text("""
         SELECT EXTRACT(hour FROM bucket)::integer as hour, SUM(packet_count) as count
         FROM aprs_stats_hourly
-        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        WHERE bucket + INTERVAL '1 hour' > NOW() - INTERVAL '24 hours'
+          AND bucket < NOW()
         GROUP BY EXTRACT(hour FROM bucket)
     """)
     ).fetchall()
