@@ -985,7 +985,7 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         .first()
     )
 
-    # Also get the most recent packet WITH position data
+    # Also get the most recent packet WITH position data in the database
     # This handles cases where the latest packet is telemetry/message/status
     # but older packets have valid position information
     latest_position_packet = (
@@ -998,6 +998,29 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         .order_by(APRSPacket.received_at.desc())
         .first()
     )
+
+    # If no position packet found in DB, try parsing raw packets with aprslib
+    # This handles cases where Rust ingest didn't extract position (e.g., objects)
+    parsed_position = None
+    if not latest_position_packet and latest_packet and latest_packet.raw:
+        try:
+            import aprslib
+
+            parsed = aprslib.parse(latest_packet.raw)
+            if (
+                parsed.get('latitude') is not None
+                and parsed.get('longitude') is not None
+            ):
+                parsed_position = {
+                    'latitude': parsed.get('latitude'),
+                    'longitude': parsed.get('longitude'),
+                    'altitude': parsed.get('altitude'),
+                    'speed': parsed.get('speed'),
+                    'course': parsed.get('course'),
+                    'received_at': latest_packet.received_at,
+                }
+        except Exception:
+            pass
 
     if not latest_packet:
         # Fall back to weather station table - some weather stations
@@ -1108,20 +1131,50 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
 
     country_info = get_country_from_callsign(callsign)
 
-    # Use position data from latest_position_packet if available,
-    # otherwise fall back to latest_packet (which may have None lat/lon)
-    pos_packet = latest_position_packet or latest_packet
+    # Determine position data source (in priority order):
+    # 1. DB packet with position data
+    # 2. Parsed position from raw packet
+    # 3. Latest packet (which may have None lat/lon)
+    if latest_position_packet:
+        lat = latest_position_packet.latitude
+        lon = latest_position_packet.longitude
+        alt = latest_position_packet.altitude
+        spd = latest_position_packet.speed
+        crs = latest_position_packet.course
+        pos_last_seen = (
+            latest_position_packet.received_at.isoformat()
+            if latest_position_packet.received_at
+            else None
+        )
+    elif parsed_position:
+        lat = parsed_position['latitude']
+        lon = parsed_position['longitude']
+        alt = parsed_position['altitude']
+        spd = parsed_position['speed']
+        crs = parsed_position['course']
+        pos_last_seen = (
+            parsed_position['received_at'].isoformat()
+            if parsed_position['received_at']
+            else None
+        )
+    else:
+        lat = latest_packet.latitude
+        lon = latest_packet.longitude
+        alt = latest_packet.altitude
+        spd = latest_packet.speed
+        crs = latest_packet.course
+        pos_last_seen = None
 
     return {
         'callsign': latest_packet.from_call,
         'last_seen': latest_packet.received_at.isoformat()
         if latest_packet.received_at
         else None,
-        'latitude': pos_packet.latitude,
-        'longitude': pos_packet.longitude,
-        'altitude': pos_packet.altitude,
-        'speed': pos_packet.speed,
-        'course': pos_packet.course,
+        'latitude': lat,
+        'longitude': lon,
+        'altitude': alt,
+        'speed': spd,
+        'course': crs,
         'symbol': latest_packet.symbol,
         'symbol_table': latest_packet.symbol_table,
         'comment': latest_packet.comment,
@@ -1132,9 +1185,7 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         'packet_types': packet_types,
         'country_code': country_info[0] if country_info else None,
         'country_name': country_info[1] if country_info else None,
-        'position_last_seen': latest_position_packet.received_at.isoformat()
-        if latest_position_packet and latest_position_packet.received_at
-        else None,
+        'position_last_seen': pos_last_seen,
     }
 
 
