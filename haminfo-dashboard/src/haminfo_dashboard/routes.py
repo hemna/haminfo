@@ -150,32 +150,8 @@ def weather_state_detail(state_code: str):
 
 @dashboard_bp.route('/countries')
 def countries():
-    """Countries landing page with all countries and packet counts."""
-    session = _get_session()
-    try:
-        # Get all countries with packet counts (24h)
-        countries_data = get_all_countries_breakdown(session)
-
-        # Enhance with country names and flags, rename 'count' to 'packet_count'
-        for country in countries_data:
-            code = country['country_code']
-            country['name'] = get_country_name(code)
-            country['flag'] = COUNTRY_FLAGS.get(code, '')
-            country['packet_count'] = country.pop('count')
-
-        # Sort by packet count descending
-        countries_data.sort(key=lambda x: x['packet_count'], reverse=True)
-
-        total_packets = sum(c['packet_count'] for c in countries_data)
-
-        return render_template(
-            'dashboard/countries.html',
-            countries=countries_data,
-            total_countries=len(countries_data),
-            total_packets=total_packets,
-        )
-    finally:
-        session.close()
+    """Countries landing page - renders immediately, data loaded via AJAX."""
+    return render_template('dashboard/countries.html')
 
 
 @dashboard_bp.route('/country/<country_code>')

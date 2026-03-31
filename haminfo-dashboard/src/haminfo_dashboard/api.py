@@ -637,6 +637,6 @@ def api_all_countries_json():
             country['packet_count'] = country.pop('count')
         # Sort by packet count
         countries.sort(key=lambda x: x['packet_count'], reverse=True)
-        return jsonify(countries)
+        return jsonify({'countries': countries})
     finally:
         session.close()
