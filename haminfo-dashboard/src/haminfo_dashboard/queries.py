@@ -680,6 +680,106 @@ def _get_country_breakdown_from_raw(
     return result[:limit]
 
 
+@cached('dashboard:daily_packets', ttl=300)
+def get_daily_packet_counts(session: Session, days: int = 7) -> dict[str, list]:
+    """Get packet count per day for the last N days.
+
+    Args:
+        session: Database session.
+        days: Number of days to include (default 7).
+
+    Returns:
+        Dict with 'labels' (date strings) and 'values' (counts) arrays.
+    """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_daily_packet_counts_from_aggregates(session, days)
+    return _get_daily_packet_counts_from_raw(session, days)
+
+
+def _get_daily_packet_counts_from_aggregates(
+    session: Session, days: int
+) -> dict[str, list]:
+    """Get daily packet counts from continuous aggregates (fast)."""
+    # Aggregate hourly buckets into days
+    daily_counts = session.execute(
+        text(
+            """
+        SELECT DATE(bucket) as day, SUM(packet_count) as count
+        FROM aprs_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL ':days days'
+          AND bucket < NOW()
+        GROUP BY DATE(bucket)
+        ORDER BY day
+    """.replace(':days', str(int(days)))
+        )
+    ).fetchall()
+
+    # Build map of date -> count
+    day_map = {}
+    for row in daily_counts:
+        if row.day is not None:
+            day_map[row.day] = int(row.count)
+
+    # Generate labels for all days in range
+    from datetime import date, timedelta as td
+
+    today = date.today()
+    labels = []
+    values = []
+
+    for i in range(days - 1, -1, -1):
+        d = today - td(days=i)
+        labels.append(d.strftime('%a %m/%d'))  # e.g., "Mon 03/25"
+        values.append(day_map.get(d, 0))
+
+    return {'labels': labels, 'values': values}
+
+
+def _get_daily_packet_counts_from_raw(session: Session, days: int) -> dict[str, list]:
+    """Get daily packet counts from raw table (slow fallback)."""
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=days)
+
+    # Get dialect to use appropriate function
+    dialect = session.bind.dialect.name if session.bind else 'postgresql'
+
+    if dialect == 'sqlite':
+        day_expr = func.date(APRSPacket.received_at)
+    else:
+        day_expr = func.date(APRSPacket.received_at)
+
+    daily_counts = (
+        session.query(
+            day_expr.label('day'),
+            func.count(APRSPacket.from_call).label('count'),
+        )
+        .filter(APRSPacket.received_at >= since)
+        .group_by(day_expr)
+        .order_by(day_expr)
+        .all()
+    )
+
+    # Build map of date -> count
+    day_map = {}
+    for day, count in daily_counts:
+        if day is not None:
+            day_map[day] = count
+
+    # Generate labels for all days in range
+    from datetime import date, timedelta as td
+
+    today = date.today()
+    labels = []
+    values = []
+
+    for i in range(days - 1, -1, -1):
+        d = today - td(days=i)
+        labels.append(d.strftime('%a %m/%d'))  # e.g., "Mon 03/25"
+        values.append(day_map.get(d, 0))
+
+    return {'labels': labels, 'values': values}
+
+
 @cached('dashboard:hourly', ttl=300)
 def get_hourly_distribution(session: Session) -> dict[str, list]:
     """Get packet count distribution by hour of day.

@@ -8,6 +8,7 @@ from haminfo.db.db import setup_session
 from haminfo_dashboard.queries import (
     get_dashboard_stats,
     get_hourly_distribution,
+    get_daily_packet_counts,
     get_top_stations,
     get_country_breakdown,
 )
@@ -45,12 +46,14 @@ def index():
         # Pre-load all data from cache for instant display
         stats = get_dashboard_stats(session)
         hourly = get_hourly_distribution(session)
+        daily = get_daily_packet_counts(session, days=7)
         top_stations = get_top_stations(session, limit=10)
         countries = get_country_breakdown(session, limit=10)
         return render_template(
             'dashboard/index.html',
             stats=stats,
             hourly=hourly,
+            daily=daily,
             top_stations=top_stations,
             countries=countries,
         )

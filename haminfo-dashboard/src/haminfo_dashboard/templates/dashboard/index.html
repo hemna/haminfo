@@ -33,8 +33,8 @@
 
 <!-- Main Grid -->
 <div class="grid-2x2">
-    <!-- Live Feed -->
-    <div class="card">
+    <!-- Live Feed - Full width -->
+    <div class="card" style="grid-column: 1 / -1;">
         <div class="card-header">
             <span class="card-title">Live Traffic</span>
             <span class="live-indicator">streaming</span>
@@ -48,10 +48,20 @@
         </div>
     </div>
     
+    <!-- 7-Day Packet Volume Chart -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">7-Day Packet Volume</span>
+        </div>
+        <div class="card-body">
+            <canvas id="daily-chart" height="200"></canvas>
+        </div>
+    </div>
+    
     <!-- Hourly Chart -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">Hourly Distribution</span>
+            <span class="card-title">Hourly Distribution (24h)</span>
         </div>
         <div class="card-body">
             <canvas id="hourly-chart" height="200"></canvas>
@@ -153,6 +163,35 @@
             feedContainer.removeChild(feedContainer.lastChild);
         }
     }
+    
+    // Initialize 7-day packet volume chart with pre-loaded data
+    const dailyData = {{ daily|tojson }};
+    new Chart(document.getElementById('daily-chart'), {
+        type: 'bar',
+        data: {
+            labels: dailyData.labels,
+            datasets: [{
+                data: dailyData.values,
+                backgroundColor: '#00BCD4',
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { 
+                    grid: { color: '#2a2a4e' },
+                    ticks: { color: '#888' }
+                },
+                y: { 
+                    grid: { color: '#2a2a4e' },
+                    ticks: { color: '#888' }
+                }
+            }
+        }
+    });
     
     // Initialize hourly chart with pre-loaded data
     const hourlyData = {{ hourly|tojson }};
