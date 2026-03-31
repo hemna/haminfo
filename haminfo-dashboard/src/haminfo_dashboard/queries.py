@@ -419,13 +419,21 @@ def get_dashboard_stats(session: Session) -> dict[str, Any]:
 
 def _get_dashboard_stats_from_aggregates(session: Session) -> dict[str, Any]:
     """Get dashboard stats from continuous aggregates (fast)."""
-    result = session.execute(
+    # Get packet count from hourly stats
+    packet_result = session.execute(
         text("""
-        SELECT
-            COALESCE(SUM(packet_count), 0) as total_packets,
-            COALESCE(SUM(unique_stations), 0) as unique_stations,
-            COALESCE(SUM(unique_prefixes), 0) as unique_prefixes
+        SELECT COALESCE(SUM(packet_count), 0) as total_packets
         FROM aprs_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+    """)
+    ).fetchone()
+
+    # Get unique stations by counting distinct from_call in station stats
+    # (can't sum unique_stations from hourly - same station appears in multiple hours)
+    station_result = session.execute(
+        text("""
+        SELECT COUNT(DISTINCT from_call) as unique_stations
+        FROM aprs_station_stats_hourly
         WHERE bucket >= NOW() - INTERVAL '24 hours'
     """)
     ).fetchone()
@@ -442,8 +450,8 @@ def _get_dashboard_stats_from_aggregates(session: Session) -> dict[str, Any]:
     )
 
     return {
-        'total_packets_24h': int(result.total_packets) if result else 0,
-        'unique_stations': int(result.unique_stations) if result else 0,
+        'total_packets_24h': int(packet_result.total_packets) if packet_result else 0,
+        'unique_stations': int(station_result.unique_stations) if station_result else 0,
         'countries': countries,
         'weather_stations': weather_stations,
     }
