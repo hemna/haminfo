@@ -18,6 +18,9 @@ from haminfo_dashboard.queries import (
     get_weather_countries,
     get_station_detail,
     get_station_weather_reports,
+    get_all_countries_breakdown,
+    get_country_stats,
+    get_country_top_stations,
 )
 from haminfo_dashboard.state_queries import (
     get_state_stations,
@@ -513,5 +516,109 @@ def api_state_trends(state_code: str):
     try:
         trends = get_state_trends(session, state_code)
         return jsonify(trends)
+    finally:
+        session.close()
+
+
+# Country detail endpoints
+
+
+@dashboard_bp.route('/api/dashboard/country/<country_code>/stats')
+def api_country_stats(country_code: str):
+    """Country stats - returns HTMX partial."""
+    session = _get_session()
+    try:
+        country_code = country_code.upper()
+        stats = get_country_stats(session, country_code)
+        return render_template(
+            'dashboard/partials/country_stats.html',
+            stats=stats,
+            country_code=country_code,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/country/<country_code>/stats/json')
+def api_country_stats_json(country_code: str):
+    """Country stats - returns JSON."""
+    session = _get_session()
+    try:
+        country_code = country_code.upper()
+        stats = get_country_stats(session, country_code)
+        return jsonify(stats)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/country/<country_code>/top-stations')
+def api_country_top_stations(country_code: str):
+    """Country top stations - returns HTMX partial."""
+    session = _get_session()
+    try:
+        country_code = country_code.upper()
+        limit = request.args.get('limit', 10, type=int)
+        stations = get_country_top_stations(session, country_code, limit=limit)
+        return render_template(
+            'dashboard/partials/country_top_stations.html',
+            stations=stations,
+            country_code=country_code,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/country/<country_code>/top-stations/json')
+def api_country_top_stations_json(country_code: str):
+    """Country top stations - returns JSON."""
+    session = _get_session()
+    try:
+        country_code = country_code.upper()
+        limit = request.args.get('limit', 10, type=int)
+        stations = get_country_top_stations(session, country_code, limit=limit)
+        return jsonify(stations)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/countries/all')
+def api_all_countries():
+    """All countries with packet counts - returns HTMX partial."""
+    from haminfo_dashboard.utils import get_country_name, COUNTRY_FLAGS
+
+    session = _get_session()
+    try:
+        countries = get_all_countries_breakdown(session)
+        # Enhance with names and flags
+        for country in countries:
+            code = country['country_code']
+            country['name'] = get_country_name(code)
+            country['flag'] = COUNTRY_FLAGS.get(code, '')
+        # Sort by packet count
+        countries.sort(key=lambda x: x['packet_count'], reverse=True)
+        return render_template(
+            'dashboard/partials/countries_grid.html',
+            countries=countries,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/countries/all/json')
+def api_all_countries_json():
+    """All countries with packet counts - returns JSON."""
+    from haminfo_dashboard.utils import get_country_name, COUNTRY_FLAGS
+
+    session = _get_session()
+    try:
+        countries = get_all_countries_breakdown(session)
+        # Enhance with names and flags
+        for country in countries:
+            code = country['country_code']
+            country['name'] = get_country_name(code)
+            country['flag'] = COUNTRY_FLAGS.get(code, '')
+        # Sort by packet count
+        countries.sort(key=lambda x: x['packet_count'], reverse=True)
+        return jsonify(countries)
     finally:
         session.close()
