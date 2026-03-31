@@ -1279,7 +1279,10 @@ def get_station_weather_reports(
         'reports': [
             {
                 'time': report.time.isoformat() if report.time else None,
-                'temperature': report.temperature,
+                # Convert temperature from Fahrenheit (DB storage) to Celsius (display)
+                'temperature': (report.temperature - 32) * 5 / 9
+                if report.temperature is not None
+                else None,
                 'humidity': report.humidity,
                 'pressure': report.pressure,
                 'wind_speed': report.wind_speed,
