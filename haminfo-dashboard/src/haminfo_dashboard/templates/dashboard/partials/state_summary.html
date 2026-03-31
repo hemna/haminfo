@@ -1,7 +1,7 @@
 <!-- State summary cards - horizontal layout using dashboard grid -->
 <div class="summary-grid">
     <div class="summary-card">
-        <div class="summary-label">Temperature</div>
+        <div class="summary-label">Avg Temperature</div>
         {% if summary.avg_temp is not none %}
         <div class="summary-value cyan">{{ "%.1f"|format(summary.avg_temp) }}°F</div>
         <div class="summary-detail">
@@ -14,11 +14,11 @@
     </div>
 
     <div class="summary-card">
-        <div class="summary-label">Humidity</div>
+        <div class="summary-label">Avg Humidity</div>
         {% if summary.avg_humidity is not none %}
         <div class="summary-value green">{{ "%.0f"|format(summary.avg_humidity) }}%</div>
         <div class="summary-detail">
-            Range: {{ "%.0f"|format(summary.min_humidity) }}-{{ "%.0f"|format(summary.max_humidity) }}%
+            Range: {{ "%.0f"|format(summary.min_humidity) }}–{{ "%.0f"|format(summary.max_humidity) }}%
         </div>
         {% else %}
         <div class="summary-value muted">--</div>
@@ -27,10 +27,10 @@
     </div>
 
     <div class="summary-card">
-        <div class="summary-label">Pressure</div>
+        <div class="summary-label">Avg Pressure</div>
         {% if summary.avg_pressure is not none %}
         <div class="summary-value yellow">{{ "%.1f"|format(summary.avg_pressure) }}</div>
-        <div class="summary-detail">mbar</div>
+        <div class="summary-detail">mbar avg across stations</div>
         {% else %}
         <div class="summary-value muted">--</div>
         <div class="summary-detail">No data</div>
@@ -38,11 +38,11 @@
     </div>
 
     <div class="summary-card">
-        <div class="summary-label">Wind</div>
+        <div class="summary-label">Avg Wind</div>
         {% if summary.avg_wind is not none %}
         <div class="summary-value magenta">{{ "%.0f"|format(summary.avg_wind) }} mph</div>
         <div class="summary-detail">
-            Max: {{ "%.0f"|format(summary.max_wind or 0) }} mph
+            Max gust: {{ "%.0f"|format(summary.max_wind or 0) }} mph
         </div>
         {% else %}
         <div class="summary-value muted">--</div>
@@ -54,5 +54,5 @@
 <!-- Update station count and timestamp -->
 <script>
 document.getElementById('station-count').textContent = '{{ summary.station_count }} stations';
-document.getElementById('last-updated').textContent = '{{ summary.station_count }} stations reporting';
+document.getElementById('last-updated').textContent = 'Averages from {{ summary.station_count }} reporting stations';
 </script>
