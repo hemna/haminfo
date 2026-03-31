@@ -692,8 +692,8 @@ def _get_country_breakdown_from_raw(
 def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
     """Get packet count for ALL countries.
 
-    Uses denormalized country_code column if coverage is good (>50%),
-    otherwise falls back to fast prefix-based aggregates.
+    Uses fast prefix-based aggregates for now. Will switch to country_code
+    once coverage is sufficient (checked daily, not per-request).
 
     Args:
         session: Database session.
@@ -701,30 +701,8 @@ def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
     Returns:
         List of dicts with country_code, country_name, count, sorted by count desc.
     """
-    # Check country_code coverage - only use if >50% of recent packets have it
-    try:
-        result = session.execute(
-            text("""
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(country_code) as with_cc
-                FROM aprs_packet 
-                WHERE received_at > NOW() - INTERVAL '1 hour'
-            """)
-        )
-        row = result.fetchone()
-        if row and row.total > 0:
-            coverage = row.with_cc / row.total
-        else:
-            coverage = 0
-    except Exception:
-        coverage = 0
-
-    # Use country_code if coverage is good, otherwise use fast aggregates
-    if coverage > 0.5:
-        return _get_all_countries_from_country_code(session)
-
-    # Fallback to prefix-based aggregates (fast)
+    # Always use fast aggregates for now - country_code coverage is still low
+    # TODO: Add a daily check/flag to switch to country_code when coverage >50%
     if USE_CONTINUOUS_AGGREGATES:
         return _get_all_countries_from_aggregates(session)
     return _get_all_countries_from_raw(session)
