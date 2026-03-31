@@ -96,11 +96,18 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
     Returns:
         Tuple of (country_code, country_name) or None if unknown
     """
+    import re
+
     if not callsign:
         return None
 
     # Remove SSID suffix
     base_call = callsign.split('-')[0].upper()
+
+    # Valid amateur callsigns must contain at least one digit
+    # This filters out object names like "HAMLTN", "WINLINK", etc.
+    if not re.search(r'\d', base_call):
+        return None
 
     # Try progressively shorter prefixes (longest match wins)
     for length in range(min(3, len(base_call)), 0, -1):
