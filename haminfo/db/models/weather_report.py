@@ -32,6 +32,7 @@ class WeatherStation(ModelBase):
     symbol = sa.Column(sa.CHAR)
     symbol_table = sa.Column(sa.CHAR)
     country_code = sa.Column(sa.String)
+    state = sa.Column(sa.String(10))
     reports: Mapped[List['WeatherReport']] = relationship(
         order_by='desc(WeatherReport.time)',
         back_populates='weather_station',
@@ -108,6 +109,8 @@ class WeatherStation(ModelBase):
             'symbol': self.symbol,
             'symbol_table': self.symbol_table,
             'comment': self.comment,
+            'country_code': self.country_code,
+            'state': self.state,
         }
 
     def __repr__(self):
