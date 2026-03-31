@@ -826,9 +826,11 @@ def _get_all_countries_from_raw(session: Session) -> list[dict[str, Any]]:
     return result
 
 
-@cached('dashboard:country_stats:{country_code}', ttl=60)
+@cached('dashboard:country_stats:{country_code}', ttl=300)
 def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
     """Get statistics for a specific country using geographic filtering.
+
+    Uses bounding box pre-filter for performance, then precise ST_Contains.
 
     Args:
         session: Database session.
@@ -845,16 +847,24 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
         has_countries_table = False
 
     if has_countries_table:
+        # Use bounding box pre-filter for performance
+        # First filter by bbox (fast index scan), then refine with ST_Contains
         query = text("""
+            WITH country_bbox AS (
+                SELECT geom, ST_XMin(geom) as xmin, ST_YMin(geom) as ymin,
+                       ST_XMax(geom) as xmax, ST_YMax(geom) as ymax
+                FROM countries WHERE iso_a2 = :country_code
+            )
             SELECT
                 COUNT(*) as packet_count,
                 COUNT(DISTINCT p.from_call) as unique_stations
-            FROM aprs_packet p
-            JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
-            WHERE c.iso_a2 = :country_code
-              AND p.received_at > NOW() - INTERVAL '24 hours'
+            FROM aprs_packet p, country_bbox c
+            WHERE p.received_at > NOW() - INTERVAL '24 hours'
               AND p.latitude IS NOT NULL
               AND p.longitude IS NOT NULL
+              AND p.longitude BETWEEN c.xmin AND c.xmax
+              AND p.latitude BETWEEN c.ymin AND c.ymax
+              AND ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
         """)
         result = session.execute(query, {'country_code': country_code}).fetchone()
         packets_24h = int(result.packet_count) if result else 0
@@ -882,11 +892,13 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
     }
 
 
-@cached('dashboard:country_top_stations:{country_code}:{limit}', ttl=60)
+@cached('dashboard:country_top_stations:{country_code}:{limit}', ttl=300)
 def get_country_top_stations(
     session: Session, country_code: str, limit: int = 10
 ) -> list[dict[str, Any]]:
     """Get top stations in a country by packet count using geographic filtering.
+
+    Uses bounding box pre-filter for performance, then precise ST_Contains.
 
     Args:
         session: Database session.
@@ -904,16 +916,23 @@ def get_country_top_stations(
         has_countries_table = False
 
     if has_countries_table:
+        # Use bounding box pre-filter for performance
         query = text("""
+            WITH country_bbox AS (
+                SELECT geom, ST_XMin(geom) as xmin, ST_YMin(geom) as ymin,
+                       ST_XMax(geom) as xmax, ST_YMax(geom) as ymax
+                FROM countries WHERE iso_a2 = :country_code
+            )
             SELECT
                 p.from_call as callsign,
                 COUNT(*) as packet_count
-            FROM aprs_packet p
-            JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
-            WHERE c.iso_a2 = :country_code
-              AND p.received_at > NOW() - INTERVAL '24 hours'
+            FROM aprs_packet p, country_bbox c
+            WHERE p.received_at > NOW() - INTERVAL '24 hours'
               AND p.latitude IS NOT NULL
               AND p.longitude IS NOT NULL
+              AND p.longitude BETWEEN c.xmin AND c.xmax
+              AND p.latitude BETWEEN c.ymin AND c.ymax
+              AND ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
             GROUP BY p.from_call
             ORDER BY packet_count DESC
             LIMIT :limit
