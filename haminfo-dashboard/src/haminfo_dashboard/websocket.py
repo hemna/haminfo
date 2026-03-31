@@ -51,9 +51,14 @@ def register_handlers():
 
     @socketio.on('join_country')
     def handle_join_country(data):
-        """Handle client joining a country-specific room."""
+        """Handle client joining a country-specific room.
+
+        Leaves the global live_feed room to only receive country-filtered packets.
+        """
         country_code = data.get('country_code')
         if country_code:
+            # Leave global feed - we only want country-specific packets
+            leave_room('live_feed')
             room_name = f'country:{country_code}'
             join_room(room_name)
             emit('country_joined', {'country_code': country_code, 'room': room_name})
