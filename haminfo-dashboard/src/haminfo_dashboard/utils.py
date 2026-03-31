@@ -57,6 +57,35 @@ CALLSIGN_PREFIXES = {
     'RU': ('RU', 'Russia'),
 }
 
+# Country code to flag emoji mapping
+COUNTRY_FLAGS = {
+    'US': '🇺🇸',
+    'MY': '🇲🇾',
+    'AU': '🇦🇺',
+    'JP': '🇯🇵',
+    'GB': '🇬🇧',
+    'CA': '🇨🇦',
+    'DE': '🇩🇪',
+    'FR': '🇫🇷',
+    'NL': '🇳🇱',
+    'IT': '🇮🇹',
+    'ES': '🇪🇸',
+    'SE': '🇸🇪',
+    'NO': '🇳🇴',
+    'FI': '🇫🇮',
+    'DK': '🇩🇰',
+    'PL': '🇵🇱',
+    'CZ': '🇨🇿',
+    'NZ': '🇳🇿',
+    'KR': '🇰🇷',
+    'TW': '🇹🇼',
+    'RU': '🇷🇺',
+    'UA': '🇺🇦',
+    'HU': '🇭🇺',
+    'RO': '🇷🇴',
+    'BG': '🇧🇬',
+}
+
 
 def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
     """Extract country code and name from callsign prefix.
@@ -80,6 +109,44 @@ def get_country_from_callsign(callsign: str) -> tuple[str, str] | None:
             return CALLSIGN_PREFIXES[prefix]
 
     return None
+
+
+def get_country_name(country_code: str) -> str | None:
+    """Get country name from ISO country code.
+
+    Args:
+        country_code: ISO country code (e.g., 'US', 'JP')
+
+    Returns:
+        Country name or None if unknown
+    """
+    if not country_code:
+        return None
+    country_code = country_code.upper()
+    # Search through CALLSIGN_PREFIXES for first match
+    for _prefix, (code, name) in CALLSIGN_PREFIXES.items():
+        if code == country_code:
+            return name
+    return None
+
+
+def get_callsign_prefixes_for_country(country_code: str) -> list[str]:
+    """Get all callsign prefixes that map to a country.
+
+    Args:
+        country_code: ISO country code (e.g., 'US')
+
+    Returns:
+        List of prefixes ['W', 'K', 'N', 'AA', 'AB', ...]
+    """
+    if not country_code:
+        return []
+    country_code = country_code.upper()
+    return [
+        prefix
+        for prefix, (code, _) in CALLSIGN_PREFIXES.items()
+        if code == country_code
+    ]
 
 
 def format_packet_summary(packet: dict) -> str:
