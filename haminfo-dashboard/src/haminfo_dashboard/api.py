@@ -17,7 +17,6 @@ from haminfo_dashboard.queries import (
     get_weather_stations,
     get_weather_countries,
     get_station_detail,
-    get_map_stations,
     get_station_weather_reports,
 )
 from haminfo_dashboard.state_queries import (

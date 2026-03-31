@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
@@ -48,11 +47,11 @@ def get_state_stations(session: Session, state_code: str) -> list[dict[str, Any]
                wr.rain_1h, wr.time as last_report
         FROM weather_station ws
         JOIN LATERAL (
-            SELECT * FROM weather_report 
-            WHERE weather_station_id = ws.id 
+            SELECT * FROM weather_report
+            WHERE weather_station_id = ws.id
             ORDER BY time DESC LIMIT 1
         ) wr ON true
-        WHERE ws.state = :state_code 
+        WHERE ws.state = :state_code
           AND ws.country_code = 'US'
     """)
 
@@ -132,7 +131,7 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
     state_code = state_code.upper()
 
     query = text("""
-        SELECT 
+        SELECT
             time_bucket('1 hour', wr.time) as hour,
             AVG(wr.temperature) as avg_temp,
             MIN(wr.temperature) as min_temp,
@@ -142,7 +141,7 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
             AVG(wr.wind_speed) as avg_wind
         FROM weather_report wr
         JOIN weather_station ws ON wr.weather_station_id = ws.id
-        WHERE ws.state = :state_code 
+        WHERE ws.state = :state_code
           AND ws.country_code = 'US'
           AND wr.time > NOW() - INTERVAL '24 hours'
         GROUP BY hour

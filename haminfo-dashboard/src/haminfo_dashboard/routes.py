@@ -11,12 +11,6 @@ from haminfo_dashboard.queries import (
     get_top_stations,
     get_country_breakdown,
 )
-from haminfo_dashboard.state_queries import (
-    get_state_stations,
-    compute_state_aggregates,
-    get_state_trends,
-    detect_state_alerts,
-)
 from haminfo_dashboard.utils import US_STATE_BOUNDS
 
 dashboard_bp = Blueprint(
@@ -94,8 +88,8 @@ def weather_states():
     try:
         # Get station counts per state
         query = text("""
-            SELECT state, COUNT(*) as count 
-            FROM weather_station 
+            SELECT state, COUNT(*) as count
+            FROM weather_station
             WHERE country_code = 'US' AND state IS NOT NULL
             GROUP BY state
         """)

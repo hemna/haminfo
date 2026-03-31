@@ -23,8 +23,6 @@ from haminfo.db.models.weather_report import WeatherStation
 sys.path.insert(0, str(Path(__file__).parent.parent / 'haminfo-dashboard' / 'src'))
 from haminfo_dashboard.utils import (
     US_STATE_BOUNDS,
-    CA_PROVINCE_BOUNDS,
-    AU_STATE_BOUNDS,
     get_state_from_coords,
 )
 

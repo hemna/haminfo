@@ -421,7 +421,7 @@ def _get_dashboard_stats_from_aggregates(session: Session) -> dict[str, Any]:
     """Get dashboard stats from continuous aggregates (fast)."""
     result = session.execute(
         text("""
-        SELECT 
+        SELECT
             COALESCE(SUM(packet_count), 0) as total_packets,
             COALESCE(SUM(unique_stations), 0) as unique_stations,
             COALESCE(SUM(unique_prefixes), 0) as unique_prefixes
