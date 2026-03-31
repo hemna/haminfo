@@ -1,29 +1,81 @@
 <!-- State weather alerts banner -->
 {% if alerts %}
-<div class="mb-4">
+<div style="margin-bottom: 20px;">
     {% for alert in alerts %}
-    <div class="alert {% if alert.level == 'severe' %}alert-danger{% else %}alert-warning{% endif %}" 
-         style="background: {% if alert.level == 'severe' %}rgba(220,53,69,0.2){% else %}rgba(255,193,7,0.2){% endif %}; 
-                border: 1px solid {% if alert.level == 'severe' %}rgba(220,53,69,0.5){% else %}rgba(255,193,7,0.5){% endif %}; 
-                border-radius: 8px; 
-                padding: 16px; 
-                margin-bottom: 12px;
-                display: flex;
-                align-items: flex-start;
-                gap: 12px;">
-        <div style="font-size: 20px;">
-            {% if alert.level == 'severe' %}⚠️{% else %}⚠{% endif %}
+    <div class="alert-banner {% if alert.level == 'severe' %}severe{% else %}warning{% endif %}">
+        <div class="alert-icon">
+            {% if alert.level == 'severe' %}⚠️{% else %}⚡{% endif %}
         </div>
-        <div>
-            <strong style="color: {% if alert.level == 'severe' %}#dc3545{% else %}#ffc107{% endif %};">{{ alert.message }}</strong>
+        <div class="alert-content">
+            <strong class="alert-message">{{ alert.message }}</strong>
             {% if alert.affected_stations %}
-            <br>
-            <small class="text-muted">
-                Affected: {{ alert.affected_stations | join(', ') }}
-            </small>
+            <div class="alert-stations">
+                Affected: 
+                {% for callsign in alert.affected_stations %}
+                <a href="{{ url_for('dashboard.station', callsign=callsign) }}" class="station-link">{{ callsign }}</a>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </div>
             {% endif %}
         </div>
     </div>
     {% endfor %}
 </div>
+
+<style>
+.alert-banner {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.alert-banner.severe {
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.4);
+}
+
+.alert-banner.warning {
+    background: rgba(255, 193, 7, 0.15);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+}
+
+.alert-icon {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-message {
+    font-size: 14px;
+}
+
+.alert-banner.severe .alert-message {
+    color: #ff6b7a;
+}
+
+.alert-banner.warning .alert-message {
+    color: #ffc107;
+}
+
+.alert-stations {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+
+.station-link {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.station-link:hover {
+    text-decoration: underline;
+}
+</style>
 {% endif %}

@@ -3,132 +3,138 @@
 {% block title %}{{ state_name or 'State' }} Weather - Ham Radio Dashboard{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    {% if error %}
-    <!-- Error state -->
-    <div class="row">
-        <div class="col-md-6 offset-md-3 text-center" style="padding-top: 100px;">
-            <h2 style="color: var(--text-primary);">State Not Found</h2>
-            <p class="text-muted">The state code "{{ state_code }}" was not found.</p>
-            <a href="{{ url_for('dashboard.weather_states') }}" class="btn btn-primary">
-                Back to States
-            </a>
-        </div>
-    </div>
-    {% else %}
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col">
-            <nav aria-label="breadcrumb" style="font-size: 14px;">
-                <a href="{{ url_for('dashboard.weather_states') }}" style="color: var(--accent-cyan);">States</a>
-                <span class="text-muted"> / </span>
-                <span class="text-muted">{{ state_name }}</span>
-            </nav>
-            <h1 style="margin-top: 10px;">{{ state_name }} Weather</h1>
-            <p class="text-muted" id="last-updated">Loading station data...</p>
-        </div>
-    </div>
-    
-    <!-- Alerts Banner -->
-    <div id="alerts-container"
-         hx-get="{{ url_for('dashboard.api_state_alerts', state_code=state_code) }}"
-         hx-trigger="load, every 120s"
-         hx-swap="innerHTML">
-        <!-- Alerts loaded via HTMX -->
-    </div>
-    
-    <!-- Summary Cards -->
-    <div class="row mb-4" id="summary-container"
-         hx-get="{{ url_for('dashboard.api_state_summary', state_code=state_code) }}"
-         hx-trigger="load, every 300s"
-         hx-swap="innerHTML">
-        <!-- Summary cards loaded via HTMX -->
-        <div class="col-12 text-center py-5">
-            <div class="spinner"></div>
-            <p class="text-muted mt-2">Loading summary...</p>
-        </div>
-    </div>
-    
-    <!-- Trend Charts -->
-    <div class="card mb-4">
-        <div class="card-header" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
-            <h5 class="mb-0" style="color: var(--text-primary);">24-Hour Trends</h5>
-        </div>
-        <div class="card-body" style="background: var(--bg-card);">
-            <div class="trend-tabs">
-                <button class="trend-tab active" data-chart="temperature">Temperature</button>
-                <button class="trend-tab" data-chart="pressure">Pressure</button>
-                <button class="trend-tab" data-chart="humidity">Humidity</button>
-                <button class="trend-tab" data-chart="wind">Wind</button>
-            </div>
-            <div class="trend-charts">
-                <div class="chart-container active" id="temperature-container">
-                    <canvas id="temperature-chart"></canvas>
-                </div>
-                <div class="chart-container" id="pressure-container">
-                    <canvas id="pressure-chart"></canvas>
-                </div>
-                <div class="chart-container" id="humidity-container">
-                    <canvas id="humidity-chart"></canvas>
-                </div>
-                <div class="chart-container" id="wind-container">
-                    <canvas id="wind-chart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Stations Table -->
-    <div class="card">
-        <div class="card-header" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <h5 class="mb-0" style="color: var(--text-primary);">Weather Stations</h5>
-            <span class="badge" id="station-count" style="background: var(--accent-cyan); color: #000;">Loading...</span>
-        </div>
-        <div class="card-body" style="background: var(--bg-card); padding: 0;">
-            <div id="stations-container"
-                 hx-get="{{ url_for('dashboard.api_state_stations', state_code=state_code) }}"
-                 hx-trigger="load, every 300s"
-                 hx-swap="innerHTML">
-                <!-- Stations table loaded via HTMX -->
-                <div class="text-center py-5">
-                    <div class="spinner"></div>
-                    <p class="text-muted mt-2">Loading stations...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
+{% if error %}
+<!-- Error state -->
+<div style="text-align: center; padding: 100px 20px;">
+    <h2 style="color: var(--text-primary); margin-bottom: 12px;">State Not Found</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 24px;">The state code "{{ state_code }}" was not found.</p>
+    <a href="{{ url_for('dashboard.weather_states') }}" class="btn-primary">Back to States</a>
+</div>
+{% else %}
+<!-- Header -->
+<div style="margin-bottom: 20px;">
+    <nav style="font-size: 13px; margin-bottom: 8px;">
+        <a href="{{ url_for('dashboard.weather_states') }}" style="color: var(--accent-cyan); text-decoration: none;">States</a>
+        <span style="color: var(--text-muted);"> / </span>
+        <span style="color: var(--text-muted);">{{ state_name }}</span>
+    </nav>
+    <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 4px;">{{ state_name }} Weather</h1>
+    <p style="color: var(--text-secondary); font-size: 13px;" id="last-updated">Loading station data...</p>
 </div>
 
+<!-- Alerts Banner -->
+<div id="alerts-container"
+     hx-get="{{ url_for('dashboard.api_state_alerts', state_code=state_code) }}"
+     hx-trigger="load, every 120s"
+     hx-swap="innerHTML">
+</div>
+
+<!-- Summary Cards -->
+<div id="summary-container"
+     hx-get="{{ url_for('dashboard.api_state_summary', state_code=state_code) }}"
+     hx-trigger="load, every 300s"
+     hx-swap="innerHTML"
+     style="margin-bottom: 20px;">
+    <!-- Loading state -->
+    <div class="summary-grid">
+        <div class="summary-card"><div class="summary-label">Temperature</div><div class="summary-value muted">...</div></div>
+        <div class="summary-card"><div class="summary-label">Humidity</div><div class="summary-value muted">...</div></div>
+        <div class="summary-card"><div class="summary-label">Pressure</div><div class="summary-value muted">...</div></div>
+        <div class="summary-card"><div class="summary-label">Wind</div><div class="summary-value muted">...</div></div>
+    </div>
+</div>
+
+<!-- Trend Charts -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <span class="card-title">24-Hour Trends</span>
+    </div>
+    <div class="card-body">
+        <div class="trend-tabs">
+            <button class="trend-tab active" data-chart="temperature">Temperature</button>
+            <button class="trend-tab" data-chart="humidity">Humidity</button>
+            <button class="trend-tab" data-chart="pressure">Pressure</button>
+            <button class="trend-tab" data-chart="wind">Wind</button>
+        </div>
+        <div class="trend-charts">
+            <div class="chart-container active" id="temperature-container">
+                <canvas id="temperature-chart"></canvas>
+            </div>
+            <div class="chart-container" id="humidity-container">
+                <canvas id="humidity-chart"></canvas>
+            </div>
+            <div class="chart-container" id="pressure-container">
+                <canvas id="pressure-chart"></canvas>
+            </div>
+            <div class="chart-container" id="wind-container">
+                <canvas id="wind-chart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stations Table -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Weather Stations</span>
+        <span class="badge" id="station-count">Loading...</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div id="stations-container"
+             hx-get="{{ url_for('dashboard.api_state_stations', state_code=state_code) }}"
+             hx-trigger="load, every 300s"
+             hx-swap="innerHTML">
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                Loading stations...
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <style>
-.spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--border-color);
-    border-top-color: var(--accent-cyan);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto;
+/* Summary cards grid - 4 columns on desktop, 2 on tablet, 1 on mobile */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.card {
+.summary-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-}
-
-.card-header {
     padding: 16px 20px;
 }
 
-.card-body {
-    padding: 20px;
+.summary-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
+.summary-value {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.summary-value.cyan { color: var(--accent-cyan); }
+.summary-value.green { color: var(--accent-green); }
+.summary-value.yellow { color: var(--accent-yellow); }
+.summary-value.magenta { color: var(--accent-magenta); }
+.summary-value.muted { color: var(--text-muted); }
+
+.summary-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* Trend tabs and charts */
 .trend-tabs {
     display: flex;
     gap: 8px;
@@ -143,7 +149,7 @@
     border-radius: 4px;
     cursor: pointer;
     font-size: 13px;
-    transition: all 0.2s;
+    transition: all 0.15s;
 }
 
 .trend-tab:hover {
@@ -158,28 +164,60 @@
 
 .chart-container {
     display: none;
-    height: 300px;
+    height: 280px;
 }
 
 .chart-container.active {
     display: block;
 }
 
-.btn {
-    padding: 8px 16px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn-primary {
+/* Badge */
+.badge {
     background: var(--accent-cyan);
     color: #000;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Button */
+.btn-primary {
+    display: inline-block;
+    background: var(--accent-cyan);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .btn-primary:hover {
     opacity: 0.9;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 500px) {
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .trend-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .trend-tab {
+        flex: 1;
+        min-width: 80px;
+        text-align: center;
+    }
 }
 </style>
 
@@ -205,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(err => {
             console.error('Failed to load trends:', err);
             document.querySelectorAll('.chart-container').forEach(c => {
-                c.innerHTML = '<p class="text-muted text-center" style="padding: 50px;">Failed to load trend data</p>';
+                c.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 50px;">Failed to load trend data</p>';
             });
         });
 });
@@ -213,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function renderTrendCharts(data) {
     if (!data.labels || data.labels.length === 0) {
         document.querySelectorAll('.chart-container').forEach(c => {
-            c.innerHTML = '<p class="text-muted text-center" style="padding: 50px;">No trend data available</p>';
+            c.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 50px;">No trend data available</p>';
         });
         return;
     }
@@ -275,23 +313,6 @@ function renderTrendCharts(data) {
         options: chartOptions
     });
     
-    // Pressure chart
-    new Chart(document.getElementById('pressure-chart'), {
-        type: 'line',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Pressure (mbar)',
-                data: data.pressure.avg,
-                borderColor: 'rgb(54, 162, 235)',
-                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                fill: true,
-                tension: 0.3
-            }]
-        },
-        options: chartOptions
-    });
-    
     // Humidity chart
     new Chart(document.getElementById('humidity-chart'), {
         type: 'line',
@@ -313,6 +334,23 @@ function renderTrendCharts(data) {
                 y: { ...chartOptions.scales.y, min: 0, max: 100 }
             }
         }
+    });
+    
+    // Pressure chart
+    new Chart(document.getElementById('pressure-chart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Pressure (mbar)',
+                data: data.pressure.avg,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: chartOptions
     });
     
     // Wind chart
