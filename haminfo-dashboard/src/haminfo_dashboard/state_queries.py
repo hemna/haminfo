@@ -85,9 +85,20 @@ def compute_state_aggregates(stations: list[dict[str, Any]]) -> dict[str, Any]:
             'max_wind': None,
         }
 
-    def safe_values(key: str) -> list[float]:
-        """Extract non-None values for a key."""
-        return [s[key] for s in stations if s.get(key) is not None]
+    def safe_values(key: str, min_valid: float | None = None) -> list[float]:
+        """Extract non-None values for a key, optionally filtering by minimum.
+
+        Args:
+            key: Dictionary key to extract
+            min_valid: If set, exclude values less than or equal to this
+        """
+        values = []
+        for s in stations:
+            val = s.get(key)
+            if val is not None:
+                if min_valid is None or val > min_valid:
+                    values.append(val)
+        return values
 
     def safe_avg(values: list[float]) -> float | None:
         """Compute average, returning None if empty."""
@@ -95,7 +106,8 @@ def compute_state_aggregates(stations: list[dict[str, Any]]) -> dict[str, Any]:
 
     temps = safe_values('temperature')
     humidities = safe_values('humidity')
-    pressures = safe_values('pressure')
+    # Pressure of 0 is invalid - filter it out
+    pressures = safe_values('pressure', min_valid=0)
     winds = safe_values('wind_speed')
     gusts = safe_values('wind_gust')
 
@@ -137,7 +149,7 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
             AVG(wr.temperature) as avg_temp,
             MIN(wr.temperature) as min_temp,
             MAX(wr.temperature) as max_temp,
-            AVG(wr.pressure) as avg_pressure,
+            AVG(NULLIF(wr.pressure, 0)) as avg_pressure,
             AVG(wr.humidity) as avg_humidity,
             AVG(wr.wind_speed) as avg_wind
         FROM weather_report wr
