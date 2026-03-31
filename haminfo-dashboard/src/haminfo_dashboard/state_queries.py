@@ -53,6 +53,7 @@ def get_state_stations(session: Session, state_code: str) -> list[dict[str, Any]
         ) wr ON true
         WHERE ws.state = :state_code
           AND UPPER(ws.country_code) = 'US'
+        ORDER BY ws.callsign
     """)
 
     result = session.execute(query, {'state_code': state_code})
