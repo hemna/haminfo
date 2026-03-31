@@ -105,7 +105,8 @@ def compute_state_aggregates(stations: list[dict[str, Any]]) -> dict[str, Any]:
         return sum(values) / len(values) if values else None
 
     temps = safe_values('temperature')
-    humidities = safe_values('humidity')
+    # Humidity of 0 is likely invalid sensor data
+    humidities = safe_values('humidity', min_valid=0)
     # Pressure of 0 is invalid - filter it out
     pressures = safe_values('pressure', min_valid=0)
     winds = safe_values('wind_speed')
@@ -150,7 +151,7 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
             MIN(wr.temperature) as min_temp,
             MAX(wr.temperature) as max_temp,
             AVG(NULLIF(wr.pressure, 0)) as avg_pressure,
-            AVG(wr.humidity) as avg_humidity,
+            AVG(NULLIF(wr.humidity, 0)) as avg_humidity,
             AVG(wr.wind_speed) as avg_wind
         FROM weather_report wr
         JOIN weather_station ws ON wr.weather_station_id = ws.id
