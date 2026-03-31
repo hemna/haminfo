@@ -72,6 +72,9 @@ class APRSPacket(ModelBase):
     # Comment text
     comment = sa.Column(sa.Text)
 
+    # Geographic lookup cache (populated by rust-aprsd at insert time)
+    country_code = sa.Column(sa.String(2), index=True)
+
     def __repr__(self):
         return (
             f"<APRSPacket(from_call='{self.from_call}', "
