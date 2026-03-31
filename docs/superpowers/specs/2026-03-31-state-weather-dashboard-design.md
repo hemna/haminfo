@@ -42,12 +42,22 @@ CREATE INDEX idx_weather_station_country_state ON weather_station(country_code, 
 1. Query stations where `state IS NULL` and lat/lon are valid
 2. Call OpenCage API with coordinates (already integrated in project)
 3. Extract state/province from `components.state_code` or `components.state`
-4. Update in batches of 100 with rate limiting
+4. Update in batches of 100 with rate limiting (OpenCage free tier: 2,500 requests/day)
 5. Log failures for manual review
+6. If rate limit hit, sleep until next day or prompt to continue manually
+
+**Error Handling**:
+- API timeout: Retry up to 3 times with exponential backoff
+- Invalid response: Log and skip station, continue with next
+- Rate limit exceeded: Save progress, exit with message to resume later
 
 ### On-Insert Geocoding
 
-When a new weather station is created with `state IS NULL`, geocode via OpenCage and populate the column. This happens in the station creation flow.
+When a new weather station is created with `state IS NULL`, geocode via OpenCage and populate the column. This happens in `haminfo/db/models/weather_station.py` or the ingestion code that creates stations.
+
+**Error Handling**:
+- If OpenCage unavailable, leave `state` as NULL (non-blocking)
+- Log failures; periodic batch job can retry NULLs later
 
 ## Route Structure
 
@@ -55,6 +65,11 @@ When a new weather station is created with `state IS NULL`, geocode via OpenCage
 |-------|---------|
 | `/weather/states` | Landing page with clickable US map |
 | `/weather/state/<state_code>` | State dashboard (e.g., `/weather/state/VA`) |
+| `/api/dashboard/state/<state_code>` | State data JSON API |
+| `/api/dashboard/state/<state_code>/stations` | Stations list HTMX partial |
+| `/api/dashboard/state/<state_code>/summary` | Summary cards HTMX partial |
+| `/api/dashboard/state/<state_code>/alerts` | Alerts banner HTMX partial |
+| `/api/dashboard/state/<state_code>/trends` | Trend data JSON for charts |
 
 **URL Behavior**:
 - State codes uppercase in URLs
@@ -132,7 +147,15 @@ When a new weather station is created with `state IS NULL`, geocode via OpenCage
 
 - Map markers clickable → popup with station details + link to station page
 - Summary cards show tooltip with which station has min/max
-- Auto-refresh every 5 minutes via HTMX polling
+- Auto-refresh via HTMX polling:
+  - Summary cards: `hx-get="/api/dashboard/state/{code}/summary" hx-trigger="every 5m" hx-swap="innerHTML"`
+  - Alerts banner: `hx-get="/api/dashboard/state/{code}/alerts" hx-trigger="every 2m" hx-swap="innerHTML"`
+  - Station list: `hx-get="/api/dashboard/state/{code}/stations" hx-trigger="every 5m" hx-swap="innerHTML"`
+
+### Empty State Handling
+
+- **No stations in state**: Show message "No APRS weather stations found in [State]. Check back later or view nearby states."
+- **Station exists but no recent data**: Show station on map with "No recent data" indicator
 
 ## Alert Detection
 
@@ -155,6 +178,31 @@ When a new weather station is created with `state IS NULL`, geocode via OpenCage
 | Heat Wave | 5+ stations > 95°F | Heat Advisory |
 | Cold Snap | 5+ stations < 20°F | Cold Advisory |
 | Storm Front | 3+ stations with pressure drop > 4 mbar/3hr | Storm Approaching |
+
+**Regional Pattern Detection Algorithm**:
+
+For distance-based patterns (e.g., "within 50mi"), use PostGIS:
+
+```sql
+-- Find clusters of stations with high wind
+WITH high_wind_stations AS (
+    SELECT ws.id, ws.callsign, ws.location, wr.wind_speed
+    FROM weather_station ws
+    JOIN weather_report wr ON wr.weather_station_id = ws.id
+    WHERE ws.state = :state_code
+      AND wr.time > NOW() - INTERVAL '1 hour'
+      AND wr.wind_speed > 40
+)
+SELECT a.callsign, COUNT(b.id) as nearby_count
+FROM high_wind_stations a
+JOIN high_wind_stations b 
+  ON ST_DWithin(a.location, b.location, 80467)  -- 50 miles in meters
+  AND a.id != b.id
+GROUP BY a.id, a.callsign
+HAVING COUNT(b.id) >= 2  -- 3+ total including self
+```
+
+For count-based patterns (heat wave, cold snap), simple aggregation suffices.
 
 ### Processing
 
@@ -185,20 +233,23 @@ WHERE ws.state = :state_code AND ws.country_code = 'us'
 
 ### State Aggregates (Current)
 
-```sql
-SELECT 
-    AVG(temperature) as avg_temp,
-    MIN(temperature) as min_temp, 
-    MAX(temperature) as max_temp,
-    AVG(humidity) as avg_humidity,
-    AVG(pressure) as avg_pressure,
-    AVG(wind_speed) as avg_wind,
-    MAX(wind_speed) as max_wind,
-    MAX(wind_gust) as max_gust
-FROM latest_readings_for_state(:state_code)
+Computed from the State Stations query result (no separate DB function needed):
+
+```python
+# In Python after fetching state stations with latest readings
+def compute_state_aggregates(stations):
+    temps = [s.temperature for s in stations if s.temperature is not None]
+    return {
+        'avg_temp': sum(temps) / len(temps) if temps else None,
+        'min_temp': min(temps) if temps else None,
+        'max_temp': max(temps) if temps else None,
+        # ... similar for humidity, pressure, wind
+    }
 ```
 
 ### 24h Trend Data
+
+Note: This project uses TimescaleDB (evident from `time_bucket` usage elsewhere and hypertable chunks in weather_report). If TimescaleDB is not available, replace `time_bucket` with `date_trunc('hour', time)`.
 
 ```sql
 SELECT 
@@ -217,6 +268,32 @@ WHERE ws.state = :state_code
 GROUP BY hour
 ORDER BY hour
 ```
+
+### Trend Chart Data Contract
+
+The `/api/dashboard/state/<code>/trends` endpoint returns JSON for Chart.js:
+
+```json
+{
+  "labels": ["00:00", "01:00", "02:00", ...],  // 24 hourly labels
+  "temperature": {
+    "avg": [65.2, 64.8, 63.1, ...],
+    "min": [58.0, 57.2, 55.8, ...],
+    "max": [72.1, 71.5, 70.2, ...]
+  },
+  "pressure": {
+    "avg": [1018.2, 1018.5, 1018.8, ...]
+  },
+  "humidity": {
+    "avg": [65, 68, 72, ...]
+  },
+  "wind": {
+    "avg": [8.2, 7.5, 6.8, ...]
+  }
+}
+```
+
+Charts rendered client-side using Chart.js line charts with fill for min/max bands (existing pattern in weather_reports_table.html).
 
 ### Caching Strategy
 
