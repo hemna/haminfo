@@ -190,7 +190,7 @@
     // Render a single country card
     function renderCountryCard(country) {
         var hasData = country.packet_count > 0;
-        var href = hasData ? '/dashboard/country/' + country.country_code : '#';
+        var href = hasData ? '/country/' + country.country_code : '#';
         var disabledClass = hasData ? '' : 'disabled';
         
         return '<a href="' + href + '" ' +
