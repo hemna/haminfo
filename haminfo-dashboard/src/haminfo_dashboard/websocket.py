@@ -12,12 +12,25 @@ from haminfo_dashboard.utils import (
     get_packet_human_info,
     get_packet_addressee,
     normalize_packet_type,
-    get_country_from_callsign,
+    # NOTE: get_country_from_callsign removed - using geographic filtering instead
 )
 
 socketio: SocketIO | None = None
 _poll_greenlet = None
 _last_packet_time: datetime | None = None
+
+# Module-level session factory (initialized once, reused)
+_session_factory = None
+
+
+def _get_session():
+    """Get a database session, initializing factory on first call."""
+    global _session_factory
+    if _session_factory is None:
+        from haminfo.db.db import setup_session
+
+        _session_factory = setup_session()
+    return _session_factory()
 
 
 def init_socketio(app):
@@ -147,16 +160,39 @@ def broadcast_packet(packet_data: dict):
     Emits to:
     - 'live_feed' room (all clients on homepage/live feed)
     - 'country:<code>' room (clients viewing that country's detail page)
+    - 'state:<code>' room (clients viewing that state's detail page, US only)
+
+    Uses PostGIS reverse geocoding with caching for geographic filtering.
     """
     if socketio:
-        # Emit to global live feed
+        # Always emit to global live feed
         socketio.emit('packet', packet_data, room='live_feed')
 
-        # Emit to country-specific room if we can determine the country
-        from_call = packet_data.get('from_call')
-        if from_call:
-            country_info = get_country_from_callsign(from_call)
-            if country_info:
-                # country_info is a tuple (country_code, country_name)
-                country_code = country_info[0]
-                socketio.emit('packet', packet_data, room=f'country:{country_code}')
+        # Geographic filtering for country/state rooms
+        lat = packet_data.get('latitude')
+        lon = packet_data.get('longitude')
+
+        if lat is not None and lon is not None:
+            try:
+                from haminfo_dashboard.geo_cache import get_location_info
+
+                session = _get_session()
+                try:
+                    info = get_location_info(session, lat, lon)
+
+                    if info.country_code:
+                        # Broadcast to country room
+                        socketio.emit(
+                            'packet', packet_data, room=f'country:{info.country_code}'
+                        )
+
+                        # If US, also broadcast to state room
+                        if info.state_code:
+                            socketio.emit(
+                                'packet', packet_data, room=f'state:{info.state_code}'
+                            )
+                finally:
+                    session.close()
+            except Exception as e:
+                # Log error but don't fail the broadcast
+                print(f'Geo lookup failed: {e}')
