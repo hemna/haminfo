@@ -690,10 +690,10 @@ def _get_country_breakdown_from_raw(
 
 @cached('dashboard:all_countries', ttl=300)
 def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
-    """Get packet count for ALL countries using country_code column.
+    """Get packet count for ALL countries.
 
-    Uses the denormalized country_code column for fast queries.
-    Falls back to prefix-based matching if country_code not populated.
+    Uses denormalized country_code column if coverage is good (>50%),
+    otherwise falls back to fast prefix-based aggregates.
 
     Args:
         session: Database session.
@@ -701,19 +701,30 @@ def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
     Returns:
         List of dicts with country_code, country_name, count, sorted by count desc.
     """
-    # Check if we have country_code data (denormalized - fast)
+    # Check country_code coverage - only use if >50% of recent packets have it
     try:
         result = session.execute(
-            text('SELECT 1 FROM aprs_packet WHERE country_code IS NOT NULL LIMIT 1')
+            text("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(country_code) as with_cc
+                FROM aprs_packet 
+                WHERE received_at > NOW() - INTERVAL '1 hour'
+            """)
         )
-        has_country_code = result.fetchone() is not None
+        row = result.fetchone()
+        if row and row.total > 0:
+            coverage = row.with_cc / row.total
+        else:
+            coverage = 0
     except Exception:
-        has_country_code = False
+        coverage = 0
 
-    if has_country_code:
+    # Use country_code if coverage is good, otherwise use fast aggregates
+    if coverage > 0.5:
         return _get_all_countries_from_country_code(session)
 
-    # Fallback to prefix-based if country_code not populated yet
+    # Fallback to prefix-based aggregates (fast)
     if USE_CONTINUOUS_AGGREGATES:
         return _get_all_countries_from_aggregates(session)
     return _get_all_countries_from_raw(session)
