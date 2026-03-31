@@ -8,11 +8,11 @@ from datetime import datetime
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
 
+from haminfo_dashboard.station_cache import station_cache
 from haminfo_dashboard.utils import (
     get_packet_human_info,
     get_packet_addressee,
     normalize_packet_type,
-    # NOTE: get_country_from_callsign removed - using geographic filtering instead
 )
 
 socketio: SocketIO | None = None
@@ -135,6 +135,7 @@ def poll_packets():
                         'received_at': packet.received_at.isoformat()
                         if packet.received_at
                         else None,
+                        'country_code': packet.country_code,
                     }
                     packet_data['human_info'] = get_packet_human_info(packet_data)
                     packet_data['addressee'] = get_packet_addressee(packet_data)
@@ -162,37 +163,50 @@ def broadcast_packet(packet_data: dict):
     - 'country:<code>' room (clients viewing that country's detail page)
     - 'state:<code>' room (clients viewing that state's detail page, US only)
 
-    Uses PostGIS reverse geocoding with caching for geographic filtering.
+    Uses the country_code stored in the packet (populated by rust-aprsd at insert time).
+    For packets without country_code, falls back to the station's last known location
+    from the station_cache.
     """
     if socketio:
         # Always emit to global live feed
         socketio.emit('packet', packet_data, room='live_feed')
 
-        # Geographic filtering for country/state rooms
-        lat = packet_data.get('latitude')
-        lon = packet_data.get('longitude')
+        from_call = packet_data.get('from_call')
+        country_code = packet_data.get('country_code')
+        state_code = None
 
-        if lat is not None and lon is not None:
-            try:
-                from haminfo_dashboard.geo_cache import get_location_info
+        # If packet has country_code (has coordinates), update station cache
+        if country_code and from_call:
+            # For US, look up state code
+            if country_code == 'US':
+                lat = packet_data.get('latitude')
+                lon = packet_data.get('longitude')
+                if lat is not None and lon is not None:
+                    try:
+                        from haminfo_dashboard.geo_cache import get_location_info
 
-                session = _get_session()
-                try:
-                    info = get_location_info(session, lat, lon)
+                        session = _get_session()
+                        try:
+                            info = get_location_info(session, lat, lon)
+                            state_code = info.state_code
+                        finally:
+                            session.close()
+                    except Exception as e:
+                        print(f'State lookup failed: {e}')
 
-                    if info.country_code:
-                        # Broadcast to country room
-                        socketio.emit(
-                            'packet', packet_data, room=f'country:{info.country_code}'
-                        )
+            # Update station cache with this position
+            station_cache.update(from_call, country_code, state_code)
 
-                        # If US, also broadcast to state room
-                        if info.state_code:
-                            socketio.emit(
-                                'packet', packet_data, room=f'state:{info.state_code}'
-                            )
-                finally:
-                    session.close()
-            except Exception as e:
-                # Log error but don't fail the broadcast
-                print(f'Geo lookup failed: {e}')
+        # If no country_code in packet, try station cache
+        elif from_call:
+            cached = station_cache.get(from_call)
+            if cached:
+                country_code = cached.country_code
+                state_code = cached.state_code
+
+        # Emit to country/state rooms if we have location
+        if country_code:
+            socketio.emit('packet', packet_data, room=f'country:{country_code}')
+
+            if state_code:
+                socketio.emit('packet', packet_data, room=f'state:{state_code}')
