@@ -729,7 +729,7 @@ def _get_all_countries_from_spatial(session: Session) -> list[dict[str, Any]]:
             COUNT(*) as packet_count
         FROM aprs_packet p
         JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
-        WHERE p.created_at > NOW() - INTERVAL '24 hours'
+        WHERE p.received_at > NOW() - INTERVAL '24 hours'
           AND p.latitude IS NOT NULL
           AND p.longitude IS NOT NULL
         GROUP BY c.iso_a2, c.name
@@ -852,7 +852,7 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
             FROM aprs_packet p
             JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
             WHERE c.iso_a2 = :country_code
-              AND p.created_at > NOW() - INTERVAL '24 hours'
+              AND p.received_at > NOW() - INTERVAL '24 hours'
               AND p.latitude IS NOT NULL
               AND p.longitude IS NOT NULL
         """)
@@ -911,7 +911,7 @@ def get_country_top_stations(
             FROM aprs_packet p
             JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
             WHERE c.iso_a2 = :country_code
-              AND p.created_at > NOW() - INTERVAL '24 hours'
+              AND p.received_at > NOW() - INTERVAL '24 hours'
               AND p.latitude IS NOT NULL
               AND p.longitude IS NOT NULL
             GROUP BY p.from_call

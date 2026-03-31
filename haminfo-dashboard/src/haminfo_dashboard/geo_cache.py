@@ -167,7 +167,7 @@ def warm_cache(session: 'Session', hours: int = 24) -> dict[str, int]:
             ROUND(latitude::numeric, 1) as grid_lat,
             ROUND(longitude::numeric, 1) as grid_lon
         FROM aprs_packet
-        WHERE created_at > :cutoff
+        WHERE received_at > :cutoff
           AND latitude IS NOT NULL
           AND longitude IS NOT NULL
           AND latitude BETWEEN -90 AND 90
