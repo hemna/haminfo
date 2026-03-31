@@ -11,8 +11,11 @@ from haminfo_dashboard.queries import (
     get_daily_packet_counts,
     get_top_stations,
     get_country_breakdown,
+    get_all_countries_breakdown,
+    get_country_stats,
+    get_country_top_stations,
 )
-from haminfo_dashboard.utils import US_STATE_BOUNDS
+from haminfo_dashboard.utils import US_STATE_BOUNDS, get_country_name, COUNTRY_FLAGS
 
 dashboard_bp = Blueprint(
     'dashboard',
@@ -143,3 +146,62 @@ def weather_state_detail(state_code: str):
         state_code=state_code,
         state_name=state_name,
     )
+
+
+@dashboard_bp.route('/countries')
+def countries():
+    """Countries landing page with all countries and packet counts."""
+    session = _get_session()
+    try:
+        # Get all countries with packet counts (24h)
+        countries_data = get_all_countries_breakdown(session)
+
+        # Enhance with country names and flags
+        for country in countries_data:
+            code = country['country_code']
+            country['name'] = get_country_name(code)
+            country['flag'] = COUNTRY_FLAGS.get(code, '')
+
+        # Sort by packet count descending
+        countries_data.sort(key=lambda x: x['packet_count'], reverse=True)
+
+        total_packets = sum(c['packet_count'] for c in countries_data)
+
+        return render_template(
+            'dashboard/countries.html',
+            countries=countries_data,
+            total_countries=len(countries_data),
+            total_packets=total_packets,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/country/<country_code>')
+def country_detail(country_code: str):
+    """Country detail page with live packet feed and stats."""
+    country_code = country_code.upper()
+    country_name = get_country_name(country_code)
+    country_flag = COUNTRY_FLAGS.get(country_code, '')
+
+    # If unknown country, still show the page but with a warning
+    if country_name == country_code:
+        # Country code not recognized
+        country_name = f'Unknown ({country_code})'
+
+    session = _get_session()
+    try:
+        # Get country stats
+        stats = get_country_stats(session, country_code)
+        top_stations = get_country_top_stations(session, country_code, limit=10)
+
+        return render_template(
+            'dashboard/country_detail.html',
+            country_code=country_code,
+            country_name=country_name,
+            country_flag=country_flag,
+            stats=stats,
+            top_stations=top_stations,
+        )
+    finally:
+        session.close()
