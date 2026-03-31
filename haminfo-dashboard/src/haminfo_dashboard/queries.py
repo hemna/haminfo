@@ -780,7 +780,7 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
         country_code: ISO country code (e.g., 'US').
 
     Returns:
-        Dict with packets_24h, unique_stations, top_station.
+        Dict with packets_24h, unique_stations, top_station (callsign string).
     """
     from haminfo_dashboard.utils import get_callsign_prefixes_for_country
 
@@ -793,7 +793,8 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
 
     packets_24h = sum(s['count'] for s in top_stations)
     unique_stations = len(top_stations)
-    top_station = top_stations[0] if top_stations else None
+    # Return just the callsign string, not the full dict
+    top_station = top_stations[0]['callsign'] if top_stations else None
 
     return {
         'packets_24h': packets_24h,
