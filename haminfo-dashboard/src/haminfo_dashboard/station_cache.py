@@ -137,3 +137,50 @@ class StationLocationCache:
 
 # Global cache instance
 station_cache = StationLocationCache()
+
+
+def warm_station_cache(session, hours: int = 24) -> dict:
+    """Pre-warm the station cache from recent position packets.
+
+    Loads the most recent position (with country_code) for each unique
+    callsign from the last N hours. This ensures that when we receive
+    a message/status/telemetry packet, we already know the station's country.
+
+    Args:
+        session: SQLAlchemy database session.
+        hours: How far back to look for position packets.
+
+    Returns:
+        Dict with warming statistics.
+    """
+    from sqlalchemy import text
+
+    LOG.info(f'Warming station cache from last {hours}h of position packets...')
+
+    # Get most recent country_code for each callsign
+    # Uses DISTINCT ON to get one row per callsign (most recent)
+    query = text(
+        """
+        SELECT DISTINCT ON (from_call)
+            from_call,
+            country_code
+        FROM aprs_packet
+        WHERE received_at > NOW() - INTERVAL ':hours hours'
+          AND country_code IS NOT NULL
+        ORDER BY from_call, received_at DESC
+    """.replace(':hours', str(hours))
+    )
+
+    try:
+        result = session.execute(query)
+        count = 0
+        for row in result:
+            station_cache.update(row.from_call, row.country_code)
+            count += 1
+
+        LOG.info(f'Station cache warmed with {count} stations')
+        return {'stations_loaded': count, 'hours': hours}
+
+    except Exception as e:
+        LOG.error(f'Failed to warm station cache: {e}')
+        return {'stations_loaded': 0, 'hours': hours, 'error': str(e)}

@@ -308,6 +308,7 @@ def _warm_cache() -> None:
         get_hourly_distribution,
     )
     from haminfo_dashboard.geo_cache import warm_cache as warm_geo_cache
+    from haminfo_dashboard.station_cache import warm_station_cache
 
     print('Warming cache with dashboard stats...', file=sys.stderr, flush=True)
 
@@ -344,6 +345,18 @@ def _warm_cache() -> None:
             )
         except Exception as e:
             print(f'  - Geo cache warm-up failed: {e}', file=sys.stderr, flush=True)
+
+        # Warm station location cache for live feed country routing
+        startup_state.update('Loading station locations...', 6)
+        try:
+            station_stats = warm_station_cache(session, hours=24)
+            print(
+                f'  - Station cache warmed: {station_stats["stations_loaded"]} stations',
+                file=sys.stderr,
+                flush=True,
+            )
+        except Exception as e:
+            print(f'  - Station cache warm-up failed: {e}', file=sys.stderr, flush=True)
 
         session.close()
         print('Cache warming complete', file=sys.stderr, flush=True)
