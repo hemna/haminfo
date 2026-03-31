@@ -625,6 +625,7 @@ def api_all_countries():
 def api_all_countries_json():
     """All countries with packet counts - returns JSON."""
     from haminfo_dashboard.utils import get_country_name, COUNTRY_FLAGS
+    from haminfo_dashboard.queries import get_dashboard_stats
 
     session = _get_session()
     try:
@@ -637,6 +638,16 @@ def api_all_countries_json():
             country['packet_count'] = country.pop('count')
         # Sort by packet count
         countries.sort(key=lambda x: x['packet_count'], reverse=True)
-        return jsonify({'countries': countries})
+
+        # Get the real total from dashboard stats (same source as home page)
+        stats = get_dashboard_stats(session)
+        total_packets = stats.get('total_packets_24h', 0)
+
+        return jsonify(
+            {
+                'countries': countries,
+                'total_packets_24h': total_packets,
+            }
+        )
     finally:
         session.close()

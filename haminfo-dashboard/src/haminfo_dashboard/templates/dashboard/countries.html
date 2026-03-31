@@ -213,17 +213,16 @@
     }
     
     // Render all countries
-    function renderCountries(countries) {
+    function renderCountries(countries, totalPackets24h) {
         countriesData = countries;
         var html = countries.map(renderCountryCard).join('');
         countriesGrid.innerHTML = html;
         
-        // Update stats
-        var totalPackets = countries.reduce(function(sum, c) { return sum + c.packet_count; }, 0);
+        // Update stats - use the provided total (same as home page)
         var activeCountries = countries.filter(function(c) { return c.packet_count > 0; }).length;
-        var avgPackets = activeCountries > 0 ? Math.round(totalPackets / activeCountries) : 0;
+        var avgPackets = activeCountries > 0 ? Math.round(totalPackets24h / activeCountries) : 0;
         
-        document.getElementById('total-packets').textContent = formatNumber(totalPackets);
+        document.getElementById('total-packets').textContent = formatNumber(totalPackets24h);
         document.getElementById('total-countries').textContent = activeCountries;
         document.getElementById('avg-packets').textContent = formatNumber(avgPackets);
         
@@ -261,7 +260,7 @@
     fetch('/api/dashboard/countries/all/json')
         .then(function(response) { return response.json(); })
         .then(function(data) {
-            renderCountries(data.countries || []);
+            renderCountries(data.countries || [], data.total_packets_24h || 0);
         })
         .catch(function(error) {
             console.error('Failed to load countries:', error);
