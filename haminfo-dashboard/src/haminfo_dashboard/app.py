@@ -98,6 +98,7 @@ def _warm_cache() -> None:
         get_country_breakdown,
         get_hourly_distribution,
     )
+    from haminfo_dashboard.geo_cache import warm_cache as warm_geo_cache
 
     print('Warming cache with dashboard stats...', file=sys.stderr, flush=True)
 
@@ -117,6 +118,18 @@ def _warm_cache() -> None:
 
         get_hourly_distribution(session)
         print('  - Hourly distribution cached', file=sys.stderr, flush=True)
+
+        # Warm geo cache for reverse geocoding
+        try:
+            geo_stats = warm_geo_cache(session, hours=24)
+            print(
+                f'  - Geo cache warmed: {geo_stats["populated"]} cells, '
+                f'{geo_stats["errors"]} errors',
+                file=sys.stderr,
+                flush=True,
+            )
+        except Exception as e:
+            print(f'  - Geo cache warm-up failed: {e}', file=sys.stderr, flush=True)
 
         session.close()
         print('Cache warming complete', file=sys.stderr, flush=True)
