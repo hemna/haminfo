@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import gevent
@@ -12,6 +12,7 @@ from haminfo_dashboard.utils import (
     get_packet_human_info,
     get_packet_addressee,
     normalize_packet_type,
+    get_country_from_callsign,
 )
 
 socketio: SocketIO | None = None
@@ -47,6 +48,24 @@ def register_handlers():
         """Handle filter change from client."""
         country = data.get('country')
         emit('filter_applied', {'country': country})
+
+    @socketio.on('join_country')
+    def handle_join_country(data):
+        """Handle client joining a country-specific room."""
+        country_code = data.get('country_code')
+        if country_code:
+            room_name = f'country:{country_code}'
+            join_room(room_name)
+            emit('country_joined', {'country_code': country_code, 'room': room_name})
+
+    @socketio.on('leave_country')
+    def handle_leave_country(data):
+        """Handle client leaving a country-specific room."""
+        country_code = data.get('country_code')
+        if country_code:
+            room_name = f'country:{country_code}'
+            leave_room(room_name)
+            emit('country_left', {'country_code': country_code})
 
 
 def start_polling():
@@ -118,6 +137,19 @@ def poll_packets():
 
 
 def broadcast_packet(packet_data: dict):
-    """Broadcast new packet to all connected clients."""
+    """Broadcast new packet to all connected clients.
+
+    Emits to:
+    - 'live_feed' room (all clients on homepage/live feed)
+    - 'country:<code>' room (clients viewing that country's detail page)
+    """
     if socketio:
+        # Emit to global live feed
         socketio.emit('packet', packet_data, room='live_feed')
+
+        # Emit to country-specific room if we can determine the country
+        from_call = packet_data.get('from_call')
+        if from_call:
+            country_code = get_country_from_callsign(from_call)
+            if country_code:
+                socketio.emit('packet', packet_data, room=f'country:{country_code}')
