@@ -828,9 +828,10 @@ def _get_all_countries_from_raw(session: Session) -> list[dict[str, Any]]:
 
 @cached('dashboard:country_stats:{country_code}', ttl=300)
 def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
-    """Get statistics for a specific country using geographic filtering.
+    """Get statistics for a specific country.
 
-    Uses bounding box pre-filter for performance, then precise ST_Contains.
+    Uses the denormalized country_code column if available (fast),
+    otherwise falls back to spatial join (slow).
 
     Args:
         session: Database session.
@@ -839,47 +840,68 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
     Returns:
         Dict with packets_24h, unique_stations, top_station.
     """
-    # Check if countries table exists
+    # Check if country_code column exists (denormalized approach - fast)
     try:
-        result = session.execute(text('SELECT 1 FROM countries LIMIT 1'))
-        has_countries_table = result.fetchone() is not None
+        result = session.execute(
+            text('SELECT 1 FROM aprs_packet WHERE country_code IS NOT NULL LIMIT 1')
+        )
+        has_country_code_column = result.fetchone() is not None
     except Exception:
-        has_countries_table = False
+        has_country_code_column = False
 
-    if has_countries_table:
-        # Use bounding box pre-filter for performance
-        # First filter by bbox (fast index scan), then refine with ST_Contains
+    if has_country_code_column:
+        # Fast path: use denormalized country_code column
         query = text("""
-            WITH country_bbox AS (
-                SELECT geom, ST_XMin(geom) as xmin, ST_YMin(geom) as ymin,
-                       ST_XMax(geom) as xmax, ST_YMax(geom) as ymax
-                FROM countries WHERE iso_a2 = :country_code
-            )
             SELECT
                 COUNT(*) as packet_count,
-                COUNT(DISTINCT p.from_call) as unique_stations
-            FROM aprs_packet p, country_bbox c
-            WHERE p.received_at > NOW() - INTERVAL '24 hours'
-              AND p.latitude IS NOT NULL
-              AND p.longitude IS NOT NULL
-              AND p.longitude BETWEEN c.xmin AND c.xmax
-              AND p.latitude BETWEEN c.ymin AND c.ymax
-              AND ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
+                COUNT(DISTINCT from_call) as unique_stations
+            FROM aprs_packet
+            WHERE country_code = :country_code
+              AND received_at > NOW() - INTERVAL '24 hours'
         """)
         result = session.execute(query, {'country_code': country_code}).fetchone()
         packets_24h = int(result.packet_count) if result else 0
         unique_stations = int(result.unique_stations) if result else 0
     else:
-        # Fallback to prefix matching
-        from haminfo_dashboard.utils import get_callsign_prefixes_for_country
+        # Slow path: fall back to spatial join with countries table
+        try:
+            result = session.execute(text('SELECT 1 FROM countries LIMIT 1'))
+            has_countries_table = result.fetchone() is not None
+        except Exception:
+            has_countries_table = False
 
-        prefixes = get_callsign_prefixes_for_country(country_code)
-        if not prefixes:
-            return {'packets_24h': 0, 'unique_stations': 0, 'top_station': None}
+        if has_countries_table:
+            query = text("""
+                WITH country_bbox AS (
+                    SELECT geom, ST_XMin(geom) as xmin, ST_YMin(geom) as ymin,
+                           ST_XMax(geom) as xmax, ST_YMax(geom) as ymax
+                    FROM countries WHERE iso_a2 = :country_code
+                )
+                SELECT
+                    COUNT(*) as packet_count,
+                    COUNT(DISTINCT p.from_call) as unique_stations
+                FROM aprs_packet p, country_bbox c
+                WHERE p.received_at > NOW() - INTERVAL '24 hours'
+                  AND p.latitude IS NOT NULL
+                  AND p.longitude IS NOT NULL
+                  AND p.longitude BETWEEN c.xmin AND c.xmax
+                  AND p.latitude BETWEEN c.ymin AND c.ymax
+                  AND ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
+            """)
+            result = session.execute(query, {'country_code': country_code}).fetchone()
+            packets_24h = int(result.packet_count) if result else 0
+            unique_stations = int(result.unique_stations) if result else 0
+        else:
+            # Final fallback: prefix matching
+            from haminfo_dashboard.utils import get_callsign_prefixes_for_country
 
-        top_stations = get_country_top_stations(session, country_code, limit=100)
-        packets_24h = sum(s['count'] for s in top_stations)
-        unique_stations = len(top_stations)
+            prefixes = get_callsign_prefixes_for_country(country_code)
+            if not prefixes:
+                return {'packets_24h': 0, 'unique_stations': 0, 'top_station': None}
+
+            top_stations = get_country_top_stations(session, country_code, limit=100)
+            packets_24h = sum(s['count'] for s in top_stations)
+            unique_stations = len(top_stations)
 
     # Get top station
     top_stations = get_country_top_stations(session, country_code, limit=1)
@@ -896,9 +918,10 @@ def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
 def get_country_top_stations(
     session: Session, country_code: str, limit: int = 10
 ) -> list[dict[str, Any]]:
-    """Get top stations in a country by packet count using geographic filtering.
+    """Get top stations in a country by packet count.
 
-    Uses bounding box pre-filter for performance, then precise ST_Contains.
+    Uses the denormalized country_code column if available (fast),
+    otherwise falls back to spatial join (slow).
 
     Args:
         session: Database session.
@@ -908,7 +931,37 @@ def get_country_top_stations(
     Returns:
         List of dicts with callsign and count.
     """
-    # Check if countries table exists
+    # Check if country_code column exists (denormalized approach - fast)
+    try:
+        result = session.execute(
+            text('SELECT 1 FROM aprs_packet WHERE country_code IS NOT NULL LIMIT 1')
+        )
+        has_country_code_column = result.fetchone() is not None
+    except Exception:
+        has_country_code_column = False
+
+    if has_country_code_column:
+        # Fast path: use denormalized country_code column
+        query = text("""
+            SELECT
+                from_call as callsign,
+                COUNT(*) as packet_count
+            FROM aprs_packet
+            WHERE country_code = :country_code
+              AND received_at > NOW() - INTERVAL '24 hours'
+            GROUP BY from_call
+            ORDER BY packet_count DESC
+            LIMIT :limit
+        """)
+        results = session.execute(
+            query, {'country_code': country_code, 'limit': limit}
+        ).fetchall()
+        return [
+            {'callsign': row.callsign, 'count': int(row.packet_count)}
+            for row in results
+        ]
+
+    # Slow path: check if countries table exists for spatial join
     try:
         result = session.execute(text('SELECT 1 FROM countries LIMIT 1'))
         has_countries_table = result.fetchone() is not None
@@ -945,7 +998,7 @@ def get_country_top_stations(
             for row in results
         ]
 
-    # Fallback to prefix matching
+    # Final fallback to prefix matching
     from haminfo_dashboard.utils import get_callsign_prefixes_for_country
 
     prefixes = get_callsign_prefixes_for_country(country_code)
