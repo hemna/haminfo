@@ -281,3 +281,90 @@ class TestGetLocationInfo:
         assert result2.country_code == 'JP'
         mock_session.execute.assert_not_called()  # Second call used cache
         geo_cache.clear()
+
+
+class TestWarmCache:
+    """Tests for cache warm-up functionality."""
+
+    def test_warm_cache_populates_from_recent_packets(self):
+        """Test that warm_cache loads grid cells from recent packets."""
+        from haminfo_dashboard.geo_cache import warm_cache, geo_cache
+        from unittest.mock import MagicMock
+
+        geo_cache.clear()
+
+        mock_session = MagicMock()
+
+        # Mock grid cell query result
+        mock_grid_result = MagicMock()
+        mock_grid_result.fetchall.return_value = [
+            (42.1, -71.5),  # Boston area
+            (34.1, -118.2),  # LA area
+        ]
+
+        # Mock country/state lookups
+        mock_country_result = MagicMock()
+        mock_country_result.fetchone.side_effect = [
+            ('US',),
+            ('MA',),  # Boston
+            ('US',),
+            ('CA',),  # LA
+        ]
+
+        call_count = [0]
+
+        def mock_execute(query, params=None):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock_grid_result
+            return mock_country_result
+
+        mock_session.execute.side_effect = mock_execute
+
+        stats = warm_cache(mock_session, hours=24)
+
+        assert stats['grid_cells_found'] == 2
+        assert stats['populated'] == 2
+        assert stats['errors'] == 0
+        assert geo_cache.stats['size'] == 2
+
+        geo_cache.clear()
+
+    def test_warm_cache_handles_errors_gracefully(self):
+        """Test that warm_cache continues on individual lookup errors."""
+        from haminfo_dashboard.geo_cache import warm_cache, geo_cache
+        from unittest.mock import MagicMock
+
+        geo_cache.clear()
+
+        mock_session = MagicMock()
+
+        mock_grid_result = MagicMock()
+        mock_grid_result.fetchall.return_value = [
+            (42.1, -71.5),
+            (0.0, 0.0),  # This one will error
+            (34.1, -118.2),
+        ]
+
+        call_count = [0]
+
+        def mock_execute(query, params=None):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return mock_grid_result
+            # Simulate error on second grid cell (ocean)
+            if params and params.get('lat') == 0.0:
+                raise Exception('Database error')
+            mock_result = MagicMock()
+            mock_result.fetchone.return_value = ('US',)
+            return mock_result
+
+        mock_session.execute.side_effect = mock_execute
+
+        stats = warm_cache(mock_session, hours=24)
+
+        assert stats['grid_cells_found'] == 3
+        assert stats['populated'] == 2  # 2 succeeded
+        assert stats['errors'] == 1  # 1 failed
+
+        geo_cache.clear()

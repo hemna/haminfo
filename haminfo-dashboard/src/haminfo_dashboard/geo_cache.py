@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 import threading
 from typing import TYPE_CHECKING, Optional
 
@@ -141,6 +142,60 @@ def get_location_info(session: 'Session', lat: float, lon: float) -> LocationInf
     geo_cache.put(lat, lon, info)
 
     return info
+
+
+def warm_cache(session: 'Session', hours: int = 24) -> dict[str, int]:
+    """Pre-populate cache from recent packets with positions.
+
+    Queries distinct grid cells from recent packets and reverse geocodes
+    each one to populate the cache. This ensures fast lookups for
+    commonly-seen locations.
+
+    Args:
+        session: SQLAlchemy database session.
+        hours: How many hours of history to load (default 24).
+
+    Returns:
+        Dict with grid_cells_found, populated, errors, and cache_size.
+    """
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+
+    # Get distinct grid cells from recent packets
+    # Using 0.1 degree resolution to match cache
+    grid_query = text("""
+        SELECT DISTINCT
+            ROUND(latitude::numeric, 1) as grid_lat,
+            ROUND(longitude::numeric, 1) as grid_lon
+        FROM aprs_packet
+        WHERE created_at > :cutoff
+          AND latitude IS NOT NULL
+          AND longitude IS NOT NULL
+          AND latitude BETWEEN -90 AND 90
+          AND longitude BETWEEN -180 AND 180
+    """)
+
+    grid_cells = session.execute(grid_query, {'cutoff': cutoff}).fetchall()
+
+    populated = 0
+    errors = 0
+
+    for row in grid_cells:
+        try:
+            lat = float(row[0])
+            lon = float(row[1])
+            info = reverse_geocode(session, lat, lon)
+            geo_cache.put(lat, lon, info)
+            populated += 1
+        except Exception:
+            errors += 1
+            # Continue on individual errors
+
+    return {
+        'grid_cells_found': len(grid_cells),
+        'populated': populated,
+        'errors': errors,
+        'cache_size': geo_cache.stats['size'],
+    }
 
 
 # Global cache instance
