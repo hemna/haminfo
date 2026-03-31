@@ -150,6 +150,8 @@ def broadcast_packet(packet_data: dict):
         # Emit to country-specific room if we can determine the country
         from_call = packet_data.get('from_call')
         if from_call:
-            country_code = get_country_from_callsign(from_call)
-            if country_code:
+            country_info = get_country_from_callsign(from_call)
+            if country_info:
+                # country_info is a tuple (country_code, country_name)
+                country_code = country_info[0]
                 socketio.emit('packet', packet_data, room=f'country:{country_code}')
