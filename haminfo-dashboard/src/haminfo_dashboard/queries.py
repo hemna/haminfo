@@ -1205,6 +1205,11 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
     if not country_info:
         country_info = get_country_from_callsign(callsign)
 
+    # Get state for US stations
+    state_info = None
+    if country_info and country_info[0] == 'US' and lat is not None and lon is not None:
+        state_info = get_state_from_coords(lat, lon, 'US')
+
     return {
         'callsign': latest_packet.from_call,
         'last_seen': latest_packet.received_at.isoformat()
@@ -1226,6 +1231,8 @@ def get_station_detail(session: Session, callsign: str) -> Optional[dict[str, An
         'country_code': country_info[0] if country_info else None,
         'country_name': country_info[1] if country_info else None,
         'position_last_seen': pos_last_seen,
+        'state_code': state_info[0] if state_info else None,
+        'state_name': state_info[1] if state_info else None,
     }
 
 

@@ -60,6 +60,10 @@
             {% if station.latitude and station.longitude %}
             <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
                 <a href="{{ url_for('dashboard.map_view') }}?callsign={{ station.callsign }}" style="color:var(--accent-green);font-size:12px;">View on full map →</a>
+                {% if station.state_code %}
+                <br>
+                <a href="{{ url_for('dashboard.weather_state_detail', state_code=station.state_code) }}" style="color:var(--accent-cyan);font-size:12px;margin-top:4px;display:inline-block;">View {{ station.state_name }} Weather →</a>
+                {% endif %}
             </div>
             {% endif %}
         </div>
