@@ -30,7 +30,9 @@
         <div class="summary-label">Avg Pressure</div>
         {% if summary.avg_pressure is not none %}
         <div class="summary-value yellow">{{ "%.1f"|format(summary.avg_pressure) }}</div>
-        <div class="summary-detail">mbar avg across stations</div>
+        <div class="summary-detail">
+            Hi: {{ "%.1f"|format(summary.max_pressure) }} / Lo: {{ "%.1f"|format(summary.min_pressure) }} mbar
+        </div>
         {% else %}
         <div class="summary-value muted">--</div>
         <div class="summary-detail">No data</div>
