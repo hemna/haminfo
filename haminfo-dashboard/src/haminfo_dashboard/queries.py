@@ -433,10 +433,18 @@ def _get_dashboard_stats_from_aggregates(session: Session) -> dict[str, Any]:
     # Weather stations still from regular query
     weather_stations = session.query(func.count(WeatherStation.id)).scalar() or 0
 
+    # Count unique countries from weather stations
+    countries = (
+        session.query(func.count(distinct(WeatherStation.country_code)))
+        .filter(WeatherStation.country_code.isnot(None))
+        .scalar()
+        or 0
+    )
+
     return {
         'total_packets_24h': int(result.total_packets) if result else 0,
         'unique_stations': int(result.unique_stations) if result else 0,
-        'countries': int(result.unique_prefixes) if result else 0,
+        'countries': countries,
         'weather_stations': weather_stations,
     }
 
@@ -462,10 +470,10 @@ def _get_dashboard_stats_from_raw(session: Session) -> dict[str, Any]:
         or 0
     )
 
-    # Count unique countries - use substring matching on callsign prefixes
+    # Count unique countries from weather stations
     countries = (
-        session.query(func.count(distinct(func.substring(APRSPacket.from_call, 1, 2))))
-        .filter(APRSPacket.received_at >= last_24h)
+        session.query(func.count(distinct(WeatherStation.country_code)))
+        .filter(WeatherStation.country_code.isnot(None))
         .scalar()
         or 0
     )
