@@ -1,0 +1,343 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ state_name or 'State' }} Weather - Ham Radio Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    {% if error %}
+    <!-- Error state -->
+    <div class="row">
+        <div class="col-md-6 offset-md-3 text-center" style="padding-top: 100px;">
+            <h2 style="color: var(--text-primary);">State Not Found</h2>
+            <p class="text-muted">The state code "{{ state_code }}" was not found.</p>
+            <a href="{{ url_for('dashboard.weather_states') }}" class="btn btn-primary">
+                Back to States
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb" style="font-size: 14px;">
+                <a href="{{ url_for('dashboard.weather_states') }}" style="color: var(--accent-cyan);">States</a>
+                <span class="text-muted"> / </span>
+                <span class="text-muted">{{ state_name }}</span>
+            </nav>
+            <h1 style="margin-top: 10px;">{{ state_name }} Weather</h1>
+            <p class="text-muted" id="last-updated">Loading station data...</p>
+        </div>
+    </div>
+    
+    <!-- Alerts Banner -->
+    <div id="alerts-container"
+         hx-get="{{ url_for('dashboard.api_state_alerts', state_code=state_code) }}"
+         hx-trigger="load, every 120s"
+         hx-swap="innerHTML">
+        <!-- Alerts loaded via HTMX -->
+    </div>
+    
+    <!-- Summary Cards -->
+    <div class="row mb-4" id="summary-container"
+         hx-get="{{ url_for('dashboard.api_state_summary', state_code=state_code) }}"
+         hx-trigger="load, every 300s"
+         hx-swap="innerHTML">
+        <!-- Summary cards loaded via HTMX -->
+        <div class="col-12 text-center py-5">
+            <div class="spinner"></div>
+            <p class="text-muted mt-2">Loading summary...</p>
+        </div>
+    </div>
+    
+    <!-- Trend Charts -->
+    <div class="card mb-4">
+        <div class="card-header" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
+            <h5 class="mb-0" style="color: var(--text-primary);">24-Hour Trends</h5>
+        </div>
+        <div class="card-body" style="background: var(--bg-card);">
+            <div class="trend-tabs">
+                <button class="trend-tab active" data-chart="temperature">Temperature</button>
+                <button class="trend-tab" data-chart="pressure">Pressure</button>
+                <button class="trend-tab" data-chart="humidity">Humidity</button>
+                <button class="trend-tab" data-chart="wind">Wind</button>
+            </div>
+            <div class="trend-charts">
+                <div class="chart-container active" id="temperature-container">
+                    <canvas id="temperature-chart"></canvas>
+                </div>
+                <div class="chart-container" id="pressure-container">
+                    <canvas id="pressure-chart"></canvas>
+                </div>
+                <div class="chart-container" id="humidity-container">
+                    <canvas id="humidity-chart"></canvas>
+                </div>
+                <div class="chart-container" id="wind-container">
+                    <canvas id="wind-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stations Table -->
+    <div class="card">
+        <div class="card-header" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h5 class="mb-0" style="color: var(--text-primary);">Weather Stations</h5>
+            <span class="badge" id="station-count" style="background: var(--accent-cyan); color: #000;">Loading...</span>
+        </div>
+        <div class="card-body" style="background: var(--bg-card); padding: 0;">
+            <div id="stations-container"
+                 hx-get="{{ url_for('dashboard.api_state_stations', state_code=state_code) }}"
+                 hx-trigger="load, every 300s"
+                 hx-swap="innerHTML">
+                <!-- Stations table loaded via HTMX -->
+                <div class="text-center py-5">
+                    <div class="spinner"></div>
+                    <p class="text-muted mt-2">Loading stations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.card-header {
+    padding: 16px 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+.trend-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.trend-tab {
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.trend-tab:hover {
+    color: var(--text-primary);
+}
+
+.trend-tab.active {
+    background: var(--accent-cyan);
+    color: #000;
+    border-color: var(--accent-cyan);
+}
+
+.chart-container {
+    display: none;
+    height: 300px;
+}
+
+.chart-container.active {
+    display: block;
+}
+
+.btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-primary {
+    background: var(--accent-cyan);
+    color: #000;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+</style>
+
+{% if not error %}
+<script>
+// Tab switching
+document.querySelectorAll('.trend-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.trend-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.chart-container').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.chart + '-container').classList.add('active');
+    });
+});
+
+// Load trend data and render charts
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{{ url_for("dashboard.api_state_trends", state_code=state_code) }}')
+        .then(response => response.json())
+        .then(data => {
+            renderTrendCharts(data);
+        })
+        .catch(err => {
+            console.error('Failed to load trends:', err);
+            document.querySelectorAll('.chart-container').forEach(c => {
+                c.innerHTML = '<p class="text-muted text-center" style="padding: 50px;">Failed to load trend data</p>';
+            });
+        });
+});
+
+function renderTrendCharts(data) {
+    if (!data.labels || data.labels.length === 0) {
+        document.querySelectorAll('.chart-container').forEach(c => {
+            c.innerHTML = '<p class="text-muted text-center" style="padding: 50px;">No trend data available</p>';
+        });
+        return;
+    }
+    
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                labels: { color: 'rgba(255,255,255,0.7)' }
+            }
+        },
+        scales: {
+            x: {
+                grid: { color: 'rgba(255,255,255,0.1)' },
+                ticks: { color: 'rgba(255,255,255,0.7)' }
+            },
+            y: {
+                grid: { color: 'rgba(255,255,255,0.1)' },
+                ticks: { color: 'rgba(255,255,255,0.7)' }
+            }
+        }
+    };
+    
+    // Temperature chart
+    new Chart(document.getElementById('temperature-chart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: 'Avg Temp (°F)',
+                    data: data.temperature.avg,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    fill: false,
+                    tension: 0.3
+                },
+                {
+                    label: 'Max',
+                    data: data.temperature.max,
+                    borderColor: 'rgba(255, 99, 132, 0.4)',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Min',
+                    data: data.temperature.min,
+                    borderColor: 'rgba(255, 99, 132, 0.4)',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: chartOptions
+    });
+    
+    // Pressure chart
+    new Chart(document.getElementById('pressure-chart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Pressure (mbar)',
+                data: data.pressure.avg,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: chartOptions
+    });
+    
+    // Humidity chart
+    new Chart(document.getElementById('humidity-chart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Humidity (%)',
+                data: data.humidity.avg,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            ...chartOptions,
+            scales: {
+                ...chartOptions.scales,
+                y: { ...chartOptions.scales.y, min: 0, max: 100 }
+            }
+        }
+    });
+    
+    // Wind chart
+    new Chart(document.getElementById('wind-chart'), {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Wind Speed (mph)',
+                data: data.wind.avg,
+                borderColor: 'rgb(153, 102, 255)',
+                backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            ...chartOptions,
+            scales: {
+                ...chartOptions.scales,
+                y: { ...chartOptions.scales.y, min: 0 }
+            }
+        }
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

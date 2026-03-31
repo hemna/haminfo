@@ -1,0 +1,72 @@
+<!-- State summary cards -->
+<div class="col-md-3 col-sm-6 mb-3">
+    <div class="card h-100">
+        <div class="card-body">
+            <h6 class="text-muted mb-2" style="font-size: 12px;">Temperature</h6>
+            {% if summary.avg_temp is not none %}
+            <h3 class="mb-1" style="color: var(--accent-cyan);">{{ "%.1f"|format(summary.avg_temp) }}°F</h3>
+            <small class="text-muted">
+                Hi: {{ "%.0f"|format(summary.max_temp) }}° / Lo: {{ "%.0f"|format(summary.min_temp) }}°
+            </small>
+            {% else %}
+            <h3 class="mb-1 text-muted">--</h3>
+            <small class="text-muted">No data</small>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 col-sm-6 mb-3">
+    <div class="card h-100">
+        <div class="card-body">
+            <h6 class="text-muted mb-2" style="font-size: 12px;">Humidity</h6>
+            {% if summary.avg_humidity is not none %}
+            <h3 class="mb-1" style="color: var(--accent-green);">{{ "%.0f"|format(summary.avg_humidity) }}%</h3>
+            <small class="text-muted">
+                Range: {{ "%.0f"|format(summary.min_humidity) }}-{{ "%.0f"|format(summary.max_humidity) }}%
+            </small>
+            {% else %}
+            <h3 class="mb-1 text-muted">--</h3>
+            <small class="text-muted">No data</small>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 col-sm-6 mb-3">
+    <div class="card h-100">
+        <div class="card-body">
+            <h6 class="text-muted mb-2" style="font-size: 12px;">Pressure</h6>
+            {% if summary.avg_pressure is not none %}
+            <h3 class="mb-1" style="color: var(--accent-yellow);">{{ "%.1f"|format(summary.avg_pressure) }}</h3>
+            <small class="text-muted">mbar</small>
+            {% else %}
+            <h3 class="mb-1 text-muted">--</h3>
+            <small class="text-muted">No data</small>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-md-3 col-sm-6 mb-3">
+    <div class="card h-100">
+        <div class="card-body">
+            <h6 class="text-muted mb-2" style="font-size: 12px;">Wind</h6>
+            {% if summary.avg_wind is not none %}
+            <h3 class="mb-1" style="color: var(--accent-magenta);">{{ "%.0f"|format(summary.avg_wind) }} mph</h3>
+            <small class="text-muted">
+                Max: {{ "%.0f"|format(summary.max_wind or 0) }} mph
+            </small>
+            {% else %}
+            <h3 class="mb-1 text-muted">--</h3>
+            <small class="text-muted">No data</small>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Update station count and timestamp -->
+<script>
+document.getElementById('station-count').textContent = '{{ summary.station_count }} stations';
+document.getElementById('last-updated').textContent = '{{ summary.station_count }} stations • Last updated just now';
+</script>

@@ -1,0 +1,66 @@
+<!-- State stations table -->
+{% if stations %}
+<div class="table-responsive">
+    <table class="table table-hover" style="margin-bottom: 0; color: var(--text-primary);">
+        <thead>
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <th style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Callsign</th>
+                <th class="text-end" style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Temp</th>
+                <th class="text-end" style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Humidity</th>
+                <th class="text-end" style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Pressure</th>
+                <th class="text-end" style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Wind</th>
+                <th class="text-end" style="padding: 12px 16px; color: var(--text-secondary); font-weight: 500; font-size: 12px;">Last Report</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for station in stations %}
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding: 12px 16px;">
+                    <a href="{{ url_for('dashboard.station', callsign=station.callsign) }}" style="color: var(--accent-cyan); text-decoration: none;">
+                        {{ station.callsign }}
+                    </a>
+                </td>
+                <td class="text-end" style="padding: 12px 16px;">
+                    {% if station.temperature is not none %}
+                    <span style="color: var(--accent-cyan);">{{ "%.1f"|format(station.temperature) }}°F</span>
+                    {% else %}--{% endif %}
+                </td>
+                <td class="text-end" style="padding: 12px 16px;">
+                    {% if station.humidity is not none %}
+                    {{ station.humidity }}%
+                    {% else %}--{% endif %}
+                </td>
+                <td class="text-end" style="padding: 12px 16px;">
+                    {% if station.pressure is not none %}
+                    {{ "%.1f"|format(station.pressure) }}
+                    {% else %}--{% endif %}
+                </td>
+                <td class="text-end" style="padding: 12px 16px;">
+                    {% if station.wind_speed is not none %}
+                    {{ "%.0f"|format(station.wind_speed) }}
+                    {% if station.wind_gust %}<span class="text-muted">({{ "%.0f"|format(station.wind_gust) }})</span>{% endif %}
+                    {% else %}--{% endif %}
+                </td>
+                <td class="text-end" style="padding: 12px 16px; color: var(--text-muted);">
+                    {% if station.last_report %}
+                    {{ station.last_report.strftime('%H:%M') }}
+                    {% else %}--{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Update station count badge -->
+<script>
+document.getElementById('station-count').textContent = '{{ stations | length }} stations';
+</script>
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted mb-3">No APRS weather stations found in this state.</p>
+    <a href="{{ url_for('dashboard.weather_states') }}" class="btn btn-outline-primary" style="color: var(--accent-cyan); border-color: var(--accent-cyan);">
+        View All States
+    </a>
+</div>
+{% endif %}
