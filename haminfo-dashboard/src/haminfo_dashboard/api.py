@@ -20,6 +20,12 @@ from haminfo_dashboard.queries import (
     get_map_stations,
     get_station_weather_reports,
 )
+from haminfo_dashboard.state_queries import (
+    get_state_stations,
+    compute_state_aggregates,
+    get_state_trends,
+    detect_state_alerts,
+)
 
 
 def _get_session():
@@ -412,5 +418,101 @@ def api_map_stations():
         }
 
         return jsonify(geojson)
+    finally:
+        session.close()
+
+
+# State weather dashboard endpoints
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/summary')
+def api_state_summary(state_code: str):
+    """State summary cards - returns HTMX partial."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        summary = compute_state_aggregates(stations)
+        return render_template(
+            'dashboard/partials/state_summary.html',
+            summary=summary,
+            state_code=state_code,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/summary/json')
+def api_state_summary_json(state_code: str):
+    """State summary - returns JSON."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        summary = compute_state_aggregates(stations)
+        return jsonify(summary)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/stations')
+def api_state_stations(state_code: str):
+    """State stations list - returns HTMX partial."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        return render_template(
+            'dashboard/partials/state_stations_table.html',
+            stations=stations,
+            state_code=state_code,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/stations/json')
+def api_state_stations_json(state_code: str):
+    """State stations - returns JSON."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        return jsonify(stations)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/alerts')
+def api_state_alerts(state_code: str):
+    """State alerts banner - returns HTMX partial."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        alerts = detect_state_alerts(stations)
+        return render_template(
+            'dashboard/partials/state_alerts.html',
+            alerts=alerts,
+            state_code=state_code,
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/alerts/json')
+def api_state_alerts_json(state_code: str):
+    """State alerts - returns JSON."""
+    session = _get_session()
+    try:
+        stations = get_state_stations(session, state_code)
+        alerts = detect_state_alerts(stations)
+        return jsonify(alerts)
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/api/dashboard/state/<state_code>/trends')
+def api_state_trends(state_code: str):
+    """State 24h trend data - returns JSON for Chart.js."""
+    session = _get_session()
+    try:
+        trends = get_state_trends(session, state_code)
+        return jsonify(trends)
     finally:
         session.close()

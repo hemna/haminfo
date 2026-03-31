@@ -2,6 +2,7 @@
 """Dashboard page routes."""
 
 from flask import render_template, request, redirect, url_for, Blueprint
+from sqlalchemy import text
 
 from haminfo.db.db import setup_session
 from haminfo_dashboard.queries import (
@@ -10,6 +11,13 @@ from haminfo_dashboard.queries import (
     get_top_stations,
     get_country_breakdown,
 )
+from haminfo_dashboard.state_queries import (
+    get_state_stations,
+    compute_state_aggregates,
+    get_state_trends,
+    detect_state_alerts,
+)
+from haminfo_dashboard.utils import US_STATE_BOUNDS
 
 dashboard_bp = Blueprint(
     'dashboard',
@@ -77,3 +85,64 @@ def station(callsign: str):
         return redirect(url_for('dashboard.station', callsign=search_query))
 
     return render_template('dashboard/station.html', callsign=callsign)
+
+
+@dashboard_bp.route('/weather/states')
+def weather_states():
+    """Weather by state landing page."""
+    session = _get_session()
+    try:
+        # Get station counts per state
+        query = text("""
+            SELECT state, COUNT(*) as count 
+            FROM weather_station 
+            WHERE country_code = 'US' AND state IS NOT NULL
+            GROUP BY state
+        """)
+        result = session.execute(query)
+        state_counts = {row.state: row.count for row in result}
+
+        # Build state data with names
+        states_data = []
+        for code, (name, *_) in US_STATE_BOUNDS.items():
+            states_data.append(
+                {
+                    'code': code,
+                    'name': name,
+                    'station_count': state_counts.get(code, 0),
+                }
+            )
+
+        # Sort by name
+        states_data.sort(key=lambda x: x['name'])
+
+        return render_template(
+            'dashboard/states.html',
+            states=states_data,
+            total_stations=sum(state_counts.values()),
+        )
+    finally:
+        session.close()
+
+
+@dashboard_bp.route('/weather/state/<state_code>')
+def weather_state_detail(state_code: str):
+    """State weather dashboard page."""
+    state_code = state_code.upper()
+
+    # Validate state code
+    if state_code not in US_STATE_BOUNDS:
+        return render_template(
+            'dashboard/state_detail.html',
+            state_code=state_code,
+            state_name=None,
+            error='State not found',
+        )
+
+    state_name = US_STATE_BOUNDS[state_code][0]
+
+    return render_template(
+        'dashboard/state_detail.html',
+        state_code=state_code,
+        state_name=state_name,
+    )
