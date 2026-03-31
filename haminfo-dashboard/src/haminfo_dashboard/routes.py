@@ -90,7 +90,7 @@ def weather_states():
         query = text("""
             SELECT state, COUNT(*) as count
             FROM weather_station
-            WHERE country_code = 'US' AND state IS NOT NULL
+            WHERE UPPER(country_code) = 'US' AND state IS NOT NULL
             GROUP BY state
         """)
         result = session.execute(query)

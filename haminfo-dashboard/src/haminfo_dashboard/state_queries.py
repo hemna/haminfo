@@ -52,7 +52,7 @@ def get_state_stations(session: Session, state_code: str) -> list[dict[str, Any]
             ORDER BY time DESC LIMIT 1
         ) wr ON true
         WHERE ws.state = :state_code
-          AND ws.country_code = 'US'
+          AND UPPER(ws.country_code) = 'US'
     """)
 
     result = session.execute(query, {'state_code': state_code})
@@ -142,7 +142,7 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
         FROM weather_report wr
         JOIN weather_station ws ON wr.weather_station_id = ws.id
         WHERE ws.state = :state_code
-          AND ws.country_code = 'US'
+          AND UPPER(ws.country_code) = 'US'
           AND wr.time > NOW() - INTERVAL '24 hours'
         GROUP BY hour
         ORDER BY hour
