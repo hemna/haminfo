@@ -380,6 +380,7 @@
             </a>
             <nav class="nav">
                 <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if request.endpoint == 'dashboard.index' else '' }}">Home</a>
+                <a href="{{ url_for('dashboard.countries') }}" class="{{ 'active' if request.endpoint in ('dashboard.countries', 'dashboard.country_detail') else '' }}">Countries</a>
                 <a href="{{ url_for('dashboard.weather') }}" class="{{ 'active' if request.endpoint == 'dashboard.weather' else '' }}">Weather</a>
                 <a href="{{ url_for('dashboard.weather_states') }}" class="{{ 'active' if request.endpoint in ('dashboard.weather_states', 'dashboard.weather_state_detail') else '' }}">States</a>
                 <a href="{{ url_for('dashboard.map_view') }}" class="{{ 'active' if request.endpoint == 'dashboard.map_view' else '' }}">Map</a>

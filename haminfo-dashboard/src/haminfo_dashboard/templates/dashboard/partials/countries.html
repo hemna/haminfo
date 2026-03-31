@@ -13,12 +13,25 @@
         <span>Packets (24h)</span>
     </div>
     {% for country in countries %}
-    <div class="country-item" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
-        <span>{{ country_flags.get(country.country_code, '🏳️') }} {{ country.country_name }}</span>
+    <a href="{{ url_for('dashboard.country_detail', country_code=country.country_code) }}" 
+       class="country-item" 
+       style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);text-decoration:none;transition:background 0.15s;">
+        <span style="color:var(--text-primary);">{{ country_flags.get(country.country_code, '🏳️') }} {{ country.country_name }}</span>
         <span style="color:var(--text-secondary);">{{ country.count | format_number }}</span>
-    </div>
+    </a>
     {% endfor %}
+    <div style="padding-top:12px;text-align:center;">
+        <a href="{{ url_for('dashboard.countries') }}" style="color:var(--accent-cyan);font-size:12px;text-decoration:none;">View all countries →</a>
+    </div>
 </div>
+<style>
+    .country-item:hover {
+        background: var(--bg-card-hover);
+        margin: 0 -16px;
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+</style>
 {% else %}
 <div style="color:var(--text-muted);text-align:center;padding:20px;">No data</div>
 {% endif %}
