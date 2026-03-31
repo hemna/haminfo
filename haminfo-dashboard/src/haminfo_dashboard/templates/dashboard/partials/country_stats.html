@@ -1,0 +1,24 @@
+<!-- haminfo/templates/dashboard/partials/country_stats.html -->
+<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="stat-card green">
+        <div class="stat-value">{{ stats.packets_24h | format_number }}</div>
+        <div class="stat-label">Packets (24h)</div>
+    </div>
+    <div class="stat-card cyan">
+        <div class="stat-value">{{ stats.unique_stations | format_number }}</div>
+        <div class="stat-label">Unique Stations</div>
+    </div>
+    <div class="stat-card yellow">
+        {% if stats.top_station %}
+        <div class="stat-value" style="font-size: 22px;">
+            <a href="{{ url_for('dashboard.station', callsign=stats.top_station) }}" 
+               style="color: var(--accent-yellow); text-decoration: none;">
+                {{ stats.top_station }}
+            </a>
+        </div>
+        {% else %}
+        <div class="stat-value">-</div>
+        {% endif %}
+        <div class="stat-label">Top Station</div>
+    </div>
+</div>

@@ -1,0 +1,193 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ country_name }} - APRS Dashboard{% endblock %}
+
+{% block header_right %}
+<div class="live-indicator">LIVE</div>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="margin-bottom: 20px;">
+    <nav style="font-size: 13px; margin-bottom: 8px;">
+        <a href="{{ url_for('dashboard.countries') }}" style="color: var(--accent-cyan); text-decoration: none;">Countries</a>
+        <span style="color: var(--text-muted);"> / </span>
+        <span style="color: var(--text-muted);">{{ country_name }}</span>
+    </nav>
+    <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 4px;">
+        <span style="font-size: 28px; margin-right: 8px;">{{ country_flag }}</span>
+        {{ country_name }} APRS Traffic
+    </h1>
+    <p style="color: var(--text-secondary); font-size: 13px;">Live APRS packets from {{ country_code }} callsign prefixes</p>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+    <div class="stat-card green">
+        <div class="stat-value">{{ stats.packets_24h | format_number }}</div>
+        <div class="stat-label">Packets (24h)</div>
+    </div>
+    <div class="stat-card cyan">
+        <div class="stat-value">{{ stats.unique_stations | format_number }}</div>
+        <div class="stat-label">Unique Stations</div>
+    </div>
+    <div class="stat-card yellow">
+        {% if stats.top_station %}
+        <div class="stat-value" style="font-size: 22px;">
+            <a href="{{ url_for('dashboard.station', callsign=stats.top_station) }}" 
+               style="color: var(--accent-yellow); text-decoration: none;">
+                {{ stats.top_station }}
+            </a>
+        </div>
+        {% else %}
+        <div class="stat-value">-</div>
+        {% endif %}
+        <div class="stat-label">Top Station</div>
+    </div>
+</div>
+
+<!-- Main Grid -->
+<div class="grid-2x2">
+    <!-- Live Feed - Full width -->
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-header">
+            <span class="card-title">{{ country_flag }} Live {{ country_code }} Traffic</span>
+            <span class="live-indicator">streaming</span>
+        </div>
+        <div class="card-body">
+            <div id="live-feed" class="live-feed">
+                <div class="live-feed-item" style="color: var(--text-muted);">
+                    Waiting for {{ country_code }} packets...
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Stations -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Top Stations (24h)</span>
+        </div>
+        <div class="card-body"
+             hx-get="{{ url_for('dashboard.api_country_top_stations', country_code=country_code) }}"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML">
+            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                Loading stations...
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats / Info -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Country Info</span>
+        </div>
+        <div class="card-body">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                    <span style="color: var(--text-secondary);">Country Code</span>
+                    <span style="color: var(--accent-cyan); font-family: monospace;">{{ country_code }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                    <span style="color: var(--text-secondary);">Name</span>
+                    <span style="color: var(--text-primary);">{{ country_name }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                    <span style="color: var(--text-secondary);">Packets (24h)</span>
+                    <span style="color: var(--accent-green);">{{ stats.packets_24h | format_number }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                    <span style="color: var(--text-secondary);">Active Stations</span>
+                    <span style="color: var(--accent-yellow);">{{ stats.unique_stations | format_number }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const MAX_FEED_ITEMS = 50;
+    const feedContainer = document.getElementById('live-feed');
+    const COUNTRY_CODE = '{{ country_code }}';
+    
+    // Packet type colors matching APRSD
+    const typeColors = {
+        'position': '#1AA730',
+        'weather': '#00BCD4',
+        'status': '#FFC107',
+        'message': '#E91E63',
+        'telemetry': '#9C27B0',
+        'object': '#FF5722',
+        'unknown': '#607D8B'
+    };
+    
+    function handlePacket(packet) {
+        const item = document.createElement('div');
+        item.className = 'live-feed-item packet-row';
+        item.style.cssText = 'font-family: "Fira Code", "Consolas", monospace; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;';
+        
+        // Store raw packet and callsign for modal display
+        item.dataset.raw = packet.raw || '';
+        item.dataset.callsign = packet.from_call || '';
+        item.onclick = function() { showPacketModal(this.dataset.raw, this.dataset.callsign); };
+        
+        const typeColor = typeColors[packet.packet_type] || typeColors['unknown'];
+        const pktType = (packet.packet_type || 'unknown').charAt(0).toUpperCase() + (packet.packet_type || 'unknown').slice(1);
+        
+        // Build APRSD-style compact format:
+        // PacketType FROM → path → TO : human_info
+        let html = `<span style="color:${typeColor};font-weight:bold;min-width:65px;">${pktType}</span>`;
+        html += `<span style="color:#C70039;font-weight:bold;">${packet.from_call || '?'}</span>`;
+        html += `<span style="color:#1AA730;">→</span>`;
+        
+        if (packet.path) {
+            html += `<span style="color:var(--text-muted);font-size:10px;">${packet.path}</span>`;
+            html += `<span style="color:#1AA730;">→</span>`;
+        }
+        
+        html += `<span style="color:#D033FF;">${packet.to_call || 'APRS'}</span>`;
+        
+        // Show addressee for message/ack packets
+        if (packet.addressee) {
+            html += `<span style="color:#1AA730;">→</span>`;
+            html += `<span style="color:#FF6B35;font-weight:bold;">${packet.addressee}</span>`;
+        }
+        
+        html += `<span style="color:var(--text-muted);">:</span>`;
+        html += `<span style="color:#FFD54F;flex:1;">${packet.human_info || ''}</span>`;
+        
+        item.innerHTML = html;
+        
+        // Remove "waiting" message if present
+        const waiting = feedContainer.querySelector('[style*="text-muted"]');
+        if (waiting && waiting.textContent.includes('Waiting')) waiting.remove();
+        
+        // Add to top
+        feedContainer.insertBefore(item, feedContainer.firstChild);
+        
+        // Trim old items
+        while (feedContainer.children.length > MAX_FEED_ITEMS) {
+            feedContainer.removeChild(feedContainer.lastChild);
+        }
+    }
+    
+    // Join country-specific room on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Leave the global live_feed room (we don't want all packets)
+        // and join the country-specific room
+        socket.emit('join_country', { country_code: COUNTRY_CODE });
+        
+        socket.on('country_joined', function(data) {
+            console.log('Joined country room:', data.room);
+        });
+    });
+    
+    // Leave country room on page unload
+    window.addEventListener('beforeunload', function() {
+        socket.emit('leave_country', { country_code: COUNTRY_CODE });
+    });
+</script>
+{% endblock %}
