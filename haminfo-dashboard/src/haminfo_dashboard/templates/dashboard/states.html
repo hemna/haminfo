@@ -1,0 +1,95 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Weather by State - Ham Radio Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Weather by State</h1>
+            <p class="text-muted">Select a state to view detailed weather conditions from APRS weather stations</p>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="mb-0">{{ total_stations | format_number }}</h3>
+                    <small class="text-muted">Total US Weather Stations</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="mb-0">{{ states | selectattr('station_count', 'gt', 0) | list | length }}</h3>
+                    <small class="text-muted">States with Coverage</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    {% if total_stations and states %}
+                    <h3 class="mb-0">{{ (total_stations / (states | selectattr('station_count', 'gt', 0) | list | length or 1)) | round | int }}</h3>
+                    {% else %}
+                    <h3 class="mb-0">0</h3>
+                    {% endif %}
+                    <small class="text-muted">Avg Stations per State</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- States Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">All States</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="states-table">
+                    <thead>
+                        <tr>
+                            <th>State</th>
+                            <th>Code</th>
+                            <th class="text-end">Stations</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for state in states %}
+                        <tr {% if state.station_count == 0 %}class="text-muted"{% endif %}>
+                            <td>{{ state.name }}</td>
+                            <td><code>{{ state.code }}</code></td>
+                            <td class="text-end">{{ state.station_count }}</td>
+                            <td class="text-end">
+                                {% if state.station_count > 0 %}
+                                <a href="{{ url_for('dashboard.weather_state_detail', state_code=state.code) }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    View
+                                </a>
+                                {% else %}
+                                <span class="badge bg-secondary">No data</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+#states-table {
+    font-size: 0.9rem;
+}
+#states-table tbody tr:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+</style>
+{% endblock %}
