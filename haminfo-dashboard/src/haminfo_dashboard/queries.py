@@ -690,10 +690,10 @@ def _get_country_breakdown_from_raw(
 
 @cached('dashboard:all_countries', ttl=300)
 def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
-    """Get packet count for ALL countries using geographic filtering.
+    """Get packet count for ALL countries using country_code column.
 
-    Uses PostGIS spatial join to accurately determine country from coordinates,
-    rather than callsign prefix matching.
+    Uses the denormalized country_code column for fast queries.
+    Falls back to prefix-based matching if country_code not populated.
 
     Args:
         session: Database session.
@@ -701,38 +701,40 @@ def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
     Returns:
         List of dicts with country_code, country_name, count, sorted by count desc.
     """
-    # Check if we have the countries table
+    # Check if we have country_code data (denormalized - fast)
     try:
-        result = session.execute(text('SELECT 1 FROM countries LIMIT 1'))
-        has_countries_table = result.fetchone() is not None
+        result = session.execute(
+            text('SELECT 1 FROM aprs_packet WHERE country_code IS NOT NULL LIMIT 1')
+        )
+        has_country_code = result.fetchone() is not None
     except Exception:
-        has_countries_table = False
+        has_country_code = False
 
-    if has_countries_table:
-        return _get_all_countries_from_spatial(session)
+    if has_country_code:
+        return _get_all_countries_from_country_code(session)
 
-    # Fallback to prefix-based if countries table not loaded
+    # Fallback to prefix-based if country_code not populated yet
     if USE_CONTINUOUS_AGGREGATES:
         return _get_all_countries_from_aggregates(session)
     return _get_all_countries_from_raw(session)
 
 
-def _get_all_countries_from_spatial(session: Session) -> list[dict[str, Any]]:
-    """Get country breakdown using PostGIS spatial join."""
+def _get_all_countries_from_country_code(session: Session) -> list[dict[str, Any]]:
+    """Get country breakdown using denormalized country_code column (fast)."""
     from haminfo_dashboard.utils import COUNTRY_FLAGS
 
+    # Get country names from countries table
     query = text("""
         SELECT
-            c.iso_a2 as country_code,
-            c.name as country_name,
+            p.country_code,
+            COALESCE(c.name, p.country_code) as country_name,
             COUNT(DISTINCT p.from_call) as unique_stations,
             COUNT(*) as packet_count
         FROM aprs_packet p
-        JOIN countries c ON ST_Contains(c.geom, ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326))
+        LEFT JOIN countries c ON c.iso_a2 = p.country_code
         WHERE p.received_at > NOW() - INTERVAL '24 hours'
-          AND p.latitude IS NOT NULL
-          AND p.longitude IS NOT NULL
-        GROUP BY c.iso_a2, c.name
+          AND p.country_code IS NOT NULL
+        GROUP BY p.country_code, c.name
         ORDER BY packet_count DESC
     """)
 
