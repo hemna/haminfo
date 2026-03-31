@@ -680,6 +680,229 @@ def _get_country_breakdown_from_raw(
     return result[:limit]
 
 
+@cached('dashboard:all_countries', ttl=300)
+def get_all_countries_breakdown(session: Session) -> list[dict[str, Any]]:
+    """Get packet count for ALL countries (not limited).
+
+    Args:
+        session: Database session.
+
+    Returns:
+        List of dicts with country_code, country_name, count, sorted by count desc.
+    """
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_all_countries_from_aggregates(session)
+    return _get_all_countries_from_raw(session)
+
+
+def _get_all_countries_from_aggregates(session: Session) -> list[dict[str, Any]]:
+    """Get all countries breakdown from continuous aggregates."""
+    prefix_counts = session.execute(
+        text("""
+        SELECT prefix, SUM(packet_count) as count
+        FROM aprs_prefix_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        GROUP BY prefix
+    """)
+    ).fetchall()
+
+    country_counts: dict[tuple[str, str], int] = {}
+
+    for row in prefix_counts:
+        prefix = row.prefix
+        count = int(row.count)
+        if not prefix:
+            continue
+        country_info = None
+        if len(prefix) >= 2:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:2])
+        if not country_info and len(prefix) >= 1:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:1])
+
+        if country_info:
+            key = country_info
+            country_counts[key] = country_counts.get(key, 0) + count
+
+    result = [
+        {'country_code': code, 'country_name': name, 'count': cnt}
+        for (code, name), cnt in country_counts.items()
+    ]
+    result.sort(key=lambda x: x['count'], reverse=True)
+
+    return result
+
+
+def _get_all_countries_from_raw(session: Session) -> list[dict[str, Any]]:
+    """Get all countries breakdown from raw table (fallback)."""
+    now = datetime.now(timezone.utc)
+    last_24h = now - timedelta(hours=24)
+
+    prefix_counts = (
+        session.query(
+            func.substring(APRSPacket.from_call, 1, 2).label('prefix'),
+            func.count(APRSPacket.from_call).label('count'),
+        )
+        .filter(APRSPacket.received_at >= last_24h)
+        .group_by(func.substring(APRSPacket.from_call, 1, 2))
+        .all()
+    )
+
+    country_counts: dict[tuple[str, str], int] = {}
+
+    for prefix, count in prefix_counts:
+        if not prefix:
+            continue
+        country_info = None
+        if len(prefix) >= 2:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:2])
+        if not country_info and len(prefix) >= 1:
+            country_info = CALLSIGN_PREFIXES.get(prefix[:1])
+
+        if country_info:
+            key = country_info
+            country_counts[key] = country_counts.get(key, 0) + count
+
+    result = [
+        {'country_code': code, 'country_name': name, 'count': cnt}
+        for (code, name), cnt in country_counts.items()
+    ]
+    result.sort(key=lambda x: x['count'], reverse=True)
+
+    return result
+
+
+@cached('dashboard:country_stats:{country_code}', ttl=60)
+def get_country_stats(session: Session, country_code: str) -> dict[str, Any]:
+    """Get statistics for a specific country.
+
+    Args:
+        session: Database session.
+        country_code: ISO country code (e.g., 'US').
+
+    Returns:
+        Dict with packets_24h, unique_stations, top_station.
+    """
+    from haminfo_dashboard.utils import get_callsign_prefixes_for_country
+
+    prefixes = get_callsign_prefixes_for_country(country_code)
+    if not prefixes:
+        return {'packets_24h': 0, 'unique_stations': 0, 'top_station': None}
+
+    # Get top stations for this country to calculate stats
+    top_stations = get_country_top_stations(session, country_code, limit=100)
+
+    packets_24h = sum(s['count'] for s in top_stations)
+    unique_stations = len(top_stations)
+    top_station = top_stations[0] if top_stations else None
+
+    return {
+        'packets_24h': packets_24h,
+        'unique_stations': unique_stations,
+        'top_station': top_station,
+    }
+
+
+@cached('dashboard:country_top_stations:{country_code}:{limit}', ttl=60)
+def get_country_top_stations(
+    session: Session, country_code: str, limit: int = 10
+) -> list[dict[str, Any]]:
+    """Get top stations for a country by packet count (24h).
+
+    Args:
+        session: Database session.
+        country_code: ISO country code (e.g., 'US').
+        limit: Maximum number of stations to return.
+
+    Returns:
+        List of dicts with callsign, count.
+    """
+    from haminfo_dashboard.utils import get_callsign_prefixes_for_country
+
+    prefixes = get_callsign_prefixes_for_country(country_code)
+    if not prefixes:
+        return []
+
+    if USE_CONTINUOUS_AGGREGATES:
+        return _get_country_top_stations_from_aggregates(session, prefixes, limit)
+    return _get_country_top_stations_from_raw(session, prefixes, limit)
+
+
+def _get_country_top_stations_from_aggregates(
+    session: Session, prefixes: list[str], limit: int
+) -> list[dict[str, Any]]:
+    """Get country top stations from continuous aggregates."""
+    results = session.execute(
+        text("""
+        SELECT from_call, SUM(packet_count) as total_count
+        FROM aprs_station_stats_hourly
+        WHERE bucket >= NOW() - INTERVAL '24 hours'
+        GROUP BY from_call
+        ORDER BY total_count DESC
+    """)
+    ).fetchall()
+
+    # Filter by prefix in Python (more flexible than complex SQL)
+    stations = []
+    for row in results:
+        callsign = row.from_call
+        base_call = callsign.split('-')[0].upper() if callsign else ''
+
+        # Check if callsign matches any of our country prefixes
+        matched = False
+        for prefix in prefixes:
+            if base_call.startswith(prefix):
+                matched = True
+                break
+
+        if matched:
+            stations.append(
+                {
+                    'callsign': callsign,
+                    'count': int(row.total_count),
+                }
+            )
+            if len(stations) >= limit:
+                break
+
+    return stations
+
+
+def _get_country_top_stations_from_raw(
+    session: Session, prefixes: list[str], limit: int
+) -> list[dict[str, Any]]:
+    """Get country top stations from raw table (fallback)."""
+    now = datetime.now(timezone.utc)
+    last_24h = now - timedelta(hours=24)
+
+    results = (
+        session.query(
+            APRSPacket.from_call,
+            func.count(APRSPacket.from_call).label('count'),
+        )
+        .filter(APRSPacket.received_at >= last_24h)
+        .group_by(APRSPacket.from_call)
+        .order_by(func.count(APRSPacket.from_call).desc())
+        .all()
+    )
+
+    stations = []
+    for callsign, count in results:
+        base_call = callsign.split('-')[0].upper() if callsign else ''
+
+        matched = False
+        for prefix in prefixes:
+            if base_call.startswith(prefix):
+                matched = True
+                break
+
+        if matched:
+            stations.append({'callsign': callsign, 'count': count})
+            if len(stations) >= limit:
+                break
+
+    return stations
+
+
 @cached('dashboard:daily_packets', ttl=300)
 def get_daily_packet_counts(session: Session, days: int = 7) -> dict[str, list]:
     """Get packet count per day for the last N days.
