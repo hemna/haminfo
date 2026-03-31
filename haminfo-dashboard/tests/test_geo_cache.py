@@ -1,6 +1,7 @@
 """Tests for geographic caching module."""
 
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -175,3 +176,108 @@ class TestGlobalCache:
         """geo_cache should be a GeoCache instance."""
         assert geo_cache is not None
         assert isinstance(geo_cache, GeoCache)
+
+
+class TestReverseGeocode:
+    """Tests for reverse_geocode function."""
+
+    def test_reverse_geocode_finds_country(self):
+        """Test that reverse_geocode finds country for valid coordinates."""
+        from haminfo_dashboard.geo_cache import reverse_geocode
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.return_value = ('US',)
+
+        result = reverse_geocode(mock_session, 40.7128, -74.006)
+        assert result.country_code == 'US'
+
+    def test_reverse_geocode_finds_us_state(self):
+        """Test that reverse_geocode finds state for US coordinates."""
+        from haminfo_dashboard.geo_cache import reverse_geocode
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.side_effect = [
+            ('US',),  # Country query
+            ('NY',),  # State query
+        ]
+
+        result = reverse_geocode(mock_session, 40.7128, -74.006)
+        assert result.country_code == 'US'
+        assert result.state_code == 'NY'
+
+    def test_reverse_geocode_no_state_for_non_us(self):
+        """Test that non-US countries don't get state lookup."""
+        from haminfo_dashboard.geo_cache import reverse_geocode
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.return_value = ('DE',)
+
+        result = reverse_geocode(mock_session, 52.52, 13.405)  # Berlin
+        assert result.country_code == 'DE'
+        assert result.state_code is None
+        assert mock_session.execute.call_count == 1  # Only country query
+
+    def test_reverse_geocode_ocean_returns_none(self):
+        """Test that ocean coordinates return None country."""
+        from haminfo_dashboard.geo_cache import reverse_geocode
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.return_value = None
+
+        result = reverse_geocode(mock_session, 0.0, 0.0)
+        assert result.country_code is None
+        assert result.state_code is None
+
+
+class TestGetLocationInfo:
+    """Tests for get_location_info function."""
+
+    def test_get_location_info_uses_cache(self):
+        """Test that get_location_info checks cache first."""
+        from haminfo_dashboard.geo_cache import get_location_info
+
+        geo_cache.put(42.0, -71.0, LocationInfo('US', 'MA'))
+
+        mock_session = MagicMock()
+        result = get_location_info(mock_session, 42.0, -71.0)
+
+        assert result.country_code == 'US'
+        mock_session.execute.assert_not_called()  # Cache hit
+        geo_cache.clear()
+
+    def test_get_location_info_cache_miss_queries_db(self):
+        """Test that cache miss triggers DB query."""
+        from haminfo_dashboard.geo_cache import get_location_info
+
+        geo_cache.clear()
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.side_effect = [('US',), ('CA',)]
+
+        result = get_location_info(mock_session, 34.0522, -118.2437)
+
+        assert result.country_code == 'US'
+        assert result.state_code == 'CA'
+        assert mock_session.execute.call_count == 2
+        geo_cache.clear()
+
+    def test_get_location_info_caches_result(self):
+        """Test that DB result is cached for future lookups."""
+        from haminfo_dashboard.geo_cache import get_location_info
+
+        geo_cache.clear()
+
+        mock_session = MagicMock()
+        mock_session.execute.return_value.fetchone.return_value = ('JP',)
+
+        # First call - cache miss
+        result1 = get_location_info(mock_session, 35.6762, 139.6503)
+        mock_session.reset_mock()
+
+        # Second call - should be cache hit
+        result2 = get_location_info(mock_session, 35.6762, 139.6503)
+
+        assert result1.country_code == 'JP'
+        assert result2.country_code == 'JP'
+        mock_session.execute.assert_not_called()  # Second call used cache
+        geo_cache.clear()

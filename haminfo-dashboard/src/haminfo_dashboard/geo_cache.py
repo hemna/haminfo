@@ -6,9 +6,12 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 import threading
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-# TYPE_CHECKING block reserved for future use (e.g., Session for DB lookups)
+from sqlalchemy import text
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 @dataclass
@@ -81,6 +84,63 @@ class GeoCache:
             self._cache.clear()
             self._hits = 0
             self._misses = 0
+
+
+def reverse_geocode(session: 'Session', lat: float, lon: float) -> LocationInfo:
+    """Look up country and state for coordinates using PostGIS.
+
+    Queries the countries table (and us_states if in US) to determine
+    the geographic location for the given coordinates.
+    """
+    # Query countries table
+    country_query = text("""
+        SELECT iso_a2
+        FROM countries
+        WHERE ST_Contains(geom, ST_SetSRID(ST_Point(:lon, :lat), 4326))
+        LIMIT 1
+    """)
+
+    result = session.execute(country_query, {'lat': lat, 'lon': lon}).fetchone()
+
+    if not result:
+        return LocationInfo(country_code=None, state_code=None)
+
+    country_code = result[0]
+    state_code = None
+
+    # If US, also query state
+    if country_code == 'US':
+        state_query = text("""
+            SELECT state_code
+            FROM us_states
+            WHERE ST_Contains(geom, ST_SetSRID(ST_Point(:lon, :lat), 4326))
+            LIMIT 1
+        """)
+        state_result = session.execute(state_query, {'lat': lat, 'lon': lon}).fetchone()
+        if state_result:
+            state_code = state_result[0]
+
+    return LocationInfo(country_code=country_code, state_code=state_code)
+
+
+def get_location_info(session: 'Session', lat: float, lon: float) -> LocationInfo:
+    """Get location info with caching.
+
+    Checks the global geo_cache first, falls back to PostGIS query
+    on cache miss, and caches the result for future lookups.
+    """
+    # Check cache first
+    cached = geo_cache.get(lat, lon)
+    if cached is not None:
+        return cached
+
+    # Cache miss - query PostGIS
+    info = reverse_geocode(session, lat, lon)
+
+    # Cache result (including None for ocean/invalid - negative caching)
+    geo_cache.put(lat, lon, info)
+
+    return info
 
 
 # Global cache instance
