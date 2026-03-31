@@ -59,6 +59,22 @@ def api_stats_json():
         session.close()
 
 
+@dashboard_bp.route('/api/dashboard/geo-cache-stats')
+def api_geo_cache_stats():
+    """Get geo cache statistics."""
+    from haminfo_dashboard.geo_cache import geo_cache
+
+    stats = geo_cache.stats
+    return jsonify(
+        {
+            'hits': stats['hits'],
+            'misses': stats['misses'],
+            'size': stats['size'],
+            'hit_rate': round(stats['hit_rate'] * 100, 1),
+        }
+    )
+
+
 # Top stations endpoints
 @dashboard_bp.route('/api/dashboard/top-stations')
 def api_top_stations():
