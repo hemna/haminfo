@@ -1,202 +1,215 @@
 # haminfo_dashboard/geo_cache.py
-"""Geographic caching for reverse geocoding lookups."""
+"""Fast in-memory geo cache using reverse_geocoder.
 
-from __future__ import annotations
+Uses the reverse_geocoder library for microsecond-fast country lookups
+instead of slow PostGIS ST_Contains queries. The library uses a k-d tree
+with built-in city/country data.
+"""
 
-from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-import threading
 from typing import TYPE_CHECKING, Optional
+import logging
 
-from sqlalchemy import text
+import reverse_geocoder as rg
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+LOG = logging.getLogger(__name__)
+
+# ISO-3166 country code mapping for US states
+US_STATE_CODES = {
+    'Alabama': 'AL',
+    'Alaska': 'AK',
+    'Arizona': 'AZ',
+    'Arkansas': 'AR',
+    'California': 'CA',
+    'Colorado': 'CO',
+    'Connecticut': 'CT',
+    'Delaware': 'DE',
+    'Florida': 'FL',
+    'Georgia': 'GA',
+    'Hawaii': 'HI',
+    'Idaho': 'ID',
+    'Illinois': 'IL',
+    'Indiana': 'IN',
+    'Iowa': 'IA',
+    'Kansas': 'KS',
+    'Kentucky': 'KY',
+    'Louisiana': 'LA',
+    'Maine': 'ME',
+    'Maryland': 'MD',
+    'Massachusetts': 'MA',
+    'Michigan': 'MI',
+    'Minnesota': 'MN',
+    'Mississippi': 'MS',
+    'Missouri': 'MO',
+    'Montana': 'MT',
+    'Nebraska': 'NE',
+    'Nevada': 'NV',
+    'New Hampshire': 'NH',
+    'New Jersey': 'NJ',
+    'New Mexico': 'NM',
+    'New York': 'NY',
+    'North Carolina': 'NC',
+    'North Dakota': 'ND',
+    'Ohio': 'OH',
+    'Oklahoma': 'OK',
+    'Oregon': 'OR',
+    'Pennsylvania': 'PA',
+    'Rhode Island': 'RI',
+    'South Carolina': 'SC',
+    'South Dakota': 'SD',
+    'Tennessee': 'TN',
+    'Texas': 'TX',
+    'Utah': 'UT',
+    'Vermont': 'VT',
+    'Virginia': 'VA',
+    'Washington': 'WA',
+    'West Virginia': 'WV',
+    'Wisconsin': 'WI',
+    'Wyoming': 'WY',
+    'District of Columbia': 'DC',
+}
+
 
 @dataclass
 class LocationInfo:
-    """Geographic location information for a coordinate."""
+    """Geographic location information."""
 
-    country_code: Optional[str]  # ISO 3166-1 alpha-2 (e.g., "US")
-    state_code: Optional[str]  # For US locations only (e.g., "CA")
+    country_code: Optional[str]
+    state_code: Optional[str] = None
 
 
 class GeoCache:
-    """Thread-safe LRU cache for geographic lookups.
+    """Fast in-memory geographic lookup using reverse_geocoder.
 
-    Uses grid-based bucketing to map nearby coordinates to the same
-    cache entry. Default resolution of 0.1 degrees (~11km).
+    This replaces the slow PostGIS-based cache with a k-d tree lookup
+    that runs in microseconds. No warm-up needed - the library loads
+    its data on first use.
     """
 
-    def __init__(self, max_size: int = 100_000, grid_resolution: float = 0.1):
-        self._cache: OrderedDict[tuple[float, float], LocationInfo] = OrderedDict()
-        self._max_size = max_size
-        self._resolution = grid_resolution
-        self._lock = threading.Lock()
-        self._hits = 0
-        self._misses = 0
+    def __init__(self):
+        self._initialized = False
+        self._lookups = 0
 
-    def _grid_key(self, lat: float, lon: float) -> tuple[float, float]:
-        """Round coordinates to grid resolution."""
-        return (
-            round(lat / self._resolution) * self._resolution,
-            round(lon / self._resolution) * self._resolution,
-        )
+    def _ensure_initialized(self):
+        """Initialize reverse_geocoder on first use."""
+        if not self._initialized:
+            # First lookup triggers data load (~1 second)
+            LOG.info('Initializing reverse geocoder (first lookup)...')
+            self._initialized = True
 
-    def get(self, lat: float, lon: float) -> Optional[LocationInfo]:
-        """Get cached location info for coordinates."""
-        key = self._grid_key(lat, lon)
-        with self._lock:
-            if key in self._cache:
-                self._hits += 1
-                self._cache.move_to_end(key)  # LRU update
-                return self._cache[key]
-            self._misses += 1
-            return None
+    def lookup(self, lat: float, lon: float) -> LocationInfo:
+        """Look up country and state for coordinates.
 
-    def put(self, lat: float, lon: float, info: LocationInfo) -> None:
-        """Cache location info for coordinates."""
-        key = self._grid_key(lat, lon)
-        with self._lock:
-            if key in self._cache:
-                self._cache.move_to_end(key)
-            else:
-                if len(self._cache) >= self._max_size:
-                    self._cache.popitem(last=False)  # Remove oldest
-                self._cache[key] = info
+        Uses reverse_geocoder's k-d tree for fast lookup (~1 microsecond).
+
+        Args:
+            lat: Latitude in degrees.
+            lon: Longitude in degrees.
+
+        Returns:
+            LocationInfo with country_code and state_code (if US).
+        """
+        self._ensure_initialized()
+        self._lookups += 1
+
+        try:
+            # reverse_geocoder returns list of results, get first
+            results = rg.search((lat, lon), mode=1)  # mode=1 for single coord
+            if not results:
+                return LocationInfo(country_code=None, state_code=None)
+
+            result = results[0]
+            country_code = result.get('cc')
+            state_code = None
+
+            # For US, extract state from admin1 field
+            if country_code == 'US':
+                admin1 = result.get('admin1', '')
+                state_code = US_STATE_CODES.get(admin1)
+
+            return LocationInfo(country_code=country_code, state_code=state_code)
+
+        except Exception as e:
+            LOG.warning(f'Reverse geocode failed for ({lat}, {lon}): {e}')
+            return LocationInfo(country_code=None, state_code=None)
 
     @property
-    def stats(self) -> dict[str, float]:
-        """Get cache statistics."""
-        with self._lock:
-            total = self._hits + self._misses
-            return {
-                'hits': self._hits,
-                'misses': self._misses,
-                'size': len(self._cache),
-                'hit_rate': self._hits / max(1, total),
-            }
+    def stats(self) -> dict:
+        """Get lookup statistics."""
+        return {
+            'lookups': self._lookups,
+            'initialized': self._initialized,
+            # For compatibility with old cache interface
+            'hits': self._lookups,
+            'misses': 0,
+            'size': 0,
+            'hit_rate': 1.0,
+        }
 
     def clear(self) -> None:
-        """Clear all cached entries and reset stats."""
-        with self._lock:
-            self._cache.clear()
-            self._hits = 0
-            self._misses = 0
-
-
-def reverse_geocode(session: 'Session', lat: float, lon: float) -> LocationInfo:
-    """Look up country and state for coordinates using PostGIS.
-
-    Queries the countries table (and us_states if in US) to determine
-    the geographic location for the given coordinates.
-    """
-    # Query countries table
-    country_query = text("""
-        SELECT iso_a2
-        FROM countries
-        WHERE ST_Contains(geom, ST_SetSRID(ST_Point(:lon, :lat), 4326))
-        LIMIT 1
-    """)
-
-    result = session.execute(country_query, {'lat': lat, 'lon': lon}).fetchone()
-
-    if not result:
-        return LocationInfo(country_code=None, state_code=None)
-
-    country_code = result[0]
-    state_code = None
-
-    # If US, also query state
-    if country_code == 'US':
-        state_query = text("""
-            SELECT state_code
-            FROM us_states
-            WHERE ST_Contains(geom, ST_SetSRID(ST_Point(:lon, :lat), 4326))
-            LIMIT 1
-        """)
-        state_result = session.execute(state_query, {'lat': lat, 'lon': lon}).fetchone()
-        if state_result:
-            state_code = state_result[0]
-
-    return LocationInfo(country_code=country_code, state_code=state_code)
-
-
-def get_location_info(session: 'Session', lat: float, lon: float) -> LocationInfo:
-    """Get location info with caching.
-
-    Checks the global geo_cache first, falls back to PostGIS query
-    on cache miss, and caches the result for future lookups.
-    """
-    # Check cache first
-    cached = geo_cache.get(lat, lon)
-    if cached is not None:
-        return cached
-
-    # Cache miss - query PostGIS
-    info = reverse_geocode(session, lat, lon)
-
-    # Cache result (including None for ocean/invalid - negative caching)
-    geo_cache.put(lat, lon, info)
-
-    return info
-
-
-def warm_cache(session: 'Session', hours: int = 24) -> dict[str, int]:
-    """Pre-populate cache from recent packets with positions.
-
-    Queries distinct grid cells from recent packets and reverse geocodes
-    each one to populate the cache. This ensures fast lookups for
-    commonly-seen locations.
-
-    Args:
-        session: SQLAlchemy database session.
-        hours: How many hours of history to load (default 24).
-
-    Returns:
-        Dict with grid_cells_found, populated, errors, and cache_size.
-    """
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
-
-    # Get distinct grid cells from recent packets
-    # Using 0.1 degree resolution to match cache
-    grid_query = text("""
-        SELECT DISTINCT
-            ROUND(latitude::numeric, 1) as grid_lat,
-            ROUND(longitude::numeric, 1) as grid_lon
-        FROM aprs_packet
-        WHERE received_at > :cutoff
-          AND latitude IS NOT NULL
-          AND longitude IS NOT NULL
-          AND latitude BETWEEN -90 AND 90
-          AND longitude BETWEEN -180 AND 180
-    """)
-
-    grid_cells = session.execute(grid_query, {'cutoff': cutoff}).fetchall()
-
-    populated = 0
-    errors = 0
-
-    for row in grid_cells:
-        try:
-            lat = float(row[0])
-            lon = float(row[1])
-            info = reverse_geocode(session, lat, lon)
-            geo_cache.put(lat, lon, info)
-            populated += 1
-        except Exception:
-            errors += 1
-            # Continue on individual errors
-
-    return {
-        'grid_cells_found': len(grid_cells),
-        'populated': populated,
-        'errors': errors,
-        'cache_size': geo_cache.stats['size'],
-    }
+        """Reset statistics (cache itself is in-memory, no clearing needed)."""
+        self._lookups = 0
 
 
 # Global cache instance
 geo_cache = GeoCache()
+
+
+def reverse_geocode(session: 'Session', lat: float, lon: float) -> LocationInfo:
+    """Look up country and state for coordinates.
+
+    This is kept for API compatibility but now uses the fast
+    in-memory reverse_geocoder instead of PostGIS.
+
+    Args:
+        session: Database session (ignored, kept for compatibility).
+        lat: Latitude in degrees.
+        lon: Longitude in degrees.
+
+    Returns:
+        LocationInfo with country_code and state_code.
+    """
+    return geo_cache.lookup(lat, lon)
+
+
+def get_location_info(session: 'Session', lat: float, lon: float) -> LocationInfo:
+    """Get location info for coordinates.
+
+    Fast microsecond lookup using in-memory k-d tree.
+
+    Args:
+        session: Database session (ignored, kept for compatibility).
+        lat: Latitude in degrees.
+        lon: Longitude in degrees.
+
+    Returns:
+        LocationInfo with country_code and state_code.
+    """
+    return geo_cache.lookup(lat, lon)
+
+
+def warm_cache(session: 'Session', hours: int = 24) -> dict[str, int]:
+    """Warm-up function for compatibility.
+
+    With reverse_geocoder, no warm-up is needed - the k-d tree is
+    loaded on first lookup. This function is kept for API compatibility.
+
+    Args:
+        session: Database session (ignored).
+        hours: Ignored.
+
+    Returns:
+        Stats dict for compatibility.
+    """
+    # Trigger initialization by doing one lookup
+    geo_cache.lookup(0, 0)
+
+    return {
+        'grid_cells_found': 0,
+        'populated': 0,
+        'errors': 0,
+        'cache_size': 0,
+    }

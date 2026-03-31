@@ -31,6 +31,7 @@ dependencies = [
     "gunicorn>=21.0.0",
     "haminfo",  # For DB models
     "pylibmc>=1.6.0",  # For memcached caching
+    "reverse_geocoder>=1.5.1",  # Fast in-memory reverse geocoding
 ]
 
 [project.optional-dependencies]
