@@ -156,11 +156,12 @@ def countries():
         # Get all countries with packet counts (24h)
         countries_data = get_all_countries_breakdown(session)
 
-        # Enhance with country names and flags
+        # Enhance with country names and flags, rename 'count' to 'packet_count'
         for country in countries_data:
             code = country['country_code']
             country['name'] = get_country_name(code)
             country['flag'] = COUNTRY_FLAGS.get(code, '')
+            country['packet_count'] = country.pop('count')
 
         # Sort by packet count descending
         countries_data.sort(key=lambda x: x['packet_count'], reverse=True)

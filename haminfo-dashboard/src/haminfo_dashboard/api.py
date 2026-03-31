@@ -589,11 +589,12 @@ def api_all_countries():
     session = _get_session()
     try:
         countries = get_all_countries_breakdown(session)
-        # Enhance with names and flags
+        # Enhance with names and flags, rename 'count' to 'packet_count'
         for country in countries:
             code = country['country_code']
             country['name'] = get_country_name(code)
             country['flag'] = COUNTRY_FLAGS.get(code, '')
+            country['packet_count'] = country.pop('count')
         # Sort by packet count
         countries.sort(key=lambda x: x['packet_count'], reverse=True)
         return render_template(
@@ -612,11 +613,12 @@ def api_all_countries_json():
     session = _get_session()
     try:
         countries = get_all_countries_breakdown(session)
-        # Enhance with names and flags
+        # Enhance with names and flags, rename 'count' to 'packet_count'
         for country in countries:
             code = country['country_code']
             country['name'] = get_country_name(code)
             country['flag'] = COUNTRY_FLAGS.get(code, '')
+            country['packet_count'] = country.pop('count')
         # Sort by packet count
         countries.sort(key=lambda x: x['packet_count'], reverse=True)
         return jsonify(countries)
