@@ -258,7 +258,7 @@
     hideEmptyCheckbox.addEventListener('change', filterCountries);
     
     // Fetch countries data asynchronously
-    fetch('/dashboard/api/dashboard/countries/all/json')
+    fetch('/api/dashboard/countries/all/json')
         .then(function(response) { return response.json(); })
         .then(function(data) {
             renderCountries(data.countries || []);
