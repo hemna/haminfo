@@ -15,6 +15,7 @@ from haminfo.db.models.weather_report import WeatherStation, WeatherReport
 from haminfo_dashboard.utils import (
     get_country_from_callsign,
     get_country_from_coords,
+    get_country_name,
     CALLSIGN_PREFIXES,
     get_state_from_coords,
     normalize_packet_type,
@@ -1273,7 +1274,7 @@ def get_recent_packets(
         limit: Maximum number of packets to return.
         offset: Number of packets to skip.
         callsign: Filter by callsign (partial match).
-        country: Filter by country code.
+        country: Filter by country code (uses denormalized country_code column).
 
     Returns:
         List of packet dicts.
@@ -1283,16 +1284,23 @@ def get_recent_packets(
     if callsign:
         query = query.filter(APRSPacket.from_call.ilike(f'%{callsign}%'))
 
-    packets = query.offset(offset).limit(limit if not country else limit * 3).all()
+    # Use denormalized country_code column for fast filtering
+    if country:
+        query = query.filter(APRSPacket.country_code == country.upper())
+
+    packets = query.offset(offset).limit(limit).all()
 
     result = []
     for packet in packets:
-        if country:
+        # Use the stored country_code, fall back to callsign lookup if NULL
+        if packet.country_code:
+            country_code = packet.country_code
+            country_name = get_country_name(country_code)
+        else:
             country_info = get_country_from_callsign(packet.from_call)
-            if not country_info or country_info[0] != country:
-                continue
+            country_code = country_info[0] if country_info else None
+            country_name = country_info[1] if country_info else None
 
-        country_info = get_country_from_callsign(packet.from_call)
         result.append(
             {
                 'from_call': packet.from_call,
@@ -1314,13 +1322,10 @@ def get_recent_packets(
                 'altitude': packet.altitude,
                 'comment': packet.comment,
                 'raw': packet.raw,
-                'country_code': country_info[0] if country_info else None,
-                'country_name': country_info[1] if country_info else None,
+                'country_code': country_code,
+                'country_name': country_name,
             }
         )
-
-        if len(result) >= limit:
-            break
 
     return result
 
