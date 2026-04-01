@@ -352,7 +352,9 @@ def normalize_packet_type(
 
             # Check if aprslib identified this as telemetry
             aprslib_format = parsed.get('format', '')
-            if aprslib_format == 'telemetry' or parsed.get('telemetry'):
+            if aprslib_format in ('telemetry', 'telemetry-message') or parsed.get(
+                'telemetry'
+            ):
                 is_telemetry_from_raw = True
         except Exception:
             pass
@@ -372,6 +374,11 @@ def normalize_packet_type(
             return 'telemetry'
         if latitude is not None and longitude is not None:
             return 'position'
+    elif packet_type == 'message':
+        # Check if this is actually a telemetry definition packet
+        # (PARM/UNIT/BITS/EQNS messages that were misclassified)
+        if is_telemetry_from_raw:
+            return 'telemetry'
 
     return packet_type
 

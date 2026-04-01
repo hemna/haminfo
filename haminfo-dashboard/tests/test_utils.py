@@ -225,3 +225,47 @@ class TestNormalizePacketType:
             'unknown', latitude=None, longitude=None, raw=raw
         )
         assert result == 'telemetry'
+
+    def test_message_with_telemetry_definition_eqns_becomes_telemetry(self):
+        """Message packet with EQNS telemetry definition should become telemetry.
+
+        This is the bug fix for telemetry definition packets (PARM/UNIT/BITS/EQNS)
+        that were incorrectly classified as 'message' by the ingest pipeline.
+        """
+        raw = 'N1DTA-12>APMI06,TCPIP*,qAS,N1DTA::N1DTA-12 :EQNS.0,0.075,0,0,10,0,0,10,0,0,1,0,0,0,0'
+        result = normalize_packet_type(
+            'message', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
+
+    def test_message_with_telemetry_definition_parm_becomes_telemetry(self):
+        """Message packet with PARM telemetry definition should become telemetry."""
+        raw = 'N1DTA-12>APMI06::N1DTA-12 :PARM.Voltage,Temperature,Current,Speed,Direction'
+        result = normalize_packet_type(
+            'message', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
+
+    def test_message_with_telemetry_definition_unit_becomes_telemetry(self):
+        """Message packet with UNIT telemetry definition should become telemetry."""
+        raw = 'N1DTA-12>APMI06::N1DTA-12 :UNIT.Volts,Celsius,Amps,Knots,Degrees'
+        result = normalize_packet_type(
+            'message', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
+
+    def test_message_with_telemetry_definition_bits_becomes_telemetry(self):
+        """Message packet with BITS telemetry definition should become telemetry."""
+        raw = 'N1DTA-12>APMI06::N1DTA-12 :BITS.11111111,My Project Title'
+        result = normalize_packet_type(
+            'message', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'telemetry'
+
+    def test_regular_message_stays_message(self):
+        """Regular message packet should stay as message."""
+        raw = 'N0CALL>APRS::WB4BOR-9 :Hello World{123'
+        result = normalize_packet_type(
+            'message', latitude=None, longitude=None, raw=raw
+        )
+        assert result == 'message'
