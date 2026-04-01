@@ -460,13 +460,32 @@ def get_packet_human_info(packet: dict) -> str:
                     return f"Object '{name}' at {parsed['latitude']:.4f}, {parsed['longitude']:.4f}"
                 return f'Object: {name}'
 
-            # Telemetry packet
+            # Telemetry packet - data or definition
             if parsed.get('telemetry'):
                 telem = parsed.get('telemetry', {})
                 vals = telem.get('vals', [])
                 if vals:
                     return f'Telemetry: {", ".join(str(v) for v in vals[:5])}'
                 return 'Telemetry data'
+
+            # Telemetry definition packets (PARM, UNIT, BITS, EQNS)
+            if parsed.get('tPARM'):
+                params = [p for p in parsed['tPARM'] if p]  # Filter empty
+                return f'PARM: {", ".join(params[:5])}'
+            if parsed.get('tUNIT'):
+                units = [u for u in parsed['tUNIT'] if u]  # Filter empty
+                return f'UNIT: {", ".join(units[:5])}'
+            if parsed.get('tBITS'):
+                bits = parsed['tBITS']
+                title = parsed.get('title', '')
+                if title:
+                    return f'BITS: {bits} "{title}"'
+                return f'BITS: {bits}'
+            if parsed.get('tEQNS'):
+                # tEQNS is a list of [a,b,c] coefficient triples
+                eqns = parsed['tEQNS']
+                count = sum(1 for e in eqns if e != [0, 0, 0])
+                return f'EQNS: {count} channel equations defined'
 
             # Fall back to comment if available
             comment = parsed.get('comment', '')

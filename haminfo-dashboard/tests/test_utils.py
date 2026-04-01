@@ -6,6 +6,7 @@ from haminfo_dashboard.utils import (
     get_country_from_callsign,
     format_packet_summary,
     normalize_packet_type,
+    get_packet_human_info,
 )
 
 
@@ -269,3 +270,91 @@ class TestNormalizePacketType:
             'message', latitude=None, longitude=None, raw=raw
         )
         assert result == 'message'
+
+
+class TestGetPacketHumanInfo:
+    """Tests for get_packet_human_info function."""
+
+    def test_telemetry_data_packet_shows_values(self):
+        """Telemetry data packet should show the values."""
+        packet = {
+            'raw': 'SP8NFH-13>APRS,TCPIP*,qAC,T2POLAND:T#321,071,298,000,000,000,00000000',
+            'packet_type': 'telemetry',
+        }
+        result = get_packet_human_info(packet)
+        assert 'Telemetry:' in result
+        assert '71.0' in result
+        assert '298.0' in result
+
+    def test_telemetry_parm_definition_shows_params(self):
+        """PARM telemetry definition should show parameter names."""
+        packet = {
+            'raw': 'SP8NFH-13>APRS,TCPIP*,qAC,T2POLAND::SP8NFH-13:PARM.RSSI,VBAT',
+            'packet_type': 'telemetry',
+        }
+        result = get_packet_human_info(packet)
+        assert 'PARM:' in result
+        assert 'RSSI' in result
+        assert 'VBAT' in result
+
+    def test_telemetry_unit_definition_shows_units(self):
+        """UNIT telemetry definition should show unit names."""
+        packet = {
+            'raw': 'SP8NFH-13>APRS,TCPIP*,qAC,T2POLAND::SP8NFH-13:UNIT.dbm,V',
+            'packet_type': 'telemetry',
+        }
+        result = get_packet_human_info(packet)
+        assert 'UNIT:' in result
+        assert 'dbm' in result
+        assert 'V' in result
+
+    def test_telemetry_bits_definition_shows_bits_and_title(self):
+        """BITS telemetry definition should show bits and title."""
+        packet = {
+            'raw': 'SP8NFH-13>APRS,TCPIP*,qAC,T2POLAND::SP8NFH-13:BITS.00000000,MiniWX Station',
+            'packet_type': 'telemetry',
+        }
+        result = get_packet_human_info(packet)
+        assert 'BITS:' in result
+        assert '00000000' in result
+        assert 'MiniWX Station' in result
+
+    def test_telemetry_eqns_definition_shows_channel_count(self):
+        """EQNS telemetry definition should show equation count."""
+        packet = {
+            'raw': 'SP8NFH-13>APRS,TCPIP*,qAC,T2POLAND::SP8NFH-13:EQNS.0,-1,0,0,0.01,0,0,0,0,0,0,0,0,0,0',
+            'packet_type': 'telemetry',
+        }
+        result = get_packet_human_info(packet)
+        assert 'EQNS:' in result
+        assert 'channel' in result
+        assert 'equations' in result
+
+    def test_position_packet_shows_coordinates(self):
+        """Position packet should show lat/lon."""
+        packet = {
+            'raw': 'SP2ROC-14>APLRFD:!5246.08N/01855.98E#LoRa APRS Digi',
+            'packet_type': 'position',
+        }
+        result = get_packet_human_info(packet)
+        assert 'Lat:' in result
+        assert 'Lon:' in result
+
+    def test_weather_packet_shows_weather_data(self):
+        """Weather packet should show temperature, humidity, etc."""
+        packet = {
+            'raw': 'N0CALL>APRS:@092345z4903.50N/07201.75W_220/004g007t077',
+            'packet_type': 'weather',
+        }
+        result = get_packet_human_info(packet)
+        # Should show weather data
+        assert 'Temp' in result or 'Weather' in result
+
+    def test_message_packet_shows_message_text(self):
+        """Message packet should show the message content."""
+        packet = {
+            'raw': 'N0CALL>APRS::WB4BOR-9 :Hello World{123',
+            'packet_type': 'message',
+        }
+        result = get_packet_human_info(packet)
+        assert 'Hello World' in result
