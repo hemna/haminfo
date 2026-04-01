@@ -149,12 +149,16 @@ def api_packets():
         offset = request.args.get('offset', 0, type=int)
         callsign = request.args.get('callsign')
         country = request.args.get('country')
+        hours = request.args.get('hours', 24, type=int)
+        # Cap hours at 168 (1 week) to prevent excessive queries
+        hours = min(hours, 168)
         packets = get_recent_packets(
             session,
             limit=limit,
             offset=offset,
             callsign=callsign,
             country=country,
+            hours=hours,
         )
         return jsonify(packets)
     finally:

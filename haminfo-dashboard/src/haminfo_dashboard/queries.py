@@ -1264,6 +1264,7 @@ def get_recent_packets(
     offset: int = 0,
     callsign: Optional[str] = None,
     country: Optional[str] = None,
+    hours: int = 24,
 ) -> list[dict[str, Any]]:
     """Get recent packets with optional filters.
 
@@ -1275,11 +1276,20 @@ def get_recent_packets(
         offset: Number of packets to skip.
         callsign: Filter by callsign (partial match).
         country: Filter by country code (uses denormalized country_code column).
+        hours: Time window in hours (default 24). Limits query to recent data
+            for fast performance with TimescaleDB compressed chunks.
 
     Returns:
         List of packet dicts.
     """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+
     query = session.query(APRSPacket).order_by(APRSPacket.received_at.desc())
+
+    # Always add time constraint for performance with TimescaleDB compression
+    # This prevents scanning compressed historical chunks
+    query = query.filter(APRSPacket.received_at >= since)
 
     if callsign:
         query = query.filter(APRSPacket.from_call.ilike(f'%{callsign}%'))
