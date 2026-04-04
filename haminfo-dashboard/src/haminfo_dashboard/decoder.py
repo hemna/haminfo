@@ -20,6 +20,7 @@ def decode_packet(raw: str) -> dict[str, Any]:
         Dict with:
         - success: bool - whether parsing succeeded
         - error: str | None - error message if failed
+        - raw: str - the original raw packet string
         - parsed: dict | None - parsed packet fields from aprslib
         - annotations: list - color annotation tuples for raw packet display
         - sections: dict - categorized fields for structured display
@@ -28,6 +29,7 @@ def decode_packet(raw: str) -> dict[str, Any]:
         return {
             'success': False,
             'error': 'Empty packet. Please paste an APRS packet to decode.',
+            'raw': raw,
             'parsed': None,
             'annotations': [],
             'sections': {},
@@ -39,6 +41,7 @@ def decode_packet(raw: str) -> dict[str, Any]:
         return {
             'success': False,
             'error': f'Could not decode packet: {str(e)}',
+            'raw': raw,
             'parsed': None,
             'annotations': [],
             'sections': {},
@@ -47,6 +50,7 @@ def decode_packet(raw: str) -> dict[str, Any]:
         return {
             'success': False,
             'error': f'Unexpected error decoding packet: {str(e)}',
+            'raw': raw,
             'parsed': None,
             'annotations': [],
             'sections': {},
@@ -59,6 +63,7 @@ def decode_packet(raw: str) -> dict[str, Any]:
     return {
         'success': True,
         'error': None,
+        'raw': raw,
         'parsed': parsed,
         'annotations': annotations,
         'sections': sections,
@@ -74,6 +79,7 @@ def _generate_annotations(raw: str, parsed: dict) -> list[dict]:
     - end: int - end index in raw string
     - field: str - field name (source, destination, path, etc.)
     - color: str - CSS color class suffix
+    - value: str - the actual substring from raw packet
     """
     annotations = []
 
@@ -86,6 +92,7 @@ def _generate_annotations(raw: str, parsed: dict) -> list[dict]:
                 'end': source_end,
                 'field': 'source',
                 'color': 'source',
+                'value': raw[0:source_end],
             }
         )
 
@@ -96,12 +103,15 @@ def _generate_annotations(raw: str, parsed: dict) -> list[dict]:
             if delim in rest:
                 dest_end = min(dest_end, rest.index(delim))
 
+        dest_start = source_end + 1
+        dest_end_abs = source_end + 1 + dest_end
         annotations.append(
             {
-                'start': source_end + 1,
-                'end': source_end + 1 + dest_end,
+                'start': dest_start,
+                'end': dest_end_abs,
                 'field': 'destination',
                 'color': 'destination',
+                'value': raw[dest_start:dest_end_abs],
             }
         )
 
@@ -110,16 +120,19 @@ def _generate_annotations(raw: str, parsed: dict) -> list[dict]:
             colon_pos = raw.index(':')
             path_start = source_end + 1 + dest_end
             if path_start < colon_pos and raw[path_start] == ',':
+                path_start_actual = path_start + 1
                 annotations.append(
                     {
-                        'start': path_start + 1,
+                        'start': path_start_actual,
                         'end': colon_pos,
                         'field': 'path',
                         'color': 'path',
+                        'value': raw[path_start_actual:colon_pos],
                     }
                 )
 
             # Data type indicator (first char after :)
+            # These are APRS data type identifiers: @ / ! = ; ) ' `
             if colon_pos + 1 < len(raw):
                 data_type_char = raw[colon_pos + 1]
                 if data_type_char in "@/!=;)'`":
@@ -129,6 +142,7 @@ def _generate_annotations(raw: str, parsed: dict) -> list[dict]:
                             'end': colon_pos + 2,
                             'field': 'data_type',
                             'color': 'datatype',
+                            'value': data_type_char,
                         }
                     )
 
