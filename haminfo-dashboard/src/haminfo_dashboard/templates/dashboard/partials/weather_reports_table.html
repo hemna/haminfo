@@ -340,9 +340,17 @@
                     var directionBins = new Array(16).fill(0);  // Count per direction
                     var speedBins = new Array(16).fill(0);      // Sum of speeds per direction
                     var totalReadings = 0;
+                    var reportsWithSpeed = 0;
+                    var reportsWithDirection = 0;
                     
                     // Bin wind data into 16 directions (22.5 degrees each)
                     reports.forEach(function(r) {
+                        if (r.wind_speed !== null && r.wind_speed > 0) {
+                            reportsWithSpeed++;
+                        }
+                        if (r.wind_direction !== null) {
+                            reportsWithDirection++;
+                        }
                         if (r.wind_direction !== null && r.wind_speed !== null && r.wind_speed > 0) {
                             // Normalize direction to 0-360
                             var dir = ((r.wind_direction % 360) + 360) % 360;
@@ -378,27 +386,41 @@
                             '<div>Max avg speed: ' + maxSpeed.toFixed(1) + ' km/h</div>' +
                             '<div style="margin-top:12px;font-size:10px;">Bar height = frequency<br>Color intensity = avg speed</div>';
                     } else if (legendDiv) {
-                        legendDiv.innerHTML = '<div style="color:var(--text-muted);">No wind data available</div>';
+                        // Explain why no data - check if it's missing direction vs missing speed
+                        var explanation = '';
+                        if (reportsWithSpeed > 0 && reportsWithDirection === 0) {
+                            explanation = '<div style="color:var(--text-muted);text-align:center;">' +
+                                '<div style="margin-bottom:8px;">Wind direction not reported</div>' +
+                                '<div style="font-size:10px;">This station reports wind speed<br>but not direction data.</div>' +
+                                '<div style="font-size:10px;margin-top:8px;">See Wind Speed chart below.</div></div>';
+                        } else if (reportsWithSpeed === 0) {
+                            explanation = '<div style="color:var(--text-muted);text-align:center;">No wind data available</div>';
+                        } else {
+                            explanation = '<div style="color:var(--text-muted);text-align:center;">Insufficient wind data</div>';
+                        }
+                        legendDiv.innerHTML = explanation;
                     }
                     
-                    // Create color gradient based on wind speed
-                    var colors = avgSpeeds.map(function(speed) {
-                        // Color from cyan (low) to magenta (high)
-                        var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
-                        var r = Math.round(6 + intensity * (236 - 6));
-                        var g = Math.round(182 - intensity * (182 - 72));
-                        var b = Math.round(212 + intensity * (153 - 212));
-                        return 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
-                    });
-                    var borderColors = avgSpeeds.map(function(speed) {
-                        var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
-                        var r = Math.round(6 + intensity * (236 - 6));
-                        var g = Math.round(182 - intensity * (182 - 72));
-                        var b = Math.round(212 + intensity * (153 - 212));
-                        return 'rgb(' + r + ',' + g + ',' + b + ')';
-                    });
-                    
-                    new Chart(windRoseCtx, {
+                    // Only draw the chart if we have direction data
+                    if (totalReadings > 0) {
+                        // Create color gradient based on wind speed
+                        var colors = avgSpeeds.map(function(speed) {
+                            // Color from cyan (low) to magenta (high)
+                            var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
+                            var r = Math.round(6 + intensity * (236 - 6));
+                            var g = Math.round(182 - intensity * (182 - 72));
+                            var b = Math.round(212 + intensity * (153 - 212));
+                            return 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
+                        });
+                        var borderColors = avgSpeeds.map(function(speed) {
+                            var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
+                            var r = Math.round(6 + intensity * (236 - 6));
+                            var g = Math.round(182 - intensity * (182 - 72));
+                            var b = Math.round(212 + intensity * (153 - 212));
+                            return 'rgb(' + r + ',' + g + ',' + b + ')';
+                        });
+                        
+                        new Chart(windRoseCtx, {
                         type: 'polarArea',
                         data: {
                             labels: compassLabels,
@@ -451,6 +473,7 @@
                             }
                         }
                     });
+                    }  // End if (totalReadings > 0)
                 }
                 
                 // Wind Speed Over Time Chart
