@@ -19,6 +19,7 @@ from haminfo_dashboard.utils import (
     CALLSIGN_PREFIXES,
     get_state_from_coords,
     normalize_packet_type,
+    convert_temperature_to_celsius,
 )
 from haminfo_dashboard import cache
 from haminfo_dashboard.cache import cached
@@ -1428,7 +1429,9 @@ def get_weather_stations(
 
         station_dict['latest_report'] = {
             'time': latest_report.time.isoformat() if latest_report.time else None,
-            'temperature': latest_report.temperature,
+            'temperature': convert_temperature_to_celsius(
+                latest_report.temperature, latest_report.time
+            ),
             'humidity': latest_report.humidity,
             'pressure': latest_report.pressure,
             'wind_speed': latest_report.wind_speed,
@@ -1806,10 +1809,10 @@ def get_station_weather_reports(
         'reports': [
             {
                 'time': report.time.isoformat() if report.time else None,
-                # Convert temperature from Fahrenheit (DB storage) to Celsius (display)
-                'temperature': (report.temperature - 32) * 5 / 9
-                if report.temperature is not None
-                else None,
+                # Convert temperature handling Fahrenheit/Celsius cutover
+                'temperature': convert_temperature_to_celsius(
+                    report.temperature, report.time
+                ),
                 'humidity': report.humidity,
                 'pressure': report.pressure,
                 'wind_speed': report.wind_speed,

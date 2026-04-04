@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import text
 
 from haminfo_dashboard.cache import cached
+from haminfo_dashboard.utils import (
+    convert_temperature_to_celsius,
+    fahrenheit_to_celsius,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -16,12 +20,12 @@ if TYPE_CHECKING:
 LOG = logging.getLogger(__name__)
 
 
-# Alert thresholds (from spec)
+# Alert thresholds (in Celsius for temperature, mph for wind, inches for rain)
 ALERT_THRESHOLDS = {
     'high_wind': {'wind_speed': 40, 'level': 'warning'},
     'extreme_wind': {'wind_speed': 60, 'wind_gust': 75, 'level': 'severe'},
-    'extreme_heat': {'temperature': 100, 'level': 'warning'},
-    'extreme_cold': {'temperature': 10, 'level': 'warning'},  # Below this
+    'extreme_heat': {'temperature': 37.8, 'level': 'warning'},  # 100°F
+    'extreme_cold': {'temperature': -12.2, 'level': 'warning'},  # 10°F, Below this
     'heavy_rain': {'rain_1h': 1.0, 'level': 'warning'},
 }
 
@@ -57,7 +61,15 @@ def get_state_stations(session: Session, state_code: str) -> list[dict[str, Any]
     """)
 
     result = session.execute(query, {'state_code': state_code})
-    return [dict(row) for row in result.mappings().all()]
+    stations = [dict(row) for row in result.mappings().all()]
+
+    # Convert temperatures from Fahrenheit to Celsius (handling cutover)
+    for station in stations:
+        station['temperature'] = convert_temperature_to_celsius(
+            station.get('temperature'), station.get('last_report')
+        )
+
+    return stations
 
 
 def compute_state_aggregates(stations: list[dict[str, Any]]) -> dict[str, Any]:
@@ -168,12 +180,13 @@ def get_state_trends(session: Session, state_code: str) -> dict[str, Any]:
     # Format for Chart.js
     labels = [row['hour'].strftime('%H:%M') for row in rows]
 
+    # All recent data (last 24h) is in Fahrenheit, convert to Celsius
     return {
         'labels': labels,
         'temperature': {
-            'avg': [row['avg_temp'] for row in rows],
-            'min': [row['min_temp'] for row in rows],
-            'max': [row['max_temp'] for row in rows],
+            'avg': [fahrenheit_to_celsius(row['avg_temp']) for row in rows],
+            'min': [fahrenheit_to_celsius(row['min_temp']) for row in rows],
+            'max': [fahrenheit_to_celsius(row['max_temp']) for row in rows],
         },
         'pressure': {
             'avg': [row['avg_pressure'] for row in rows],
@@ -224,11 +237,11 @@ def detect_state_alerts(stations: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif wind_speed > 40:
             high_wind_stations.append(callsign)
 
-        # Temperature extremes
+        # Temperature extremes (thresholds in Celsius)
         if temp is not None:
-            if temp > 100:
+            if temp > ALERT_THRESHOLDS['extreme_heat']['temperature']:
                 extreme_heat_stations.append(callsign)
-            elif temp < 10:
+            elif temp < ALERT_THRESHOLDS['extreme_cold']['temperature']:
                 extreme_cold_stations.append(callsign)
 
         # Heavy rain
@@ -261,7 +274,7 @@ def detect_state_alerts(stations: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 'type': 'extreme_heat',
                 'level': 'warning',
-                'message': f'Extreme heat: {len(extreme_heat_stations)} station(s) reporting >100°F',
+                'message': f'Extreme heat: {len(extreme_heat_stations)} station(s) reporting >38°C (100°F)',
                 'affected_stations': extreme_heat_stations,
             }
         )
@@ -271,7 +284,7 @@ def detect_state_alerts(stations: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 'type': 'extreme_cold',
                 'level': 'warning',
-                'message': f'Extreme cold: {len(extreme_cold_stations)} station(s) reporting <10°F',
+                'message': f'Extreme cold: {len(extreme_cold_stations)} station(s) reporting <-12°C (10°F)',
                 'affected_stations': extreme_cold_stations,
             }
         )

@@ -52,7 +52,10 @@
     <div class="card" style="grid-column: 1 / -1;">
         <div class="card-header">
             <span class="card-title">{{ country_flag }} Live {{ country_code }} Traffic</span>
-            <span class="live-indicator">streaming</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <button id="live-feed-expand" class="live-feed-expand-btn" onclick="toggleLiveFeed()">Expand ↓</button>
+                <span class="live-indicator">streaming</span>
+            </div>
         </div>
         <div class="card-body">
             <div id="live-feed" class="live-feed">
@@ -113,6 +116,18 @@
     const feedContainer = document.getElementById('live-feed');
     const COUNTRY_CODE = '{{ country_code }}';
     
+    // Toggle live feed expand/collapse
+    function toggleLiveFeed() {
+        const feed = document.getElementById('live-feed');
+        const btn = document.getElementById('live-feed-expand');
+        feed.classList.toggle('expanded');
+        if (feed.classList.contains('expanded')) {
+            btn.textContent = 'Collapse ↑';
+        } else {
+            btn.textContent = 'Expand ↓';
+        }
+    }
+    
     // Packet type colors matching APRSD
     const typeColors = {
         'position': '#1AA730',
@@ -129,10 +144,11 @@
         item.className = 'live-feed-item packet-row';
         item.style.cssText = 'font-family: "Fira Code", "Consolas", monospace; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;';
         
-        // Store raw packet and callsign for modal display
+        // Store raw packet, callsign, and timestamp for modal display
         item.dataset.raw = packet.raw || '';
         item.dataset.callsign = packet.from_call || '';
-        item.onclick = function() { showPacketModal(this.dataset.raw, this.dataset.callsign); };
+        item.dataset.receivedAt = packet.received_at || '';
+        item.onclick = function() { showPacketModal(this.dataset.raw, this.dataset.callsign, this.dataset.receivedAt); };
         
         const typeColor = typeColors[packet.packet_type] || typeColors['unknown'];
         const pktType = (packet.packet_type || 'unknown').charAt(0).toUpperCase() + (packet.packet_type || 'unknown').slice(1);
@@ -174,16 +190,21 @@
         }
     }
     
-    // Join country-specific room on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        // Leave the global live_feed room (we don't want all packets)
-        // and join the country-specific room
+    // Join country-specific room when socket is connected
+    function joinCountryRoom() {
         socket.emit('join_country', { country_code: COUNTRY_CODE });
-        
-        socket.on('country_joined', function(data) {
-            console.log('Joined country room:', data.room);
-        });
+    }
+    
+    socket.on('country_joined', function(data) {
+        console.log('Joined country room:', data.room);
     });
+    
+    // Join room when connected (or immediately if already connected)
+    if (socket.connected) {
+        joinCountryRoom();
+    } else {
+        socket.on('connect', joinCountryRoom);
+    }
     
     // Leave country room on page unload
     window.addEventListener('beforeunload', function() {

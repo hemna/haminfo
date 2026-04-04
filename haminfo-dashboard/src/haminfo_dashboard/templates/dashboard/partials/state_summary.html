@@ -3,8 +3,8 @@
     <div class="summary-card">
         <div class="summary-label">Avg Temperature</div>
         {% if summary.avg_temp is not none %}
-        <div class="summary-value cyan">{{ "%.1f"|format(summary.avg_temp) }}°F</div>
-        <div class="summary-detail">
+        <div class="summary-value cyan wx-temp" data-temp-c="{{ summary.avg_temp }}">{{ "%.1f"|format(summary.avg_temp) }}°C</div>
+        <div class="summary-detail wx-temp-range" data-min-c="{{ summary.min_temp }}" data-max-c="{{ summary.max_temp }}">
             Hi: {{ "%.0f"|format(summary.max_temp) }}° / Lo: {{ "%.0f"|format(summary.min_temp) }}°
         </div>
         {% else %}
@@ -29,9 +29,9 @@
     <div class="summary-card">
         <div class="summary-label">Avg Pressure</div>
         {% if summary.avg_pressure is not none %}
-        <div class="summary-value yellow">{{ "%.1f"|format(summary.avg_pressure) }}</div>
-        <div class="summary-detail">
-            Hi: {{ "%.1f"|format(summary.max_pressure) }} / Lo: {{ "%.1f"|format(summary.min_pressure) }} mbar
+        <div class="summary-value yellow wx-pressure" data-pressure-hpa="{{ summary.avg_pressure }}">{{ "%.1f"|format(summary.avg_pressure) }} hPa</div>
+        <div class="summary-detail wx-pressure-range" data-min-hpa="{{ summary.min_pressure }}" data-max-hpa="{{ summary.max_pressure }}">
+            Hi: {{ "%.1f"|format(summary.max_pressure) }} / Lo: {{ "%.1f"|format(summary.min_pressure) }} hPa
         </div>
         {% else %}
         <div class="summary-value muted">--</div>
@@ -42,9 +42,9 @@
     <div class="summary-card">
         <div class="summary-label">Avg Wind</div>
         {% if summary.avg_wind is not none %}
-        <div class="summary-value magenta">{{ "%.0f"|format(summary.avg_wind) }} mph</div>
-        <div class="summary-detail">
-            Max gust: {{ "%.0f"|format(summary.max_wind or 0) }} mph
+        <div class="summary-value magenta wx-wind" data-wind-kmh="{{ summary.avg_wind }}">{{ "%.0f"|format(summary.avg_wind) }} km/h</div>
+        <div class="summary-detail wx-wind-gust" data-gust-kmh="{{ summary.max_wind or 0 }}">
+            Max gust: {{ "%.0f"|format(summary.max_wind or 0) }} km/h
         </div>
         {% else %}
         <div class="summary-value muted">--</div>
@@ -57,4 +57,8 @@
 <script>
 document.getElementById('station-count').textContent = '{{ summary.station_count }} stations';
 document.getElementById('last-updated').textContent = 'Averages from {{ summary.station_count }} reporting stations';
+// Trigger unit conversion on the newly loaded content
+if (typeof applyUnits === 'function') {
+    applyUnits();
+}
 </script>

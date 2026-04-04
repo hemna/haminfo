@@ -238,6 +238,27 @@
             font-size: 12px;
             max-height: 300px;
             overflow-y: auto;
+            transition: max-height 0.3s ease;
+        }
+        
+        .live-feed.expanded {
+            max-height: 70vh;
+        }
+        
+        .live-feed-expand-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        
+        .live-feed-expand-btn:hover {
+            background: var(--surface);
+            color: var(--text-primary);
         }
         
         .live-feed-item {
@@ -411,6 +432,7 @@
                 <button class="modal-close" onclick="closePacketModal()">&times;</button>
             </div>
             <div class="modal-body">
+                <div id="modal-timestamp" style="margin-bottom:12px;padding:8px 12px;background:var(--surface);border-radius:6px;font-family:'Fira Code',monospace;font-size:12px;"></div>
                 <div id="modal-raw-packet" class="raw-packet"></div>
             </div>
         </div>
@@ -469,10 +491,11 @@
         setInterval(updateClocks, 1000);
         
         // Raw packet modal functions
-        function showPacketModal(rawPacket, callsign) {
+        function showPacketModal(rawPacket, callsign, receivedAt) {
             const modal = document.getElementById('packet-modal');
             const rawEl = document.getElementById('modal-raw-packet');
             const callsignLink = document.getElementById('modal-callsign-link');
+            const timestampEl = document.getElementById('modal-timestamp');
             
             rawEl.textContent = rawPacket || 'No raw packet data available';
             
@@ -484,6 +507,26 @@
                 callsignLink.textContent = '';
                 callsignLink.href = '#';
                 callsignLink.style.display = 'none';
+            }
+            
+            // Format and display timestamp
+            if (receivedAt) {
+                const date = new Date(receivedAt);
+                const utcStr = date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+                const localStr = date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop().replace(/_/g, ' ');
+                timestampEl.innerHTML = `<span style="color:var(--accent-cyan);">${utcStr}</span><span style="color:var(--text-muted);margin:0 12px;">|</span><span style="color:var(--accent-yellow);">${localStr} ${tz}</span>`;
+                timestampEl.style.display = 'block';
+            } else {
+                timestampEl.style.display = 'none';
             }
             
             modal.classList.add('active');

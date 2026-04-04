@@ -18,8 +18,20 @@
         <span style="color: var(--text-muted);"> / </span>
         <span style="color: var(--text-muted);">{{ state_name }}</span>
     </nav>
-    <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 4px;">{{ state_name }} Weather</h1>
-    <p style="color: var(--text-secondary); font-size: 13px;" id="last-updated">Loading station data...</p>
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 4px;">{{ state_name }} Weather</h1>
+            <p style="color: var(--text-secondary); font-size: 13px;" id="last-updated">Loading station data...</p>
+        </div>
+        <!-- Unit Toggle -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--text-muted); font-size: 12px;">Units:</span>
+            <div id="unit-toggle" style="display: flex; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden;">
+                <button id="btn-metric" style="padding: 4px 10px; font-size: 11px; border: none; background: var(--accent-green); color: #000; cursor: pointer;">Metric</button>
+                <button id="btn-imperial" style="padding: 4px 10px; font-size: 11px; border: none; background: var(--bg-tertiary); color: var(--text-muted); cursor: pointer;">Imperial</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Alerts Banner -->
@@ -223,6 +235,156 @@
 
 {% if not error %}
 <script>
+// Unit state - default to metric, or load from localStorage
+var isMetric = localStorage.getItem('wxUnits') !== 'imperial';
+var btnMetric = document.getElementById('btn-metric');
+var btnImperial = document.getElementById('btn-imperial');
+
+// Store raw trend data for re-rendering on unit change
+var rawTrendData = null;
+var chartInstances = {};
+
+// Unit conversion functions
+function celsiusToFahrenheit(c) {
+    if (c === null || c === undefined) return null;
+    return (c * 9/5) + 32;
+}
+
+function kmhToMph(kmh) {
+    if (kmh === null || kmh === undefined) return null;
+    return kmh * 0.621371;
+}
+
+function hpaToInHg(hpa) {
+    if (hpa === null || hpa === undefined) return null;
+    return hpa * 0.02953;
+}
+
+// Apply units to all values on the page
+function applyUnits() {
+    // Update button states
+    if (isMetric) {
+        btnMetric.style.background = 'var(--accent-green)';
+        btnMetric.style.color = '#000';
+        btnImperial.style.background = 'var(--bg-tertiary)';
+        btnImperial.style.color = 'var(--text-muted)';
+    } else {
+        btnImperial.style.background = 'var(--accent-green)';
+        btnImperial.style.color = '#000';
+        btnMetric.style.background = 'var(--bg-tertiary)';
+        btnMetric.style.color = 'var(--text-muted)';
+    }
+
+    // Convert temperatures
+    document.querySelectorAll('.wx-temp').forEach(function(el) {
+        var tempC = parseFloat(el.dataset.tempC);
+        if (!isNaN(tempC)) {
+            if (isMetric) {
+                el.textContent = tempC.toFixed(1) + '°C';
+            } else {
+                el.textContent = celsiusToFahrenheit(tempC).toFixed(1) + '°F';
+            }
+        }
+    });
+
+    // Convert wind speeds (stored in km/h)
+    document.querySelectorAll('.wx-wind').forEach(function(el) {
+        var windKmh = parseFloat(el.dataset.windKmh);
+        if (!isNaN(windKmh)) {
+            if (isMetric) {
+                el.textContent = windKmh.toFixed(0) + ' km/h';
+            } else {
+                el.textContent = kmhToMph(windKmh).toFixed(0) + ' mph';
+            }
+        }
+    });
+
+    // Convert inline wind speeds (just the number, no unit)
+    document.querySelectorAll('.wx-wind-inline').forEach(function(el) {
+        var windKmh = parseFloat(el.dataset.windKmh);
+        if (!isNaN(windKmh)) {
+            if (isMetric) {
+                el.textContent = windKmh.toFixed(0);
+            } else {
+                el.textContent = kmhToMph(windKmh).toFixed(0);
+            }
+        }
+    });
+
+    // Convert pressure (stored in hPa/mbar)
+    document.querySelectorAll('.wx-pressure').forEach(function(el) {
+        var pressureHpa = parseFloat(el.dataset.pressureHpa);
+        if (!isNaN(pressureHpa) && pressureHpa > 0) {
+            if (isMetric) {
+                el.textContent = pressureHpa.toFixed(1) + ' hPa';
+            } else {
+                el.textContent = hpaToInHg(pressureHpa).toFixed(2) + ' inHg';
+            }
+        }
+    });
+
+    // Convert temperature ranges (high/low)
+    document.querySelectorAll('.wx-temp-range').forEach(function(el) {
+        var minC = parseFloat(el.dataset.minC);
+        var maxC = parseFloat(el.dataset.maxC);
+        if (!isNaN(minC) && !isNaN(maxC)) {
+            if (isMetric) {
+                el.textContent = 'Hi: ' + maxC.toFixed(0) + '° / Lo: ' + minC.toFixed(0) + '°';
+            } else {
+                el.textContent = 'Hi: ' + celsiusToFahrenheit(maxC).toFixed(0) + '° / Lo: ' + celsiusToFahrenheit(minC).toFixed(0) + '°';
+            }
+        }
+    });
+
+    // Convert pressure ranges
+    document.querySelectorAll('.wx-pressure-range').forEach(function(el) {
+        var minHpa = parseFloat(el.dataset.minHpa);
+        var maxHpa = parseFloat(el.dataset.maxHpa);
+        if (!isNaN(minHpa) && !isNaN(maxHpa)) {
+            if (isMetric) {
+                el.textContent = 'Hi: ' + maxHpa.toFixed(1) + ' / Lo: ' + minHpa.toFixed(1) + ' hPa';
+            } else {
+                el.textContent = 'Hi: ' + hpaToInHg(maxHpa).toFixed(2) + ' / Lo: ' + hpaToInHg(minHpa).toFixed(2) + ' inHg';
+            }
+        }
+    });
+
+    // Convert wind gusts
+    document.querySelectorAll('.wx-wind-gust').forEach(function(el) {
+        var gustKmh = parseFloat(el.dataset.gustKmh);
+        if (!isNaN(gustKmh)) {
+            if (isMetric) {
+                el.textContent = 'Max gust: ' + gustKmh.toFixed(0) + ' km/h';
+            } else {
+                el.textContent = 'Max gust: ' + kmhToMph(gustKmh).toFixed(0) + ' mph';
+            }
+        }
+    });
+
+    // Re-render charts if data available
+    if (rawTrendData) {
+        renderTrendCharts(rawTrendData);
+    }
+}
+
+// Unit toggle handlers
+btnMetric.addEventListener('click', function() {
+    isMetric = true;
+    localStorage.setItem('wxUnits', 'metric');
+    applyUnits();
+});
+
+btnImperial.addEventListener('click', function() {
+    isMetric = false;
+    localStorage.setItem('wxUnits', 'imperial');
+    applyUnits();
+});
+
+// Apply units when HTMX content loads
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    applyUnits();
+});
+
 // Tab switching
 document.querySelectorAll('.trend-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -235,9 +397,13 @@ document.querySelectorAll('.trend-tab').forEach(tab => {
 
 // Load trend data and render charts
 document.addEventListener('DOMContentLoaded', function() {
+    // Apply initial unit state
+    applyUnits();
+
     fetch('{{ url_for("dashboard.api_state_trends", state_code=state_code) }}')
         .then(response => response.json())
         .then(data => {
+            rawTrendData = data;
             renderTrendCharts(data);
         })
         .catch(err => {
@@ -255,6 +421,24 @@ function renderTrendCharts(data) {
         });
         return;
     }
+
+    // Destroy existing charts before re-rendering
+    Object.values(chartInstances).forEach(chart => chart.destroy());
+    chartInstances = {};
+
+    // Convert data based on current unit preference
+    var tempData = {
+        avg: data.temperature.avg.map(v => isMetric ? v : celsiusToFahrenheit(v)),
+        min: data.temperature.min.map(v => isMetric ? v : celsiusToFahrenheit(v)),
+        max: data.temperature.max.map(v => isMetric ? v : celsiusToFahrenheit(v))
+    };
+    var pressureData = data.pressure.avg.map(v => isMetric ? v : hpaToInHg(v));
+    // Wind is already in the correct unit from backend (km/h), but we store raw
+    var windData = data.wind.avg.map(v => isMetric ? v : kmhToMph(v));
+
+    var tempUnit = isMetric ? '°C' : '°F';
+    var pressureUnit = isMetric ? 'hPa' : 'inHg';
+    var windUnit = isMetric ? 'km/h' : 'mph';
     
     const chartOptions = {
         responsive: true,
@@ -277,14 +461,14 @@ function renderTrendCharts(data) {
     };
     
     // Temperature chart
-    new Chart(document.getElementById('temperature-chart'), {
+    chartInstances.temperature = new Chart(document.getElementById('temperature-chart'), {
         type: 'line',
         data: {
             labels: data.labels,
             datasets: [
                 {
-                    label: 'Avg Temp (°F)',
-                    data: data.temperature.avg,
+                    label: 'Avg Temp (' + tempUnit + ')',
+                    data: tempData.avg,
                     borderColor: 'rgb(255, 99, 132)',
                     backgroundColor: 'rgba(255, 99, 132, 0.1)',
                     fill: false,
@@ -292,7 +476,7 @@ function renderTrendCharts(data) {
                 },
                 {
                     label: 'Max',
-                    data: data.temperature.max,
+                    data: tempData.max,
                     borderColor: 'rgba(255, 99, 132, 0.4)',
                     borderDash: [5, 5],
                     fill: false,
@@ -301,7 +485,7 @@ function renderTrendCharts(data) {
                 },
                 {
                     label: 'Min',
-                    data: data.temperature.min,
+                    data: tempData.min,
                     borderColor: 'rgba(255, 99, 132, 0.4)',
                     borderDash: [5, 5],
                     fill: false,
@@ -313,8 +497,8 @@ function renderTrendCharts(data) {
         options: chartOptions
     });
     
-    // Humidity chart
-    new Chart(document.getElementById('humidity-chart'), {
+    // Humidity chart (always %)
+    chartInstances.humidity = new Chart(document.getElementById('humidity-chart'), {
         type: 'line',
         data: {
             labels: data.labels,
@@ -337,13 +521,13 @@ function renderTrendCharts(data) {
     });
     
     // Pressure chart
-    new Chart(document.getElementById('pressure-chart'), {
+    chartInstances.pressure = new Chart(document.getElementById('pressure-chart'), {
         type: 'line',
         data: {
             labels: data.labels,
             datasets: [{
-                label: 'Pressure (mbar)',
-                data: data.pressure.avg,
+                label: 'Pressure (' + pressureUnit + ')',
+                data: pressureData,
                 borderColor: 'rgb(54, 162, 235)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
                 fill: true,
@@ -354,13 +538,13 @@ function renderTrendCharts(data) {
     });
     
     // Wind chart
-    new Chart(document.getElementById('wind-chart'), {
+    chartInstances.wind = new Chart(document.getElementById('wind-chart'), {
         type: 'line',
         data: {
             labels: data.labels,
             datasets: [{
-                label: 'Wind Speed (mph)',
-                data: data.wind.avg,
+                label: 'Wind Speed (' + windUnit + ')',
+                data: windData,
                 borderColor: 'rgb(153, 102, 255)',
                 backgroundColor: 'rgba(153, 102, 255, 0.1)',
                 fill: true,

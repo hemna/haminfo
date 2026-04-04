@@ -3,6 +3,72 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Optional, Union
+
+# Cutover timestamp: rust-aprsd started storing Fahrenheit instead of Celsius
+# Data before this is in Celsius, data on/after is in Fahrenheit
+FAHRENHEIT_CUTOVER = datetime(2026, 3, 30, 18, 0, 0, tzinfo=timezone.utc)
+
+
+def convert_temperature_to_celsius(
+    temp: Optional[float],
+    report_time: Optional[Union[datetime, str]] = None,
+) -> Optional[float]:
+    """Convert temperature to Celsius, handling the Fahrenheit cutover.
+
+    Before 2026-03-30 18:00 UTC, temperatures were stored in Celsius (Python/APRSD).
+    After that, rust-aprsd stores temperatures in Fahrenheit.
+
+    For recent data (no timestamp or after cutover), assume Fahrenheit.
+    For historical data (before cutover), return as-is (already Celsius).
+
+    Args:
+        temp: Temperature value from database.
+        report_time: Timestamp of the weather report. If None, assumes recent data.
+
+    Returns:
+        Temperature in Celsius, or None if input is None.
+    """
+    if temp is None:
+        return None
+
+    # Parse string timestamps if needed
+    if isinstance(report_time, str):
+        try:
+            # Handle ISO format strings
+            report_time = datetime.fromisoformat(report_time.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            report_time = None
+
+    # Make timezone-aware if naive
+    if report_time is not None and report_time.tzinfo is None:
+        report_time = report_time.replace(tzinfo=timezone.utc)
+
+    # If we have a timestamp and it's before the cutover, data is already Celsius
+    if report_time is not None and report_time < FAHRENHEIT_CUTOVER:
+        return temp
+
+    # Otherwise, assume Fahrenheit and convert to Celsius
+    return (temp - 32) * 5 / 9
+
+
+def fahrenheit_to_celsius(temp: Optional[float]) -> Optional[float]:
+    """Convert Fahrenheit to Celsius.
+
+    Simple conversion without timestamp logic. Use for data known to be in Fahrenheit.
+
+    Args:
+        temp: Temperature in Fahrenheit.
+
+    Returns:
+        Temperature in Celsius, or None if input is None.
+    """
+    if temp is None:
+        return None
+    return (temp - 32) * 5 / 9
+
+
 # Callsign prefix to country mapping (common prefixes)
 CALLSIGN_PREFIXES = {
     '9M': ('MY', 'Malaysia'),
