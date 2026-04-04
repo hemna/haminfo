@@ -1,0 +1,9 @@
+{# Decode error partial - rendered when packet decode fails #}
+<div class="decode-error">
+    <div class="decode-error-icon">!</div>
+    <div class="decode-error-message">{{ error }}</div>
+    <div class="decode-error-hint">
+        Check that the packet follows APRS format, e.g.:<br>
+        <code>CALLSIGN>DEST,PATH:data</code>
+    </div>
+</div>

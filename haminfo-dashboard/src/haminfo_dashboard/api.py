@@ -655,3 +655,30 @@ def api_all_countries_json():
         )
     finally:
         session.close()
+
+
+# Packet decoder endpoint
+
+
+@dashboard_bp.route('/api/dashboard/decode', methods=['POST'])
+def api_decode_packet():
+    """Decode a raw APRS packet and return HTML partial with results."""
+    from haminfo_dashboard.decoder import decode_packet
+
+    raw_packet = request.form.get('raw_packet', '').strip()
+
+    result = decode_packet(raw_packet)
+
+    if result['success']:
+        return render_template(
+            'dashboard/partials/decode_result.html',
+            raw_packet=result['raw'],
+            annotations=result['annotations'],
+            sections=result['sections'],
+            parsed=result['parsed'],
+        )
+    else:
+        return render_template(
+            'dashboard/partials/decode_error.html',
+            error=result['error'],
+        )
