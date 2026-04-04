@@ -76,6 +76,27 @@
                         <canvas id="pressureChart"></canvas>
                     </div>
                 </div>
+                
+                <!-- Wind Rose Graph -->
+                <div style="background:var(--surface);border-radius:8px;padding:16px;">
+                    <div style="color:var(--text-secondary);font-size:12px;font-weight:600;margin-bottom:12px;text-transform:uppercase;">Wind Rose</div>
+                    <div style="display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;">
+                        <div style="width:280px;height:280px;position:relative;">
+                            <canvas id="windRoseChart"></canvas>
+                        </div>
+                        <div id="windRoseLegend" style="font-size:11px;color:var(--text-muted);">
+                            <!-- Legend populated by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Wind Speed Over Time Graph -->
+                <div style="background:var(--surface);border-radius:8px;padding:16px;">
+                    <div style="color:var(--text-secondary);font-size:12px;font-weight:600;margin-bottom:12px;text-transform:uppercase;">Wind Speed & Gusts</div>
+                    <div style="height:200px;">
+                        <canvas id="windSpeedChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -150,6 +171,9 @@
                 var dewpoints = [];
                 var humidities = [];
                 var pressures = [];
+                var windSpeeds = [];
+                var windGusts = [];
+                var windDirections = [];
                 
                 reports.forEach(function(r) {
                     labels.push(formatTime(r.time));
@@ -157,6 +181,9 @@
                     dewpoints.push(calcDewpoint(r.temperature, r.humidity));
                     humidities.push(r.humidity);
                     pressures.push(r.pressure > 0 ? r.pressure : null);
+                    windSpeeds.push(r.wind_speed);
+                    windGusts.push(r.wind_gust > 0 ? r.wind_gust : null);
+                    windDirections.push(r.wind_direction);
                 });
                 
                 // Common chart options (using category scale instead of time)
@@ -296,6 +323,175 @@
                             scales: Object.assign({}, commonOptions.scales, {
                                 y: Object.assign({}, commonOptions.scales.y, {
                                     title: { display: true, text: 'mbar', color: '#9ca3af', font: { size: 11 } }
+                                })
+                            })
+                        })
+                    });
+                }
+                
+                // Wind Rose Chart - shows wind direction distribution
+                var windRoseCtx = document.getElementById('windRoseChart');
+                if (windRoseCtx && !windRoseCtx._chartInitialized) {
+                    windRoseCtx._chartInitialized = true;
+                    
+                    // 16 compass directions
+                    var compassLabels = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 
+                                         'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+                    var directionBins = new Array(16).fill(0);  // Count per direction
+                    var speedBins = new Array(16).fill(0);      // Sum of speeds per direction
+                    var totalReadings = 0;
+                    
+                    // Bin wind data into 16 directions (22.5 degrees each)
+                    reports.forEach(function(r) {
+                        if (r.wind_direction !== null && r.wind_speed !== null && r.wind_speed > 0) {
+                            // Normalize direction to 0-360
+                            var dir = ((r.wind_direction % 360) + 360) % 360;
+                            // Calculate bin index (0 = N, centered at 0 degrees)
+                            // Add 11.25 to center bins on compass points
+                            var binIndex = Math.round((dir + 11.25) / 22.5) % 16;
+                            directionBins[binIndex]++;
+                            speedBins[binIndex] += r.wind_speed;
+                            totalReadings++;
+                        }
+                    });
+                    
+                    // Calculate average speed per direction and frequency percentage
+                    var avgSpeeds = directionBins.map(function(count, i) {
+                        return count > 0 ? speedBins[i] / count : 0;
+                    });
+                    var frequencies = directionBins.map(function(count) {
+                        return totalReadings > 0 ? (count / totalReadings) * 100 : 0;
+                    });
+                    
+                    // Find max for scaling
+                    var maxFreq = Math.max.apply(null, frequencies);
+                    var maxSpeed = Math.max.apply(null, avgSpeeds);
+                    
+                    // Update legend
+                    var legendDiv = document.getElementById('windRoseLegend');
+                    if (legendDiv && totalReadings > 0) {
+                        var dominantIdx = frequencies.indexOf(maxFreq);
+                        legendDiv.innerHTML = 
+                            '<div style="margin-bottom:8px;"><strong style="color:var(--text-primary);">Wind Summary</strong></div>' +
+                            '<div>Total readings: ' + totalReadings + '</div>' +
+                            '<div>Dominant: <span style="color:var(--accent-cyan);">' + compassLabels[dominantIdx] + '</span> (' + maxFreq.toFixed(0) + '%)</div>' +
+                            '<div>Max avg speed: ' + maxSpeed.toFixed(1) + ' km/h</div>' +
+                            '<div style="margin-top:12px;font-size:10px;">Bar height = frequency<br>Color intensity = avg speed</div>';
+                    } else if (legendDiv) {
+                        legendDiv.innerHTML = '<div style="color:var(--text-muted);">No wind data available</div>';
+                    }
+                    
+                    // Create color gradient based on wind speed
+                    var colors = avgSpeeds.map(function(speed) {
+                        // Color from cyan (low) to magenta (high)
+                        var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
+                        var r = Math.round(6 + intensity * (236 - 6));
+                        var g = Math.round(182 - intensity * (182 - 72));
+                        var b = Math.round(212 + intensity * (153 - 212));
+                        return 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
+                    });
+                    var borderColors = avgSpeeds.map(function(speed) {
+                        var intensity = maxSpeed > 0 ? speed / maxSpeed : 0;
+                        var r = Math.round(6 + intensity * (236 - 6));
+                        var g = Math.round(182 - intensity * (182 - 72));
+                        var b = Math.round(212 + intensity * (153 - 212));
+                        return 'rgb(' + r + ',' + g + ',' + b + ')';
+                    });
+                    
+                    new Chart(windRoseCtx, {
+                        type: 'polarArea',
+                        data: {
+                            labels: compassLabels,
+                            datasets: [{
+                                data: frequencies,
+                                backgroundColor: colors,
+                                borderColor: borderColors,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+                                    titleColor: '#f3f4f6',
+                                    bodyColor: '#d1d5db',
+                                    borderColor: '#374151',
+                                    borderWidth: 1,
+                                    callbacks: {
+                                        label: function(context) {
+                                            var idx = context.dataIndex;
+                                            return [
+                                                'Direction: ' + compassLabels[idx],
+                                                'Frequency: ' + frequencies[idx].toFixed(1) + '%',
+                                                'Avg Speed: ' + avgSpeeds[idx].toFixed(1) + ' km/h',
+                                                'Readings: ' + directionBins[idx]
+                                            ];
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    startAngle: -11.25,  // Offset to center N at top
+                                    grid: { color: 'rgba(75, 85, 99, 0.3)' },
+                                    ticks: { 
+                                        color: '#9ca3af', 
+                                        font: { size: 9 },
+                                        backdropColor: 'transparent',
+                                        callback: function(value) { return value.toFixed(0) + '%'; }
+                                    },
+                                    pointLabels: {
+                                        color: '#d1d5db',
+                                        font: { size: 11, weight: 'bold' }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Wind Speed Over Time Chart
+                var windSpeedCtx = document.getElementById('windSpeedChart');
+                if (windSpeedCtx && !windSpeedCtx._chartInitialized) {
+                    windSpeedCtx._chartInitialized = true;
+                    new Chart(windSpeedCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Wind Speed (km/h)',
+                                    data: windSpeeds,
+                                    borderColor: '#8b5cf6',
+                                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 4,
+                                    tension: 0.3,
+                                    fill: true
+                                },
+                                {
+                                    label: 'Gusts (km/h)',
+                                    data: windGusts,
+                                    borderColor: '#ef4444',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
+                                    pointHoverRadius: 4,
+                                    tension: 0.3,
+                                    borderDash: [5, 5],
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: Object.assign({}, commonOptions, {
+                            scales: Object.assign({}, commonOptions.scales, {
+                                y: Object.assign({}, commonOptions.scales.y, {
+                                    min: 0,
+                                    title: { display: true, text: 'km/h', color: '#9ca3af', font: { size: 11 } }
                                 })
                             })
                         })
