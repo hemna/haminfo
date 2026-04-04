@@ -390,6 +390,257 @@
         .htmx-request .loading-spinner {
             display: block;
         }
+        
+        /* Decode Trigger Button */
+        .decode-trigger {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .decode-trigger:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent-green);
+        }
+        .decode-icon { font-size: 14px; }
+        .decode-label { font-size: 12px; color: var(--text-secondary); }
+        .decode-shortcut {
+            font-size: 10px;
+            color: var(--text-muted);
+            padding: 2px 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        /* Decode Modal */
+        #decode-modal .decode-modal {
+            max-width: 720px;
+            width: 95%;
+        }
+        #decode-modal .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        /* Decode Input */
+        .decode-input-section { margin-bottom: 16px; }
+        .decode-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        .decode-textarea:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+        .decode-textarea::placeholder { color: var(--text-muted); }
+        .decode-submit-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+        .decode-submit-btn {
+            padding: 8px 20px;
+            background: var(--accent-green);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .decode-submit-btn:hover { opacity: 0.9; }
+        .decode-submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Decode Results */
+        #decode-results { margin-top: 20px; }
+        #decode-results:empty { display: none; }
+        
+        .decode-annotated-section {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .decode-section-header {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .packet-annotated {
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 13px;
+            line-height: 2.2;
+            word-break: break-all;
+        }
+        .packet-segment {
+            padding: 3px 6px;
+            border-radius: 3px;
+            cursor: help;
+        }
+        .packet-segment-plain { color: var(--text-muted); }
+        .packet-segment-source { background: rgba(63,185,80,0.3); color: #3fb950; }
+        .packet-segment-destination { background: rgba(210,153,34,0.3); color: #d29922; }
+        .packet-segment-path { background: rgba(88,166,255,0.3); color: #58a6ff; }
+        .packet-segment-datatype { background: rgba(188,140,255,0.3); color: #bc8cff; }
+        .packet-segment-timestamp { background: rgba(255,255,255,0.15); color: #c9d1d9; }
+        .packet-segment-position { background: rgba(255,123,114,0.3); color: #ff7b72; }
+        .packet-segment-weather { background: rgba(121,192,255,0.3); color: #79c0ff; }
+        
+        .packet-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+            font-size: 10px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        .legend-source { background: rgba(63,185,80,0.5); }
+        .legend-destination { background: rgba(210,153,34,0.5); }
+        .legend-path { background: rgba(88,166,255,0.5); }
+        .legend-datatype { background: rgba(188,140,255,0.5); }
+        .legend-position { background: rgba(255,123,114,0.5); }
+        .legend-weather { background: rgba(121,192,255,0.5); }
+        
+        /* Decode Tables */
+        .decode-tables {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .decode-section {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 14px;
+        }
+        .decode-section-wide { grid-column: span 2; }
+        .decode-table {
+            width: 100%;
+            font-size: 12px;
+        }
+        .decode-table td { padding: 4px 0; }
+        .decode-label { color: var(--text-muted); width: 40%; }
+        .decode-value { color: var(--text-primary); }
+        .decode-value code {
+            background: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .decode-weather-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .decode-weather-item { text-align: center; }
+        .decode-weather-label {
+            display: block;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .decode-weather-value {
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+        
+        .decode-comment {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        
+        /* Decode Actions */
+        .decode-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+        .decode-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .decode-btn-secondary {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .decode-btn-secondary:hover { border-color: var(--text-muted); }
+        .decode-btn-primary {
+            background: var(--accent-green);
+            border: none;
+            color: #000;
+            font-weight: 600;
+        }
+        
+        /* Decode Error */
+        .decode-error {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid #f85149;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+        }
+        .decode-error-icon { font-size: 32px; margin-bottom: 12px; color: #f85149; }
+        .decode-error-message {
+            color: #f85149;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .decode-error-hint {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        .decode-error-hint code {
+            background: var(--bg-card);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        
+        /* Responsive for decode modal */
+        @media (max-width: 600px) {
+            .decode-tables { grid-template-columns: 1fr; }
+            .decode-section-wide { grid-column: span 1; }
+            .decode-weather-grid { grid-template-columns: repeat(2, 1fr); }
+            .decode-trigger .decode-label { display: none; }
+            .decode-trigger .decode-shortcut { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -409,6 +660,11 @@
             </nav>
         </div>
         <div class="header-right">
+            <div class="decode-trigger" onclick="openDecodeModal()" title="Decode APRS Packet (Cmd+K)">
+                <span class="decode-icon">&#128225;</span>
+                <span class="decode-label">Decode</span>
+                <span class="decode-shortcut">&#8984;K</span>
+            </div>
             <div class="time-display">
                 <span id="utc-time" style="color:var(--accent-cyan);font-family:'Fira Code',monospace;font-size:12px;">--:--:-- UTC</span>
                 <span style="color:var(--text-muted);margin:0 8px;">|</span>
@@ -434,6 +690,41 @@
             <div class="modal-body">
                 <div id="modal-timestamp" style="margin-bottom:12px;padding:8px 12px;background:var(--surface);border-radius:6px;font-family:'Fira Code',monospace;font-size:12px;"></div>
                 <div id="modal-raw-packet" class="raw-packet"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Decode APRS Packet Modal -->
+    <div id="decode-modal" class="modal-overlay" onclick="if(event.target === this) closeDecodeModal()">
+        <div class="modal decode-modal">
+            <div class="modal-header">
+                <span class="modal-title">&#128225; Decode APRS Packet</span>
+                <button class="modal-close" onclick="closeDecodeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="decode-input-section">
+                    <textarea
+                        id="decode-input"
+                        name="raw_packet"
+                        class="decode-textarea"
+                        placeholder="Paste raw APRS packet here, e.g.:&#10;W3ADO-1>APRS,WIDE1-1:@092345z3955.00N/07520.00W_090/005g010t072"
+                        oninput="updateDecodeButton()"
+                    ></textarea>
+                    <div class="decode-submit-row">
+                        <button
+                            id="decode-submit-btn"
+                            class="decode-submit-btn"
+                            disabled
+                            hx-post="{{ url_for('dashboard.api_decode_packet') }}"
+                            hx-include="#decode-input"
+                            hx-target="#decode-results"
+                            hx-swap="innerHTML"
+                        >
+                            Decode
+                        </button>
+                    </div>
+                </div>
+                <div id="decode-results"></div>
             </div>
         </div>
     </div>
@@ -548,6 +839,57 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closePacketModal();
+                closeDecodeModal();
+            }
+        });
+        
+        // Decode Modal Functions
+        function openDecodeModal() {
+            const modal = document.getElementById('decode-modal');
+            modal.classList.add('active');
+            document.getElementById('decode-input').focus();
+            // Clear previous results
+            document.getElementById('decode-results').innerHTML = '';
+        }
+        
+        function closeDecodeModal() {
+            const modal = document.getElementById('decode-modal');
+            modal.classList.remove('active');
+        }
+        
+        function updateDecodeButton() {
+            const input = document.getElementById('decode-input');
+            const btn = document.getElementById('decode-submit-btn');
+            btn.disabled = !input.value.trim();
+        }
+        
+        function copyRawPacket() {
+            const input = document.getElementById('decode-input');
+            navigator.clipboard.writeText(input.value).then(() => {
+                // Brief visual feedback
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = 'Copied!';
+                setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+            });
+        }
+        
+        // Keyboard shortcut: Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                openDecodeModal();
+            }
+        });
+        
+        // Submit decode on Enter (when not holding Shift for newline)
+        document.getElementById('decode-input')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const btn = document.getElementById('decode-submit-btn');
+                if (!btn.disabled) {
+                    btn.click();
+                }
             }
         });
     </script>
